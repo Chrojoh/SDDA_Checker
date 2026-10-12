@@ -1,0 +1,21 @@
+.trial-lookup {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 24px;
+  align-items: center;
+  margin: 16px 0;
+  padding: 20px;
+  background: #fff;
+  border: 1px solid #d8dfda;
+  border-radius: 12px;
+}
+.trial-lookup h2 { font-size: 21px; }
+.trial-lookup p:not(.eyebrow) { margin: 7px 0; color: #607068; }
+.official-links { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+.official-links a { color: #536db1; font-weight: 750; }
+.workbook-upload { display: block; padding: 18px; border: 1px dashed #93a89a; border-radius: 9px; background: #f7faf7; cursor: pointer; }
+.workbook-upload strong, .workbook-upload span { display: block; }
+.workbook-upload span { margin-top: 7px; color: #536db1; font-size: 13px; }
+.workbook-upload input { position: absolute; opacity: 0; pointer-events: none; }
+@media (max-width: 780px) { .trial-lookup { grid-template-columns: 1fr; } }
+@media print { .trial-lookup { display: none !important; } }

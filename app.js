@@ -1,0 +1,321 @@
+"use strict";
+
+const COMPONENTS = ["Container", "Interior", "Exterior"];
+const LEVELS = ["Started", "Advanced", "Excellent", "Elite"];
+let titles = [], scores = [], trialDates = new Map(), dateMatches = 0, unmatchedTrials = [];
+
+const $ = (id) => document.getElementById(id);
+const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]));
+function localDateStamp(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+function reportFileStem() {
+  const dog = (scores[0]?.dog || "SDDA-dog").trim().replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ");
+  return `${dog} - SDDA Title Tracker - ${localDateStamp()}`;
+}
+
+function parseCsv(text) {
+  const rows = []; let row = [], field = "", quoted = false;
+  text = text.replace(/^\uFEFF/, "");
+  for (let index = 0; index < text.length; index++) {
+    const character = text[index];
+    if (quoted) {
+      if (character === '"' && text[index + 1] === '"') { field += '"'; index++; }
+      else if (character === '"') quoted = false;
+      else field += character;
+    } else if (character === '"') quoted = true;
+    else if (character === ",") { row.push(field); field = ""; }
+    else if (character === "\n") { row.push(field.replace(/\r$/, "")); rows.push(row); row = []; field = ""; }
+    else field += character;
+  }
+  if (field || row.length) { row.push(field.replace(/\r$/, "")); rows.push(row); }
+  const headers = (rows.shift() || []).map((header) => header.trim());
+  return { headers, data: rows.filter((values) => values.some((value) => value.trim())).map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""]))) };
+}
+
+function tableFromRows(rows, headerTest) {
+  const headerIndex = rows.findIndex((values) => {
+    const headers = values.map((value) => String(value ?? "").trim());
+    return headerTest(headers);
+  });
+  if (headerIndex < 0) return null;
+  const headers = rows[headerIndex].map((header) => String(header ?? "").trim());
+  const data = rows.slice(headerIndex + 1)
+    .filter((values) => values.some((value) => String(value ?? "").trim()))
+    .map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""])));
+  return { headers, data };
+}
+
+async function parseAccountFile(file, headerTest, label) {
+  const extension = file.name.split(".").pop().toLowerCase();
+  if (extension === "csv") {
+    const parsed = parseCsv(await file.text());
+    if (!headerTest(parsed.headers)) throw new Error(`That is not the ${label} file.`);
+    return { ...parsed, sheetName: "CSV" };
+  }
+  if (extension !== "xlsx") throw new Error("Please choose a CSV or XLSX file.");
+
+  const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: false });
+  for (const sheetName of workbook.SheetNames) {
+    const rows = window.XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "", raw: true });
+    const parsed = tableFromRows(rows, headerTest);
+    if (parsed) return { ...parsed, sheetName };
+  }
+  throw new Error(`No worksheet in that workbook contains the expected ${label} columns.`);
+}
+
+function levelFrom(description) {
+  const text = String(description || "");
+  const code = text.match(/\((S|A|E|EL|X)\)\s*$/i)?.[1]?.toUpperCase();
+  if (code === "S") return "Started"; if (code === "A") return "Advanced"; if (code === "E") return "Excellent"; if (code === "EL" || code === "X") return "Elite";
+  return LEVELS.find((level) => new RegExp(level, "i").test(text)) || null;
+}
+function componentFrom(description) { return COMPONENTS.find((component) => new RegExp(component, "i").test(description)) || null; }
+function titleText(title) { return `${title.description} ${title.honours}`.trim(); }
+function findTitle(pattern) { return titles.find((title) => pattern.test(titleText(title))); }
+function dateLabel(value) {
+  if (!value) return "Date not supplied";
+  const date = new Date(`${value}T00:00:00`); return Number.isNaN(date.valueOf()) ? value : date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+function byLevel(level, list = scores) { return list.filter((score) => score.level === level); }
+function componentCounts(level, list = scores) { return Object.fromEntries(COMPONENTS.map((component) => [component, list.filter((score) => score.level === level && score.component === component).length])); }
+
+function workbookDate(value) {
+  if (typeof value === "number") {
+    const parsed = window.XLSX.SSF.parse_date_code(value);
+    if (parsed) return `${String(parsed.y).padStart(4, "0")}-${String(parsed.m).padStart(2, "0")}-${String(parsed.d).padStart(2, "0")}`;
+  }
+  if (value instanceof Date && !Number.isNaN(value.valueOf())) return value.toISOString().slice(0, 10);
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const parsed = new Date(text); return Number.isNaN(parsed.valueOf()) ? "" : parsed.toISOString().slice(0, 10);
+}
+function applyTrialDates() {
+  dateMatches = 0;
+  scores = scores.map((score) => {
+    if (score.date || !score.trial) return score;
+    const found = trialDates.get(String(score.trial));
+    if (!found) return score;
+    dateMatches++; return { ...score, date: found.date, dateSource: `Official Trial Workbook (${found.city || "trial listing"})` };
+  });
+  unmatchedTrials = [...new Set(scores.filter((score) => !score.date && score.trial).map((score) => String(score.trial)))].sort((a, b) => Number(a) - Number(b));
+}
+
+function highToLow(level, list = scores) {
+  const ranked = Object.fromEntries(COMPONENTS.map((component) => [component, list.filter((score) => score.level === level && score.component === component).sort((a, b) => b.score - a.score)]));
+  const count = Math.min(...COMPONENTS.map((component) => ranked[component].length));
+  return Array.from({ length: Number.isFinite(count) ? count : 0 }, (_, index) => {
+    const container = ranked.Container[index].score, interior = ranked.Interior[index].score, exterior = ranked.Exterior[index].score;
+    return { level, rank: index + 1, container, interior, exterior, total: container + interior + exterior, gold: container + interior + exterior >= 192 };
+  });
+}
+
+function eliteSets(list = scores) {
+  const trials = new Map();
+  list.filter((score) => score.level === "Elite").forEach((score) => {
+    const key = score.trial || score.date || `unknown-${score.sourceRow}`;
+    const group = trials.get(key) || { trial: score.trial, date: score.date, parts: {} };
+    if (!group.parts[score.component] || group.parts[score.component].score < score.score) group.parts[score.component] = score;
+    trials.set(key, group);
+  });
+  return [...trials.values()].filter((group) => COMPONENTS.every((component) => group.parts[component])).map((group) => {
+    const total = COMPONENTS.reduce((sum, component) => sum + group.parts[component].score, 0);
+    return { ...group, total, gold: total >= 192 };
+  });
+}
+
+function progressCard(title, status, requirements, note = "") {
+  const met = status === "Achieved" || status === "Requirements shown as met";
+  const statusClass = met ? "met" : status.includes("cannot") || status.includes("verification") ? "unknown" : "partial";
+  return `<article class="progress-card"><h3>${esc(title)}</h3><span class="status ${statusClass}">${esc(status)}</span><ul class="requirements">${requirements.map((requirement) => `<li class="${requirement.done ? "done" : ""}">${esc(requirement.text)}</li>`).join("")}</ul>${note ? `<p>${esc(note)}</p>` : ""}</article>`;
+}
+
+function titlePattern(level) { return new RegExp(`^${level}(?:\\s|$)`, "i"); }
+function championshipTitle(kind) {
+  const patterns = {
+    ch: /(^|\b)(SD[- ]?)?CH(\b|$)|scent detection champion/i,
+    mach: /(^|\b)(SD[- ]?)?MACH(?!\d)|master champion(?!\s*[234])/i,
+    mach2: /MACH\s*2|master champion\s*2/i, mach3: /MACH\s*3|master champion\s*3/i, mach4: /MACH\s*4|master champion\s*4/i,
+    elch: /(^|\b)(SD[- ]?)?ELCH(?!\d)|elite champion(?!\s*[234])/i,
+    elch2: /ELCH\s*2|elite champion\s*2/i, elch3: /ELCH\s*3|elite champion\s*3/i, elch4: /ELCH\s*4|elite champion\s*4/i,
+    gmch: /GMCH|grand master champion/i
+  };
+  return findTitle(patterns[kind]);
+}
+
+function rowsAfter(date) {
+  if (!date || scores.some((score) => !score.date)) return null;
+  return scores.filter((score) => score.date > date);
+}
+
+function render() {
+  if (!titles.length || !scores.length) { $("report").hidden = true; return; }
+  const dogNumbers = [...new Set(scores.map((score) => score.dogNumber).filter(Boolean))];
+  if (dogNumbers.length > 1) { $("message").textContent = "The score file contains more than one dog. Please download and upload one dog's history at a time."; $("report").hidden = true; return; }
+  $("report").hidden = false;
+  const dog = scores[0]?.dog || "SDDA dog", number = scores[0]?.dogNumber || "not supplied";
+  document.title = reportFileStem();
+  $("dog-name").textContent = dog; $("dog-meta").textContent = `SDDA #${number} · ${scores.length} qualifying component scores · ${titles.length} recorded titles`;
+  $("message").textContent = trialDates.size ? `Both account downloads loaded. The Trial Workbook supplied dates for ${dateMatches} score rows.` : "Both account downloads loaded. The report below was calculated locally.";
+
+  $("achieved").innerHTML = titles.map((title) => `<article class="title-card"><h3>${esc(title.description)}</h3><span class="status met">Achieved</span><div class="score">${title.score == null || Number.isNaN(title.score) ? "—" : esc(title.score)}</div><p>${title.score == null || Number.isNaN(title.score) ? "No title score supplied" : "Recorded title score"}</p><p><strong>${esc(dateLabel(title.date))}</strong>${title.honours ? ` · ${esc(title.honours)}` : ""}</p></article>`).join("") || `<article class="title-card"><h3>No titles listed</h3><p>The supplied title download has no recorded title rows.</p></article>`;
+
+  const cards = [];
+  for (const level of LEVELS) {
+    const earned = findTitle(titlePattern(level)); const counts = componentCounts(level); const missing = COMPONENTS.filter((component) => counts[component] === 0);
+    const requirements = COMPONENTS.map((component) => ({ done: counts[component] > 0, text: `${component}: ${counts[component] ? `${counts[component]} qualifying score${counts[component] === 1 ? "" : "s"}` : "needed"}` }));
+    let status = earned ? "Achieved" : missing.length ? "In progress" : level === "Elite" ? "Needs same-trial verification" : "Requirements shown as met";
+    let note = earned ? `Recorded ${dateLabel(earned.date)}${earned.score == null ? "" : ` with title score ${earned.score}`}.` : missing.length ? `Needs ${missing.join(" and ")}.` : level === "Elite" ? "Elite requires all three components at the same trial." : "The account shows at least one qualifying score in every component.";
+    cards.push(progressCard(level, status, requirements, note));
+  }
+
+  const advanced = highToLow("Advanced"), excellent = highToLow("Excellent"), combined = [...advanced, ...excellent], golds = combined.filter((set) => set.gold);
+  const ch = championshipTitle("ch"), mach = championshipTitle("mach");
+  const totalSets = combined.length, excellentSets = excellent.length;
+  cards.push(progressCard("SD-CH", ch ? "Achieved" : totalSets >= 5 && excellentSets >= 2 ? "Requirements shown as met" : "In progress", [
+    { done: totalSets >= 5, text: `${totalSets}/5 Advanced or Excellent titling scores` },
+    { done: excellentSets >= 2, text: `${excellentSets}/2 must be Excellent` }
+  ], ch ? `Recorded ${dateLabel(ch.date)}.` : "Calculated from high-to-low component combinations."));
+  cards.push(progressCard("SD-MACH", mach ? "Achieved" : totalSets >= 10 && excellentSets >= 3 && golds.length >= 3 ? "Requirements shown as met" : "In progress", [
+    { done: totalSets >= 10, text: `${totalSets}/10 Advanced or Excellent titling scores` },
+    { done: excellentSets >= 3, text: `${excellentSets}/3 must be Excellent` },
+    { done: golds.length >= 3, text: `${golds.length}/3 calculated Gold scores` }
+  ], mach ? `Recorded ${dateLabel(mach.date)}.` : "Golds may be earned at Advanced or Excellent."));
+
+  const elSets = eliteSets(), elGolds = elSets.filter((set) => set.gold), elch = championshipTitle("elch");
+  cards.push(progressCard("SD-ELCH", elch ? "Achieved" : "In progress", [
+    { done: elSets.length >= 5, text: `${elSets.length}/5 complete same-trial Elite scores` },
+    { done: elGolds.length >= 2, text: `${elGolds.length}/2 calculated Elite Gold scores` },
+    { done: false, text: "Scores under at least 2 judges: cannot verify from this CSV" }
+  ], elch ? `Recorded ${dateLabel(elch.date)}.` : "Trial numbers are used to group Elite components."));
+  const gmch = championshipTitle("gmch");
+  cards.push(progressCard("SD-GMCH", gmch ? "Achieved" : "In progress", [
+    { done: !!mach, text: mach ? "SD-MACH recorded" : "SD-MACH required" }, { done: !!elch, text: elch ? "SD-ELCH recorded" : "SD-ELCH required" }, { done: false, text: "At least 3 judges: cannot verify from this CSV" }
+  ], gmch ? `Recorded ${dateLabel(gmch.date)}.` : "Judge names are not included in the supplied score download."));
+
+  const extensions = [
+    { key: "mach2", prior: mach, title: "SD-MACH2", need: 10, excellent: 7, gold: 3, goldExcellent: true },
+    { key: "mach3", prior: championshipTitle("mach2"), title: "SD-MACH3", need: 10, excellent: 10, gold: 3, goldExcellent: true },
+    { key: "mach4", prior: championshipTitle("mach3"), title: "SD-MACH4", need: 10, excellent: 10, gold: 4, goldExcellent: true }
+  ];
+  for (const extension of extensions) {
+    const achieved = championshipTitle(extension.key); if (!extension.prior && !achieved) continue;
+    const eligibleRows = extension.prior ? rowsAfter(extension.prior.date) : null;
+    const a = eligibleRows ? highToLow("Advanced", eligibleRows) : [], e = eligibleRows ? highToLow("Excellent", eligibleRows) : [], sets = [...a, ...e], gold = e.filter((set) => set.gold).length;
+    const cannot = !achieved && !eligibleRows;
+    cards.push(progressCard(extension.title, achieved ? "Achieved" : cannot ? "Date verification unavailable" : "In progress", [
+      { done: achieved || sets.length >= extension.need, text: achieved ? "Recorded by SDDA" : cannot ? `${extension.need} additional scores after the previous title date` : `${sets.length}/${extension.need} additional titling scores` },
+      { done: achieved || e.length >= extension.excellent, text: achieved ? `Recorded ${dateLabel(achieved.date)}` : cannot ? `${extension.excellent} must be Excellent` : `${e.length}/${extension.excellent} Excellent` },
+      { done: achieved || gold >= extension.gold, text: achieved ? "Gold requirement recorded as complete" : cannot ? `${extension.gold} Excellent Gold scores required` : `${gold}/${extension.gold} Excellent Gold scores` }
+    ], cannot ? "Event Date is blank in one or more score rows, so scores after the prior title date cannot be isolated safely." : "Only scores after the previous championship title date are eligible."));
+  }
+  $("progress").innerHTML = cards.join("");
+
+  $("gold-summary").innerHTML = `<span>${advanced.length} Advanced combinations</span><span>${excellent.length} Excellent combinations</span><span class="gold">${golds.length} calculated Gold scores</span>`;
+  $("gold-rows").innerHTML = combined.map((set) => `<tr class="${set.gold ? "gold" : ""}"><td>${set.level}</td><td>${set.rank}</td><td>${set.container}</td><td>${set.interior}</td><td>${set.exterior}</td><td>${set.total}</td><td>${set.gold ? "Gold" : set.total >= 172 ? "Silver" : set.total >= 142 ? "Bronze" : "Satisfactory"}</td></tr>`).join("") || `<tr><td colspan="7">No complete Advanced or Excellent component combination is available.</td></tr>`;
+
+  const blanks = scores.filter((score) => !score.date).length;
+  $("limits").innerHTML = `<h3>Verification limits in these downloads</h3><ul><li>The score CSV contains no judge column, so two-judge and three-judge championship requirements cannot be proven.</li>${dateMatches ? `<li>${dateMatches} missing Event Date value${dateMatches === 1 ? " was" : "s were"} filled by matching Trial Number in the official Trial Workbook.</li>` : ""}${blanks ? `<li>${blanks} score row${blanks === 1 ? " still has" : "s still have"} no Event Date.${unmatchedTrials.length ? ` Trial number${unmatchedTrials.length === 1 ? "" : "s"} not found in that workbook: ${unmatchedTrials.join(", ")}.` : ""} Higher championship calculations cannot reliably exclude scores earned on or before a previous title date.</li>` : ""}<li>This report treats rows in the Dog Scores download as qualifying scores, consistent with the supplied Gold-score instructions.</li><li>SDDA remains the authority for official title approval.</li></ul>`;
+}
+
+async function loadTitles(file) {
+  const parsed = await parseAccountFile(file, (headers) => headers.some((header) => /^description$/i.test(header)) && headers.some((header) => /title score/i.test(header)) && headers.some((header) => /title date/i.test(header)), "Dog Titles");
+  titles = parsed.data.map((row) => ({ description: String(row.Description || "").trim(), honours: String(row.Honours || "").trim(), score: String(row["Title Score"] || "").trim() === "" ? null : Number(row["Title Score"]), date: String(row["Title Date"] || "").trim() })).filter((title) => title.description);
+  $("titles-name").textContent = `${file.name} · ${titles.length} titles${parsed.sheetName === "CSV" ? "" : ` · ${parsed.sheetName}`}`; render();
+}
+async function loadScores(file) {
+  const parsed = await parseAccountFile(file, (headers) => headers.some((header) => /^description$/i.test(header)) && headers.some((header) => /maximum score/i.test(header)) && headers.some((header) => /^score$/i.test(header)), "Dog Scores");
+  scores = parsed.data.map((row, index) => { const description = String(row.Description || "").trim(), level = levelFrom(description), component = componentFrom(description), score = Number(row.Score); if (!level || !component || !Number.isFinite(score)) return null; return { sourceRow: index + 2, dogNumber: String(row["Dog Number"] || "").trim(), dog: String(row["Registered Name"] || "").trim(), trial: String(row["Trial Number"] || "").trim(), date: String(row["Event Date"] || "").trim(), description, level, component, score, maximum: Number(row["Maximum Score"]) }; }).filter(Boolean);
+  if (trialDates.size) applyTrialDates();
+  $("scores-name").textContent = `${file.name} · ${scores.length} qualifying scores${parsed.sheetName === "CSV" ? "" : ` · ${parsed.sheetName}`}`; render();
+}
+
+async function loadTrialWorkbook(file) {
+  const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: false });
+  const sheet = workbook.Sheets["Processed and Future Trials"];
+  if (!sheet) throw new Error("That workbook does not contain the 'Processed and Future Trials' sheet.");
+  const rows = window.XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+  const lookup = new Map();
+  for (const row of rows.slice(2)) {
+    for (const start of [0, 6]) {
+      const trial = String(row[start] || "").trim(), date = workbookDate(row[start + 1]), city = String(row[start + 2] || "").trim();
+      if (trial && date) lookup.set(trial, { date, city });
+    }
+  }
+  if (!lookup.size) throw new Error("No trial-number/date records were found in that workbook.");
+  trialDates = lookup; applyTrialDates();
+  $("workbook-name").textContent = `${file.name} · ${lookup.size} trial dates · ${dateMatches} score rows matched`;
+  $("message").textContent = dateMatches ? `Matched ${dateMatches} blank score-row dates using Trial Number.` : `Loaded ${lookup.size} official trial dates, but none of this dog's blank-date trial numbers were listed.`;
+  render();
+}
+
+$("titles-file").addEventListener("change", async (event) => { try { if (event.target.files[0]) await loadTitles(event.target.files[0]); } catch (error) { $("message").textContent = error.message; } });
+$("scores-file").addEventListener("change", async (event) => { try { if (event.target.files[0]) await loadScores(event.target.files[0]); } catch (error) { $("message").textContent = error.message; } });
+$("workbook-file").addEventListener("change", async (event) => { try { if (event.target.files[0]) await loadTrialWorkbook(event.target.files[0]); } catch (error) { $("message").textContent = `Trial Workbook import failed: ${error.message}`; } });
+
+async function downloadPdfReport() {
+  if (!scores.length || !titles.length) return;
+  const { PDFDocument, StandardFonts, rgb } = window.PDFLib;
+  const pdf = await PDFDocument.create();
+  const regular = await pdf.embedFont(StandardFonts.Helvetica);
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const pageSize = [612, 792], margin = 46, lineHeight = 13;
+  let page, y;
+  function newPage() {
+    page = pdf.addPage(pageSize); y = 746;
+    page.drawText("SDDA Title Tracker", { x: margin, y: 765, size: 9, font: bold, color: rgb(.13, .37, .27) });
+    page.drawText(`Page ${pdf.getPageCount()}`, { x: 520, y: 765, size: 8, font: regular, color: rgb(.4, .45, .42) });
+  }
+  function wrap(text, maxWidth, font, size) {
+    const words = String(text || "").replace(/[^\x20-\x7E]/g, " ").replace(/\s+/g, " ").trim().split(" ");
+    const lines = []; let line = "";
+    for (const word of words) { const next = line ? `${line} ${word}` : word; if (font.widthOfTextAtSize(next, size) > maxWidth && line) { lines.push(line); line = word; } else line = next; }
+    if (line) lines.push(line); return lines;
+  }
+  function text(value, options = {}) {
+    const size = options.size || 10, font = options.bold ? bold : regular, color = options.color || rgb(.10, .14, .12), indent = options.indent || 0;
+    const lines = wrap(value, 612 - margin * 2 - indent, font, size);
+    for (const line of lines) { if (y < 52) newPage(); page.drawText(line, { x: margin + indent, y, size, font, color }); y -= options.leading || lineHeight; }
+    if (options.after) y -= options.after;
+  }
+  function heading(value, size = 15) { if (y < 90) newPage(); y -= 5; text(value, { size, bold: true, color: rgb(.13, .37, .27), leading: size + 4, after: 4 }); }
+  newPage();
+  text(scores[0]?.dog || "SDDA dog", { size: 24, bold: true, leading: 27 });
+  text(`SDDA #${scores[0]?.dogNumber || "not supplied"} | ${scores.length} qualifying component scores | ${titles.length} recorded titles`, { size: 10, color: rgb(.35, .42, .38), after: 8 });
+  text(`Generated ${new Date().toLocaleDateString()} from the member's SDDA account downloads.`, { size: 8, color: rgb(.4, .45, .42), after: 8 });
+
+  heading("Titles achieved");
+  for (const title of titles) {
+    text(title.description, { size: 11, bold: true });
+    text(`${dateLabel(title.date)}${title.score == null || Number.isNaN(title.score) ? "" : ` | Title score ${title.score}`}${title.honours ? ` | ${title.honours}` : ""}`, { indent: 12, color: rgb(.28, .36, .31), after: 4 });
+  }
+
+  heading("What is needed next");
+  for (const card of document.querySelectorAll("#progress .progress-card")) {
+    const name = card.querySelector("h3")?.textContent || "Title";
+    const status = card.querySelector(".status")?.textContent || "";
+    text(`${name} - ${status}`, { size: 11, bold: true });
+    for (const item of card.querySelectorAll("li")) text(`${item.classList.contains("done") ? "[met]" : "[needed]"} ${item.textContent}`, { indent: 12, size: 9 });
+    const note = card.querySelector("p")?.textContent; if (note) text(note, { indent: 12, size: 8, color: rgb(.38, .43, .4), after: 5 });
+  }
+
+  heading("Advanced and Excellent Gold calculations");
+  text("High-to-low component combinations. A combined score of 192 or higher is Gold.", { size: 9, color: rgb(.35, .42, .38), after: 5 });
+  const combinations = [...highToLow("Advanced"), ...highToLow("Excellent")];
+  if (!combinations.length) text("No complete Advanced or Excellent combination is available.");
+  for (const set of combinations) text(`${set.level} ${set.rank}: C ${set.container} + I ${set.interior} + E ${set.exterior} = ${set.total} (${set.gold ? "GOLD" : "not Gold"})`, { size: 9, bold: set.gold });
+
+  y -= 8;
+  text("Limitations", { size: 11, bold: true, color: rgb(.61, .26, .24) });
+  text("The supplied score CSV has no judge column. Judge-diversity requirements cannot be verified. Blank Event Date values prevent reliable score cutoffs for higher championship extensions. Confirm official eligibility with SDDA.", { size: 8, color: rgb(.35, .36, .34) });
+  const bytes = await pdf.save();
+  const blob = new Blob([bytes], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob), link = document.createElement("a");
+  const safeDog = (scores[0]?.dog || "SDDA-dog").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
+  link.href = url; link.download = `${safeDog}-SDDA-title-report.pdf`; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+$("print-button").addEventListener("click", () => {
+  document.title = reportFileStem();
+  window.print();
+});

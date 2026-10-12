@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SDDA Title Tracker Mobile</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="trial-lookup.css">
+  <link rel="stylesheet" href="mobile.css">
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <p class="eyebrow">Private, on-device account review</p>
+        <h1>SDDA Title Tracker</h1>
+        <p class="lede">Choose the two account files, then review titles and Gold progress in a phone-friendly report.</p>
+      </div>
+      <div class="rule-card"><strong>Rules basis</strong><span>SDDA Master Rule Book v5.1</span><small>Effective July 1, 2026</small></div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="privacy"><strong>Your files stay private.</strong> Everything is calculated on this device and cleared when the page closes.</section>
+    <section class="upload-grid" aria-label="Upload SDDA account downloads">
+      <label class="upload-card"><span>1</span><strong>Dog Titles CSV or Excel</strong><small>Expected columns: Description, Honours, Title Score, Title Date</small><input id="titles-file" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><em id="titles-name">Choose Dog_Titles_Table CSV or XLSX</em></label>
+      <label class="upload-card"><span>2</span><strong>Dog Scores CSV or Excel</strong><small>Expected columns include Dog Number, Trial Number, Description, Score, Maximum Score</small><input id="scores-file" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><em id="scores-name">Choose Dog_Scores_Table CSV or XLSX</em></label>
+    </section>
+    <details class="optional-date">
+      <summary><span><strong>Add missing trial dates</strong><small>Optional Trial Workbook lookup</small></span><b aria-hidden="true">+</b></summary>
+      <section class="trial-lookup">
+        <div><p>The SDDA workbook contains a <strong>Processed and Future Trials</strong> table with trial numbers and dates. Add it when score dates are missing and you need higher-championship cutoff calculations.</p><div class="official-links"><a href="https://www.sdda.ca/wp-content/uploads/2026/09/TrialWorkbook-20260921.xlsx">Download current Trial Workbook</a><a href="https://www.sdda.ca/sdda-forms/" target="_blank" rel="noopener">Check for a newer workbook</a></div></div>
+        <label class="workbook-upload"><strong>Choose Trial Workbook</strong><input id="workbook-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><span id="workbook-name">Select the downloaded XLSX file</span></label>
+      </section>
+    </details>
+    <div id="message" class="message">Upload both files to calculate title progress.</div>
+
+    <section id="report" hidden>
+      <div class="dog-head">
+        <div><p class="eyebrow">Account report</p><h2 id="dog-name"></h2><p id="dog-meta"></p></div>
+        <button id="print-button" type="button">Print / save PDF</button>
+      </div>
+
+      <section><div class="section-head"><div><p class="eyebrow">Official account record</p><h2>Titles achieved</h2></div></div><div id="achieved" class="card-grid"></div></section>
+      <section><div class="section-head"><div><p class="eyebrow">Current position</p><h2>What is needed next</h2></div><p>“Calculated” means derived from the supplied score history and should be confirmed by SDDA.</p></div><div id="progress" class="progress-grid"></div></section>
+      <section><div class="section-head"><div><p class="eyebrow">High-to-low method</p><h2>Advanced and Excellent Gold calculations</h2></div><p>Scores are sorted highest-to-lowest within each component and paired by rank. A combined score of 192 or more is Gold.</p></div><div id="gold-summary" class="summary-strip"></div><div class="table-wrap"><table><thead><tr><th>Level</th><th>Rank</th><th>Container</th><th>Interior</th><th>Exterior</th><th>Total</th><th>Classification</th></tr></thead><tbody id="gold-rows"></tbody></table></div></section>
+      <section id="limits" class="limits"></section>
+    </section>
+  </main>
+  <footer>Independent planning aid. Confirm title applications and official eligibility with the Sporting Detection Dogs Association.</footer>
+  <script src="vendor/xlsx.full.min.js"></script>
+  <script src="vendor/pdf-lib.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
