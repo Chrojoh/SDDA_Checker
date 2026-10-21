@@ -1,0 +1,29 @@
+.requirements li.info {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.requirements li.info::before {
+  content: "•";
+  color: var(--muted);
+}
+
+.hero .lede a {
+  color: #fff;
+  font-weight: 800;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.method-tabs { display: flex; gap: 10px; margin: 14px 0 20px; flex-wrap: wrap; }
+.method-tabs button { border: 1px solid #b8c8bf; border-radius: 999px; background: #fff; color: var(--ink); padding: 10px 16px; font: inherit; font-weight: 800; cursor: pointer; }
+.method-tabs button.active { background: var(--green); border-color: var(--green); color: #fff; }
+.method-panel { border-top: 1px solid #dce5df; padding-top: 18px; }
+.method-panel h3 { margin: 2px 0 0; font-size: 22px; }
+.method-panel td small { color: var(--muted); font-weight: 800; }
+
+@media print {
+  .method-tabs { display: none !important; }
+  .method-panel[hidden] { display: block !important; }
+  .method-panel + .method-panel { break-before: page; }
+}

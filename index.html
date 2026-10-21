@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="trial-lookup.css">
   <link rel="stylesheet" href="mobile.css">
+  <link rel="stylesheet" href="requirements.css">
 </head>
 <body>
   <header class="hero">
@@ -14,7 +15,7 @@
       <div>
         <p class="eyebrow">Private, on-device account review</p>
         <h1>SDDA Title Tracker</h1>
-        <p class="lede">Choose the two account files, then review titles and Gold progress in a phone-friendly report.</p>
+        <p class="lede">To use this tracker, upload the DOG SCORES file downloaded from your <a href="https://www.sdda.ca/my-profile/" target="_blank" rel="noopener">SDDA account</a>. You may also upload the optional DOG TITLES file to confirm SDDA-recorded titles and title dates. Either file can be in CSV or XLSX format. The tracker will show recorded or calculated titles, qualifying score combinations, calculated Gold scores, and criteria still needed for further titles.</p>
       </div>
       <div class="rule-card"><strong>Rules basis</strong><span>SDDA Master Rule Book v5.1</span><small>Effective July 1, 2026</small></div>
     </div>
@@ -22,9 +23,22 @@
 
   <main class="wrap">
     <section class="privacy"><strong>Your files stay private.</strong> Everything is calculated on this device and cleared when the page closes.</section>
+    <details class="download-help" open>
+      <summary><span><strong>How to get your SDDA files</strong><small>Scores required; Titles optional</small></span><b aria-hidden="true">+</b></summary>
+      <div class="download-help-body">
+        <ol>
+          <li>Go to <a href="https://www.sdda.ca/my-profile/" target="_blank" rel="noopener">your SDDA account</a> and sign in.</li>
+          <li>Open your registered dog’s record.</li>
+          <li>Open the dog’s <strong>Scores</strong> table and download or export it as CSV or XLSX.</li>
+          <li>Optional: open the dog’s <strong>Titles</strong> table and download it if you want the tracker to show SDDA-recorded titles and dates.</li>
+          <li>Return here and select the Scores file in Step 1. Add the Titles file in Step 2 if available.</li>
+        </ol>
+        <p>Use files for one dog at a time. The optional Trial Workbook is only needed when score dates are missing.</p>
+      </div>
+    </details>
     <section class="upload-grid" aria-label="Upload SDDA account downloads">
-      <label class="upload-card"><span>1</span><strong>Dog Titles CSV or Excel</strong><small>Expected columns: Description, Honours, Title Score, Title Date</small><input id="titles-file" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><em id="titles-name">Choose Dog_Titles_Table CSV or XLSX</em></label>
-      <label class="upload-card"><span>2</span><strong>Dog Scores CSV or Excel</strong><small>Expected columns include Dog Number, Trial Number, Description, Score, Maximum Score</small><input id="scores-file" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><em id="scores-name">Choose Dog_Scores_Table CSV or XLSX</em></label>
+      <label class="upload-card"><span>1</span><strong>Required — Dog Scores CSV or XLSX</strong><small>Expected columns include Dog Number, Trial Number, Description, Score, Maximum Score</small><input id="scores-file" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><em id="scores-name">Choose Dog_Scores_Table CSV or XLSX</em></label>
+      <label class="upload-card"><span>2</span><strong>Optional — Dog Titles CSV or XLSX</strong><small>Confirms official titles and dates. Expected: Description, Honours, Title Score, Title Date</small><input id="titles-file" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><em id="titles-name">Choose Dog_Titles_Table CSV or XLSX, if available</em></label>
     </section>
     <details class="optional-date">
       <summary><span><strong>Add missing trial dates</strong><small>Optional Trial Workbook lookup</small></span><b aria-hidden="true">+</b></summary>
@@ -33,7 +47,7 @@
         <label class="workbook-upload"><strong>Choose Trial Workbook</strong><input id="workbook-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><span id="workbook-name">Select the downloaded XLSX file</span></label>
       </section>
     </details>
-    <div id="message" class="message">Upload both files to calculate title progress.</div>
+    <div id="message" class="message">Upload the Dog Scores file to calculate title progress. The Dog Titles file is optional.</div>
 
     <section id="report" hidden>
       <div class="dog-head">
@@ -41,9 +55,9 @@
         <button id="print-button" type="button">Print / save PDF</button>
       </div>
 
-      <section><div class="section-head"><div><p class="eyebrow">Official account record</p><h2>Titles achieved</h2></div></div><div id="achieved" class="card-grid"></div></section>
+      <section><div class="section-head"><div><p class="eyebrow">Recorded or calculated</p><h2>Titles achieved</h2></div><p>The card label shows whether a title came from the optional SDDA Titles file or was calculated from scores.</p></div><div id="achieved" class="card-grid"></div></section>
       <section><div class="section-head"><div><p class="eyebrow">Current position</p><h2>What is needed next</h2></div><p>“Calculated” means derived from the supplied score history and should be confirmed by SDDA.</p></div><div id="progress" class="progress-grid"></div></section>
-      <section><div class="section-head"><div><p class="eyebrow">High-to-low method</p><h2>Advanced and Excellent Gold calculations</h2></div><p>Scores are sorted highest-to-lowest within each component and paired by rank. A combined score of 192 or more is Gold.</p></div><div id="gold-summary" class="summary-strip"></div><div class="table-wrap"><table><thead><tr><th>Level</th><th>Rank</th><th>Container</th><th>Interior</th><th>Exterior</th><th>Total</th><th>Classification</th></tr></thead><tbody id="gold-rows"></tbody></table></div></section>
+      <section><div class="section-head"><div><p class="eyebrow">Mix-and-match maximize-Golds method</p><h2>Advanced and Excellent Gold calculations</h2></div><p>Eligible Advanced and Excellent components are pooled and arranged to maximize complete scores of 192 or more. Each component is used once, while an initial Special title remains locked together.</p></div><div id="gold-summary" class="summary-strip"></div><div class="table-wrap"><table><thead><tr><th>Combination</th><th>Container</th><th>Interior</th><th>Exterior</th><th>Total</th><th>Classification</th></tr></thead><tbody id="gold-rows"></tbody></table></div></section>
       <section id="limits" class="limits"></section>
     </section>
   </main>

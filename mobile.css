@@ -26,14 +26,19 @@ body { background: var(--bg); font-size: 16px; }
 .title-card, .progress-card { box-shadow: 0 4px 16px #183c290b; }
 button { min-height: 48px; border-radius: 12px; font-size: 15px; }
 
-.optional-date { margin: 16px 0; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); overflow: hidden; }
-.optional-date summary { min-height: 64px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 18px; cursor: pointer; list-style: none; }
-.optional-date summary::-webkit-details-marker { display: none; }
-.optional-date summary span, .optional-date summary small { display: block; }
-.optional-date summary small { margin-top: 2px; color: var(--muted); font-weight: 500; }
-.optional-date summary b { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: #e8f1eb; color: var(--green); font-size: 22px; }
-.optional-date[open] summary b { transform: rotate(45deg); }
+.optional-date, .download-help { margin: 16px 0; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); overflow: hidden; }
+.optional-date summary, .download-help summary { min-height: 64px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 18px; cursor: pointer; list-style: none; }
+.optional-date summary::-webkit-details-marker, .download-help summary::-webkit-details-marker { display: none; }
+.optional-date summary span, .optional-date summary small, .download-help summary span, .download-help summary small { display: block; }
+.optional-date summary small, .download-help summary small { margin-top: 2px; color: var(--muted); font-weight: 500; }
+.optional-date summary b, .download-help summary b { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: #e8f1eb; color: var(--green); font-size: 22px; }
+.optional-date[open] summary b, .download-help[open] summary b { transform: rotate(45deg); }
 .optional-date .trial-lookup { margin: 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; }
+.download-help-body { padding: 4px 20px 18px; border-top: 1px solid var(--line); }
+.download-help-body ol { margin: 14px 0 10px; padding-left: 24px; }
+.download-help-body li { padding: 5px 0 5px 3px; }
+.download-help-body a { color: var(--blue); font-weight: 800; }
+.download-help-body p { margin: 10px 0 0; color: var(--muted); font-size: 14px; }
 
 @media (max-width: 780px) {
   body { padding-bottom: 82px; font-size: 16px; }
@@ -52,6 +57,8 @@ button { min-height: 48px; border-radius: 12px; font-size: 15px; }
   .upload-card small { margin-top: 2px; line-height: 1.35; }
   .upload-card em { margin-top: 8px; }
   .optional-date summary { padding: 14px; }
+  .download-help summary { padding: 14px; }
+  .download-help-body { padding: 2px 15px 16px; }
   .optional-date .trial-lookup { padding: 16px 14px; }
   .official-links { display: grid; gap: 8px; }
   .official-links a { display: block; min-height: 44px; padding: 10px 12px; border-radius: 10px; background: #edf3ef; }
@@ -93,7 +100,7 @@ button { min-height: 48px; border-radius: 12px; font-size: 15px; }
 
 @media print {
   body { padding-bottom: 0; background: #fff; font-size: 15px; }
-  .optional-date { display: none !important; }
+  .optional-date, .download-help { display: none !important; }
   .table-wrap { border: 1px solid var(--line); background: #fff; }
   table { display: table; }
   thead { position: static; width: auto; height: auto; overflow: visible; clip: auto; display: table-header-group; }

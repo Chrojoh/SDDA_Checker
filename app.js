@@ -101,13 +101,76 @@ function applyTrialDates() {
   unmatchedTrials = [...new Set(scores.filter((score) => !score.date && score.trial).map((score) => String(score.trial)))].sort((a, b) => Number(a) - Number(b));
 }
 
+function initialSpecialSet(level, list = scores) {
+  if (level !== "Advanced" && level !== "Excellent") return null;
+  const ordered = list.filter((score) => score.level === level).sort((a, b) => {
+    if (a.date && b.date && a.date !== b.date) return a.date.localeCompare(b.date);
+    const aTrial = Number(a.trial), bTrial = Number(b.trial);
+    if (Number.isFinite(aTrial) && Number.isFinite(bTrial) && aTrial !== bTrial) return aTrial - bTrial;
+    return a.sourceRow - b.sourceRow;
+  });
+  const groups = [];
+  for (const row of ordered) {
+    const key = row.trial ? `trial:${row.trial}` : row.date ? `date:${row.date}` : `row:${row.sourceRow}`;
+    const previous = groups[groups.length - 1];
+    if (previous?.key === key) previous.rows.push(row); else groups.push({ key, rows: [row] });
+  }
+  const passed = new Set();
+  for (const group of groups) {
+    const titledBefore = COMPONENTS.every((component) => passed.has(component));
+    const componentsHere = new Set(group.rows.map((row) => row.component));
+    group.rows.forEach((row) => passed.add(row.component));
+    if (!titledBefore && COMPONENTS.every((component) => passed.has(component))) {
+      if (!COMPONENTS.every((component) => componentsHere.has(component))) return null;
+      const parts = Object.fromEntries(COMPONENTS.map((component) => [component, group.rows.filter((row) => row.component === component).sort((a, b) => b.score - a.score)[0]]));
+      const total = COMPONENTS.reduce((sum, component) => sum + parts[component].score, 0);
+      return { level, trial: parts.Container.trial, parts, total, gold: total >= 192, special: true };
+    }
+  }
+  return null;
+}
+
 function highToLow(level, list = scores) {
-  const ranked = Object.fromEntries(COMPONENTS.map((component) => [component, list.filter((score) => score.level === level && score.component === component).sort((a, b) => b.score - a.score)]));
+  const special = list === scores ? initialSpecialSet(level, list) : null;
+  const lockedRows = new Set(special ? COMPONENTS.map((component) => special.parts[component].sourceRow) : []);
+  const ranked = Object.fromEntries(COMPONENTS.map((component) => [component, list.filter((score) => score.level === level && score.component === component && !lockedRows.has(score.sourceRow)).sort((a, b) => b.score - a.score)]));
   const count = Math.min(...COMPONENTS.map((component) => ranked[component].length));
-  return Array.from({ length: Number.isFinite(count) ? count : 0 }, (_, index) => {
+  const combinations = Array.from({ length: Number.isFinite(count) ? count : 0 }, (_, index) => {
     const container = ranked.Container[index].score, interior = ranked.Interior[index].score, exterior = ranked.Exterior[index].score;
     return { level, rank: index + 1, container, interior, exterior, total: container + interior + exterior, gold: container + interior + exterior >= 192 };
   });
+  if (special) combinations.unshift({ level: `${level} SP`, rank: "SP", container: special.parts.Container.score, interior: special.parts.Interior.score, exterior: special.parts.Exterior.score, total: special.total, gold: special.gold, special: true, trial: special.trial });
+  return combinations;
+}
+
+function maximizeGoldCombinations(list = scores, maximum = 10) {
+  const specials = list === scores ? [initialSpecialSet("Advanced", list), initialSpecialSet("Excellent", list)].filter(Boolean) : [];
+  const lockedRows = new Set(specials.flatMap((special) => COMPONENTS.map((component) => special.parts[component].sourceRow)));
+  const eligible = list.filter((score) => (score.level === "Advanced" || score.level === "Excellent") && !lockedRows.has(score.sourceRow));
+  const ranked = Object.fromEntries(COMPONENTS.map((component) => [component, eligible.filter((score) => score.component === component).sort((a, b) => b.score - a.score)]));
+  const count = Math.min(Math.max(0, maximum - specials.length), ...COMPONENTS.map((component) => ranked[component].length));
+  const locked = specials.map((special) => ({ rank: "SP", container: special.parts.Container, interior: special.parts.Interior, exterior: special.parts.Exterior, total: special.total, gold: special.gold, special: true, level: special.level, trial: special.trial }));
+  if (!count) return locked;
+  const containers = ranked.Container.slice(0, count), interiors = ranked.Interior.slice(0, count), exteriors = ranked.Exterior.slice(0, count);
+  let seed = 0x5dda2026;
+  const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+  const shuffle = (values) => {
+    const result = [...values];
+    for (let index = result.length - 1; index > 0; index--) { const swap = Math.floor(random() * (index + 1)); [result[index], result[swap]] = [result[swap], result[index]]; }
+    return result;
+  };
+  let best = [], bestGolds = -1;
+  for (let attempt = 0; attempt < 60000; attempt++) {
+    const iRows = attempt ? shuffle(interiors) : interiors, eRows = attempt ? shuffle(exteriors) : exteriors;
+    const combinations = containers.map((container, index) => {
+      const interior = iRows[index], exterior = eRows[index], total = container.score + interior.score + exterior.score;
+      return { rank: index + 1, container, interior, exterior, total, gold: total >= 192 };
+    });
+    const golds = combinations.filter((combination) => combination.gold).length;
+    if (golds > bestGolds) { best = combinations; bestGolds = golds; if (bestGolds === count) break; }
+  }
+  const arranged = best.sort((a, b) => b.total - a.total).map((combination, index) => ({ ...combination, rank: index + 1 }));
+  return [...locked, ...arranged];
 }
 
 function eliteSets(list = scores) {
@@ -239,13 +302,13 @@ function render() {
     cards.push(progressCard(level, status, requirements, note));
   }
 
-  const advanced = highToLow("Advanced"), excellent = highToLow("Excellent"), combined = [...advanced, ...excellent], golds = combined.filter((set) => set.gold);
+  const excellent = highToLow("Excellent"), combined = maximizeGoldCombinations(), golds = combined.filter((set) => set.gold);
   const ch = championshipTitle("ch"), mach = championshipTitle("mach");
   const totalSets = combined.length, excellentSets = excellent.length;
   cards.push(progressCard("SD-CH", ch ? "Achieved" : totalSets >= 5 && excellentSets >= 2 ? "Requirements shown as met" : "In progress", [
     { done: totalSets >= 5, text: `${totalSets}/5 Advanced or Excellent titling scores` },
     { done: excellentSets >= 2, text: `${excellentSets}/2 must be Excellent` }
-  ], ch ? `Recorded ${dateLabel(ch.date)}.` : "Calculated from high-to-low component combinations."));
+  ], ch ? `Recorded ${dateLabel(ch.date)}.` : "Calculated by mixing eligible Advanced and Excellent components while keeping an initial SP title locked."));
   cards.push(progressCard("SD-MACH", mach ? "Achieved" : totalSets >= 10 && excellentSets >= 3 && golds.length >= 3 ? "Requirements shown as met" : "In progress", [
     { done: totalSets >= 10, text: `${totalSets}/10 Advanced or Excellent titling scores` },
     { done: excellentSets >= 3, text: `${excellentSets}/3 must be Excellent` },
@@ -284,8 +347,8 @@ function render() {
   }
   $("progress").innerHTML = cards.join("");
 
-  $("gold-summary").innerHTML = `<span>${advanced.length} Advanced combinations</span><span>${excellent.length} Excellent combinations</span><span class="gold">${golds.length} calculated Gold scores</span>`;
-  $("gold-rows").innerHTML = combined.map((set) => `<tr class="${set.gold ? "gold" : ""}"><td>${set.level}</td><td>${set.rank}</td><td>${set.container}</td><td>${set.interior}</td><td>${set.exterior}</td><td>${set.total}</td><td>${set.gold ? "Gold" : set.total >= 172 ? "Silver" : set.total >= 142 ? "Bronze" : "Satisfactory"}</td></tr>`).join("") || `<tr><td colspan="7">No complete Advanced or Excellent component combination is available.</td></tr>`;
+  $("gold-summary").innerHTML = `<span>${combined.length} pooled championship combinations</span><span class="gold">${golds.length} maximized Gold scores</span><span>${combined.length - golds.length} non-Gold score${combined.length - golds.length === 1 ? "" : "s"}</span>`;
+  $("gold-rows").innerHTML = combined.map((set) => `<tr class="${set.gold ? "gold" : ""}"><td>${set.special ? `SP locked · Trial ${esc(set.trial || "—")}` : set.rank}</td><td>${set.container.score} <small>${set.container.level[0]}</small></td><td>${set.interior.score} <small>${set.interior.level[0]}</small></td><td>${set.exterior.score} <small>${set.exterior.level[0]}</small></td><td>${set.total}</td><td>${set.gold ? "Gold" : set.total >= 172 ? "Silver" : set.total >= 142 ? "Bronze" : "Satisfactory"}</td></tr>`).join("") || `<tr><td colspan="6">Not enough eligible components are available.</td></tr>`;
 
   const blanks = scores.filter((score) => !score.date).length;
   $("limits").innerHTML = `<h3>Verification limits in these downloads</h3><ul><li>The score download contains no judge column, so two-judge and three-judge championship requirements cannot be proven.</li>${dateMatches ? `<li>${dateMatches} missing Event Date value${dateMatches === 1 ? " was" : "s were"} filled by matching Trial Number in the official Trial Workbook.</li>` : ""}${blanks ? `<li>${blanks} score row${blanks === 1 ? " still has" : "s still have"} no Event Date.${unmatchedTrials.length ? ` Trial number${unmatchedTrials.length === 1 ? "" : "s"} not found in that workbook: ${unmatchedTrials.join(", ")}.` : ""} Higher championship calculations cannot reliably exclude scores earned on or before a previous title date.</li>` : ""}<li>This report treats rows in the Dog Scores download as qualifying scores, consistent with the supplied Gold-score instructions.</li><li>SDDA remains the authority for official title approval.</li></ul>`;
@@ -373,10 +436,10 @@ async function downloadPdfReport() {
   }
 
   heading("Advanced and Excellent Gold calculations");
-  text("High-to-low component combinations. A combined score of 192 or higher is Gold.", { size: 9, color: rgb(.35, .42, .38), after: 5 });
-  const combinations = [...highToLow("Advanced"), ...highToLow("Excellent")];
+  text("Eligible components are mixed to maximize complete scores of 192 or higher. Initial Special titles remain locked and each component score is used once.", { size: 9, color: rgb(.35, .42, .38), after: 5 });
+  const combinations = maximizeGoldCombinations();
   if (!combinations.length) text("No complete Advanced or Excellent combination is available.");
-  for (const set of combinations) text(`${set.level} ${set.rank}: C ${set.container} + I ${set.interior} + E ${set.exterior} = ${set.total} (${set.gold ? "GOLD" : "not Gold"})`, { size: 9, bold: set.gold });
+  for (const set of combinations) text(`${set.special ? `SP locked, trial ${set.trial}` : `Combination ${set.rank}`}: C ${set.container.score} + I ${set.interior.score} + E ${set.exterior.score} = ${set.total} (${set.gold ? "GOLD" : "not Gold"})`, { size: 9, bold: set.gold });
 
   y -= 8;
   text("Limitations", { size: 11, bold: true, color: rgb(.61, .26, .24) });
