@@ -66,8 +66,8 @@ async function parseAccountFile(file, headerTest, label) {
 
 function levelFrom(description) {
   const text = String(description || "");
-  const code = text.match(/\((S|A|E|EL|X)\)\s*$/i)?.[1]?.toUpperCase();
-  if (code === "S") return "Started"; if (code === "A") return "Advanced"; if (code === "E") return "Excellent"; if (code === "EL" || code === "X") return "Elite";
+  const code = text.match(/\((S|A|E|EL|L|X)\)\s*$/i)?.[1]?.toUpperCase();
+  if (code === "S") return "Started"; if (code === "A") return "Advanced"; if (code === "E") return "Excellent"; if (code === "EL" || code === "L" || code === "X") return "Elite";
   return LEVELS.find((level) => new RegExp(level, "i").test(text)) || null;
 }
 function componentFrom(description) { return COMPONENTS.find((component) => new RegExp(component, "i").test(description)) || null; }
@@ -124,10 +124,58 @@ function eliteSets(list = scores) {
   });
 }
 
+function inferredTitles() {
+  const inferred = [];
+  for (const level of ["Started", "Advanced", "Excellent"]) {
+    const rows = byLevel(level);
+    if (!COMPONENTS.every((component) => rows.some((row) => row.component === component))) continue;
+    const ordered = [...rows].sort((a, b) => {
+      if (a.date && b.date && a.date !== b.date) return a.date.localeCompare(b.date);
+      const aTrial = Number(a.trial), bTrial = Number(b.trial);
+      if (Number.isFinite(aTrial) && Number.isFinite(bTrial) && aTrial !== bTrial) return aTrial - bTrial;
+      return a.sourceRow - b.sourceRow;
+    });
+    const groups = [];
+    for (const row of ordered) {
+      const key = row.trial ? `trial:${row.trial}` : row.date ? `date:${row.date}` : `row:${row.sourceRow}`;
+      const previous = groups[groups.length - 1];
+      if (previous?.key === key) previous.rows.push(row); else groups.push({ key, rows: [row] });
+    }
+    const seen = [], passed = new Set();
+    let completionGroup = null, special = false;
+    for (const group of groups) {
+      const componentsHere = new Set(group.rows.map((row) => row.component));
+      const titledBeforeThisGroup = COMPONENTS.every((component) => passed.has(component));
+      seen.push(...group.rows);
+      group.rows.forEach((row) => passed.add(row.component));
+      if (!titledBeforeThisGroup && COMPONENTS.every((component) => passed.has(component))) {
+        completionGroup = group;
+        special = COMPONENTS.every((component) => componentsHere.has(component));
+        break;
+      }
+    }
+    const scoringRows = special ? completionGroup.rows : seen;
+    const best = Object.fromEntries(COMPONENTS.map((component) => [component, Math.max(...scoringRows.filter((row) => row.component === component).map((row) => row.score))]));
+    const completed = completionGroup?.rows[completionGroup.rows.length - 1];
+    inferred.push({
+      description: `${level}${special ? " Special" : ""}`,
+      honours: special && completed?.trial ? `Same-trial completion · Trial ${completed.trial}` : "",
+      score: COMPONENTS.reduce((sum, component) => sum + best[component], 0),
+      date: completed?.date || "",
+      calculated: true
+    });
+  }
+  const elite = eliteSets().sort((a, b) => String(a.date || "9999").localeCompare(String(b.date || "9999")))[0];
+  if (elite) inferred.push({ description: "Elite", honours: elite.trial ? `Same-trial set · Trial ${elite.trial}` : "Same-trial set", score: elite.total, date: elite.date || "", calculated: true });
+  return inferred;
+}
+
+function displayedTitles() { return titles.length ? titles.map((title) => ({ ...title, calculated: false })) : inferredTitles(); }
+
 function progressCard(title, status, requirements, note = "") {
   const met = status === "Achieved" || status === "Requirements shown as met";
   const statusClass = met ? "met" : status.includes("cannot") || status.includes("verification") ? "unknown" : "partial";
-  return `<article class="progress-card"><h3>${esc(title)}</h3><span class="status ${statusClass}">${esc(status)}</span><ul class="requirements">${requirements.map((requirement) => `<li class="${requirement.done ? "done" : ""}">${esc(requirement.text)}</li>`).join("")}</ul>${note ? `<p>${esc(note)}</p>` : ""}</article>`;
+  return `<article class="progress-card"><h3>${esc(title)}</h3><span class="status ${statusClass}">${esc(status)}</span><ul class="requirements">${requirements.map((requirement) => `<li class="${requirement.done ? "done" : ""}${requirement.info ? " info" : ""}">${esc(requirement.text)}</li>`).join("")}</ul>${note ? `<p>${esc(note)}</p>` : ""}</article>`;
 }
 
 function titlePattern(level) { return new RegExp(`^${level}(?:\\s|$)`, "i"); }
@@ -149,23 +197,45 @@ function rowsAfter(date) {
 }
 
 function render() {
-  if (!titles.length || !scores.length) { $("report").hidden = true; return; }
+  if (!scores.length) { $("report").hidden = true; return; }
   const dogNumbers = [...new Set(scores.map((score) => score.dogNumber).filter(Boolean))];
   if (dogNumbers.length > 1) { $("message").textContent = "The score file contains more than one dog. Please download and upload one dog's history at a time."; $("report").hidden = true; return; }
   $("report").hidden = false;
   const dog = scores[0]?.dog || "SDDA dog", number = scores[0]?.dogNumber || "not supplied";
   document.title = reportFileStem();
-  $("dog-name").textContent = dog; $("dog-meta").textContent = `SDDA #${number} · ${scores.length} qualifying component scores · ${titles.length} recorded titles`;
-  $("message").textContent = trialDates.size ? `Both account downloads loaded. The Trial Workbook supplied dates for ${dateMatches} score rows.` : "Both account downloads loaded. The report below was calculated locally.";
+  $("dog-name").textContent = dog; $("dog-meta").textContent = `SDDA #${number} · ${scores.length} qualifying component scores · ${titles.length ? `${titles.length} titles recorded by SDDA` : `${inferredTitles().length} titles calculated from scores`}`;
+  $("message").textContent = titles.length
+    ? `${trialDates.size ? `The Trial Workbook supplied dates for ${dateMatches} score rows. ` : ""}Scores loaded; titles are confirmed by the optional SDDA Titles file.`
+    : `${trialDates.size ? `The Trial Workbook supplied dates for ${dateMatches} score rows. ` : ""}Scores loaded without a Titles file. Achievements are calculated from score history and are not official confirmation.`;
 
-  $("achieved").innerHTML = titles.map((title) => `<article class="title-card"><h3>${esc(title.description)}</h3><span class="status met">Achieved</span><div class="score">${title.score == null || Number.isNaN(title.score) ? "—" : esc(title.score)}</div><p>${title.score == null || Number.isNaN(title.score) ? "No title score supplied" : "Recorded title score"}</p><p><strong>${esc(dateLabel(title.date))}</strong>${title.honours ? ` · ${esc(title.honours)}` : ""}</p></article>`).join("") || `<article class="title-card"><h3>No titles listed</h3><p>The supplied title download has no recorded title rows.</p></article>`;
+  const shownTitles = displayedTitles();
+  $("achieved").innerHTML = shownTitles.map((title) => `<article class="title-card"><h3>${esc(title.description)}</h3><span class="status met">${title.calculated ? "Calculated from scores" : "Recorded by SDDA"}</span><div class="score">${title.score == null || Number.isNaN(title.score) ? "—" : esc(title.score)}</div><p>${title.score == null || Number.isNaN(title.score) ? "No title score supplied" : title.calculated ? "Calculated component total" : "Recorded title score"}</p><p><strong>${esc(dateLabel(title.date))}</strong>${title.honours ? ` · ${esc(title.honours)}` : ""}</p></article>`).join("") || `<article class="title-card"><h3>No complete title found</h3><p>The score history does not yet contain a qualifying score in every required component.</p></article>`;
 
   const cards = [];
+  const levelRules = {
+    Started: ["Wintergreen; one hide in each component", "Container: 3 min · Interior: 5 min · Exterior: 5 min", "Components may be passed at different trials; no formal alert required"],
+    Advanced: ["Wintergreen and Pine; two hides in each component", "Container: 3 min · Interior: 5 min · Exterior: 5 min", "Pass the corresponding Started component first; formal alert is scored"],
+    Excellent: ["Wintergreen, Pine and Thyme; three hides in each component", "Container: 3 min · Interior: 15 min/3 rooms · Exterior: 5 min", "Pass the corresponding Advanced component first; call the clear Interior room"],
+    Elite: ["Excellent title required before entering Elite", "Container: 2–4 hides/3 min · Interior: 0–5 hides/10 min · Exterior/Vehicle: 0–3 hides/5 min", "All three components must qualify at the same trial; call every find and clear area", "No separate Amateur and Working streams"]
+  };
   for (const level of LEVELS) {
     const earned = findTitle(titlePattern(level)); const counts = componentCounts(level); const missing = COMPONENTS.filter((component) => counts[component] === 0);
-    const requirements = COMPONENTS.map((component) => ({ done: counts[component] > 0, text: `${component}: ${counts[component] ? `${counts[component]} qualifying score${counts[component] === 1 ? "" : "s"}` : "needed"}` }));
-    let status = earned ? "Achieved" : missing.length ? "In progress" : level === "Elite" ? "Needs same-trial verification" : "Requirements shown as met";
-    let note = earned ? `Recorded ${dateLabel(earned.date)}${earned.score == null ? "" : ` with title score ${earned.score}`}.` : missing.length ? `Needs ${missing.join(" and ")}.` : level === "Elite" ? "Elite requires all three components at the same trial." : "The account shows at least one qualifying score in every component.";
+    let requirements = COMPONENTS.map((component) => ({ done: counts[component] > 0, text: `${component}: ${counts[component] ? `${counts[component]} qualifying score${counts[component] === 1 ? "" : "s"}` : "needed"}` }));
+    let status, note;
+    if (level === "Elite") {
+      const completeEliteScores = eliteSets().length;
+      requirements = [
+        { done: !!findTitle(titlePattern("Excellent")) || !!inferredTitles().find((title) => /^Excellent\b/i.test(title.description)), text: "Excellent title prerequisite" },
+        { done: completeEliteScores > 0, text: `${completeEliteScores} complete same-trial Elite score${completeEliteScores === 1 ? "" : "s"}` },
+        ...requirements
+      ];
+      status = earned ? "Achieved" : completeEliteScores > 0 ? "Requirements shown as met" : "In progress";
+      note = earned ? `Recorded ${dateLabel(earned.date)}${earned.score == null ? "" : ` with title score ${earned.score}`}.` : "A Container, Interior and Exterior Q must share the same trial number.";
+    } else {
+      status = earned ? "Achieved" : missing.length ? "In progress" : "Requirements shown as met";
+      note = earned ? `Recorded ${dateLabel(earned.date)}${earned.score == null ? "" : ` with title score ${earned.score}`}.` : missing.length ? `Needs ${missing.join(" and ")}.` : "The account shows at least one qualifying score in every component.";
+    }
+    requirements.push(...levelRules[level].map((text) => ({ info: true, text })));
     cards.push(progressCard(level, status, requirements, note));
   }
 
@@ -183,15 +253,18 @@ function render() {
   ], mach ? `Recorded ${dateLabel(mach.date)}.` : "Golds may be earned at Advanced or Excellent."));
 
   const elSets = eliteSets(), elGolds = elSets.filter((set) => set.gold), elch = championshipTitle("elch");
-  cards.push(progressCard("SD-ELCH", elch ? "Achieved" : "In progress", [
+  const elchScoresMet = elSets.length >= 5 && elGolds.length >= 2;
+  cards.push(progressCard("SD-ELCH", elch ? "Achieved" : elchScoresMet ? "Score requirements met; judge verification needed" : "In progress", [
     { done: elSets.length >= 5, text: `${elSets.length}/5 complete same-trial Elite scores` },
     { done: elGolds.length >= 2, text: `${elGolds.length}/2 calculated Elite Gold scores` },
     { done: false, text: "Scores under at least 2 judges: cannot verify from this CSV" }
   ], elch ? `Recorded ${dateLabel(elch.date)}.` : "Trial numbers are used to group Elite components."));
+  const machScoresMet = totalSets >= 10 && excellentSets >= 3 && golds.length >= 3;
   const gmch = championshipTitle("gmch");
-  cards.push(progressCard("SD-GMCH", gmch ? "Achieved" : "In progress", [
-    { done: !!mach, text: mach ? "SD-MACH recorded" : "SD-MACH required" }, { done: !!elch, text: elch ? "SD-ELCH recorded" : "SD-ELCH required" }, { done: false, text: "At least 3 judges: cannot verify from this CSV" }
-  ], gmch ? `Recorded ${dateLabel(gmch.date)}.` : "Judge names are not included in the supplied score download."));
+  const gmchScoresMet = (!!mach || machScoresMet) && (!!elch || elchScoresMet);
+  cards.push(progressCard("SD-GMCH", gmch ? "Achieved" : gmchScoresMet ? "Score requirements met; judge verification needed" : "In progress", [
+    { done: !!mach || machScoresMet, text: mach ? "SD-MACH recorded" : machScoresMet ? "Calculated SD-MACH score requirements met" : "SD-MACH required" }, { done: !!elch || elchScoresMet, text: elch ? "SD-ELCH recorded" : elchScoresMet ? "Calculated SD-ELCH score requirements met" : "SD-ELCH required" }, { done: false, text: "At least 3 judges: cannot verify from this score download" }
+  ], gmch ? `Recorded ${dateLabel(gmch.date)}.` : "The score requirements can be calculated, but judge names and official title approval require SDDA confirmation."));
 
   const extensions = [
     { key: "mach2", prior: mach, title: "SD-MACH2", need: 10, excellent: 7, gold: 3, goldExcellent: true },
@@ -215,7 +288,7 @@ function render() {
   $("gold-rows").innerHTML = combined.map((set) => `<tr class="${set.gold ? "gold" : ""}"><td>${set.level}</td><td>${set.rank}</td><td>${set.container}</td><td>${set.interior}</td><td>${set.exterior}</td><td>${set.total}</td><td>${set.gold ? "Gold" : set.total >= 172 ? "Silver" : set.total >= 142 ? "Bronze" : "Satisfactory"}</td></tr>`).join("") || `<tr><td colspan="7">No complete Advanced or Excellent component combination is available.</td></tr>`;
 
   const blanks = scores.filter((score) => !score.date).length;
-  $("limits").innerHTML = `<h3>Verification limits in these downloads</h3><ul><li>The score CSV contains no judge column, so two-judge and three-judge championship requirements cannot be proven.</li>${dateMatches ? `<li>${dateMatches} missing Event Date value${dateMatches === 1 ? " was" : "s were"} filled by matching Trial Number in the official Trial Workbook.</li>` : ""}${blanks ? `<li>${blanks} score row${blanks === 1 ? " still has" : "s still have"} no Event Date.${unmatchedTrials.length ? ` Trial number${unmatchedTrials.length === 1 ? "" : "s"} not found in that workbook: ${unmatchedTrials.join(", ")}.` : ""} Higher championship calculations cannot reliably exclude scores earned on or before a previous title date.</li>` : ""}<li>This report treats rows in the Dog Scores download as qualifying scores, consistent with the supplied Gold-score instructions.</li><li>SDDA remains the authority for official title approval.</li></ul>`;
+  $("limits").innerHTML = `<h3>Verification limits in these downloads</h3><ul><li>The score download contains no judge column, so two-judge and three-judge championship requirements cannot be proven.</li>${dateMatches ? `<li>${dateMatches} missing Event Date value${dateMatches === 1 ? " was" : "s were"} filled by matching Trial Number in the official Trial Workbook.</li>` : ""}${blanks ? `<li>${blanks} score row${blanks === 1 ? " still has" : "s still have"} no Event Date.${unmatchedTrials.length ? ` Trial number${unmatchedTrials.length === 1 ? "" : "s"} not found in that workbook: ${unmatchedTrials.join(", ")}.` : ""} Higher championship calculations cannot reliably exclude scores earned on or before a previous title date.</li>` : ""}<li>This report treats rows in the Dog Scores download as qualifying scores, consistent with the supplied Gold-score instructions.</li><li>SDDA remains the authority for official title approval.</li></ul>`;
 }
 
 async function loadTitles(file) {
@@ -254,7 +327,7 @@ $("scores-file").addEventListener("change", async (event) => { try { if (event.t
 $("workbook-file").addEventListener("change", async (event) => { try { if (event.target.files[0]) await loadTrialWorkbook(event.target.files[0]); } catch (error) { $("message").textContent = `Trial Workbook import failed: ${error.message}`; } });
 
 async function downloadPdfReport() {
-  if (!scores.length || !titles.length) return;
+  if (!scores.length) return;
   const { PDFDocument, StandardFonts, rgb } = window.PDFLib;
   const pdf = await PDFDocument.create();
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
@@ -281,12 +354,12 @@ async function downloadPdfReport() {
   function heading(value, size = 15) { if (y < 90) newPage(); y -= 5; text(value, { size, bold: true, color: rgb(.13, .37, .27), leading: size + 4, after: 4 }); }
   newPage();
   text(scores[0]?.dog || "SDDA dog", { size: 24, bold: true, leading: 27 });
-  text(`SDDA #${scores[0]?.dogNumber || "not supplied"} | ${scores.length} qualifying component scores | ${titles.length} recorded titles`, { size: 10, color: rgb(.35, .42, .38), after: 8 });
+  text(`SDDA #${scores[0]?.dogNumber || "not supplied"} | ${scores.length} qualifying component scores | ${titles.length ? `${titles.length} titles recorded by SDDA` : `${inferredTitles().length} titles calculated from scores`}`, { size: 10, color: rgb(.35, .42, .38), after: 8 });
   text(`Generated ${new Date().toLocaleDateString()} from the member's SDDA account downloads.`, { size: 8, color: rgb(.4, .45, .42), after: 8 });
 
   heading("Titles achieved");
-  for (const title of titles) {
-    text(title.description, { size: 11, bold: true });
+  for (const title of displayedTitles()) {
+    text(`${title.description} - ${title.calculated ? "Calculated from scores" : "Recorded by SDDA"}`, { size: 11, bold: true });
     text(`${dateLabel(title.date)}${title.score == null || Number.isNaN(title.score) ? "" : ` | Title score ${title.score}`}${title.honours ? ` | ${title.honours}` : ""}`, { indent: 12, color: rgb(.28, .36, .31), after: 4 });
   }
 
@@ -307,7 +380,7 @@ async function downloadPdfReport() {
 
   y -= 8;
   text("Limitations", { size: 11, bold: true, color: rgb(.61, .26, .24) });
-  text("The supplied score CSV has no judge column. Judge-diversity requirements cannot be verified. Blank Event Date values prevent reliable score cutoffs for higher championship extensions. Confirm official eligibility with SDDA.", { size: 8, color: rgb(.35, .36, .34) });
+  text("The supplied Dog Scores download has no judge column. Judge-diversity requirements cannot be verified. Blank Event Date values prevent reliable score cutoffs for higher championship extensions. Titles calculated without the optional Dog Titles file are not official confirmation. Confirm eligibility with SDDA.", { size: 8, color: rgb(.35, .36, .34) });
   const bytes = await pdf.save();
   const blob = new Blob([bytes], { type: "application/pdf" });
   const url = URL.createObjectURL(blob), link = document.createElement("a");
