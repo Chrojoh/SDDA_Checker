@@ -9,8 +9,13 @@ const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
 function localDateStamp(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
+function dogDisplayName() {
+  const raw = String(scores[0]?.dog || "").trim();
+  const number = String(scores[0]?.dogNumber || "").trim();
+  return raw && !/^(?:n\/?a|na|unknown|null|none|-+)$/i.test(raw) ? raw : number ? `SDDA dog #${number}` : "SDDA dog";
+}
 function reportFileStem() {
-  const dog = (scores[0]?.dog || "SDDA-dog").trim().replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ");
+  const dog = dogDisplayName().replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ");
   return `${dog} - SDDA Title Tracker - ${localDateStamp()}`;
 }
 
@@ -264,7 +269,7 @@ function render() {
   const dogNumbers = [...new Set(scores.map((score) => score.dogNumber).filter(Boolean))];
   if (dogNumbers.length > 1) { $("message").textContent = "The score file contains more than one dog. Please download and upload one dog's history at a time."; $("report").hidden = true; return; }
   $("report").hidden = false;
-  const dog = scores[0]?.dog || "SDDA dog", number = scores[0]?.dogNumber || "not supplied";
+  const dog = dogDisplayName(), number = scores[0]?.dogNumber || "not supplied";
   document.title = reportFileStem();
   $("dog-name").textContent = dog; $("dog-meta").textContent = `SDDA #${number} · ${scores.length} qualifying component scores · ${titles.length ? `${titles.length} titles recorded by SDDA` : `${inferredTitles().length} titles calculated from scores`}`;
   $("message").textContent = titles.length
@@ -416,7 +421,7 @@ async function downloadPdfReport() {
   }
   function heading(value, size = 15) { if (y < 90) newPage(); y -= 5; text(value, { size, bold: true, color: rgb(.13, .37, .27), leading: size + 4, after: 4 }); }
   newPage();
-  text(scores[0]?.dog || "SDDA dog", { size: 24, bold: true, leading: 27 });
+  text(dogDisplayName(), { size: 24, bold: true, leading: 27 });
   text(`SDDA #${scores[0]?.dogNumber || "not supplied"} | ${scores.length} qualifying component scores | ${titles.length ? `${titles.length} titles recorded by SDDA` : `${inferredTitles().length} titles calculated from scores`}`, { size: 10, color: rgb(.35, .42, .38), after: 8 });
   text(`Generated ${new Date().toLocaleDateString()} from the member's SDDA account downloads.`, { size: 8, color: rgb(.4, .45, .42), after: 8 });
 
@@ -447,7 +452,7 @@ async function downloadPdfReport() {
   const bytes = await pdf.save();
   const blob = new Blob([bytes], { type: "application/pdf" });
   const url = URL.createObjectURL(blob), link = document.createElement("a");
-  const safeDog = (scores[0]?.dog || "SDDA-dog").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
+  const safeDog = dogDisplayName().replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
   link.href = url; link.download = `${safeDog}-SDDA-title-report.pdf`; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
