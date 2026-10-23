@@ -81,18 +81,16 @@ button { min-height: 48px; border-radius: 12px; font-size: 15px; }
   tr { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin-bottom: 12px; overflow: hidden; border: 1px solid var(--line); border-radius: 15px; background: var(--paper); box-shadow: 0 4px 16px #183c290b; }
   td { display: block; padding: 10px 12px; border: 0; border-bottom: 1px solid #edf0ed; }
   td::before { display: block; margin-bottom: 2px; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-  td:nth-child(1)::before { content: "Level"; }
-  td:nth-child(2)::before { content: "Combination"; }
-  td:nth-child(3)::before { content: "Container"; }
-  td:nth-child(4)::before { content: "Interior"; }
-  td:nth-child(5)::before { content: "Exterior"; }
-  td:nth-child(6)::before { content: "Total"; }
-  td:nth-child(7)::before { content: "Classification"; }
-  td:nth-child(1) { grid-column: 1 / 2; font-size: 18px; font-weight: 800; }
-  td:nth-child(2) { grid-column: 2 / 4; font-size: 18px; font-weight: 800; }
-  td:nth-child(n+3):nth-child(-n+5) { background: #f7f8f5; }
-  td:nth-child(6) { grid-column: 1 / 2; border-bottom: 0; }
-  td:nth-child(7) { grid-column: 2 / 4; border-bottom: 0; color: var(--green); }
+  td:nth-child(1)::before { content: "Combination / Trial"; }
+  td:nth-child(2)::before { content: "Container"; }
+  td:nth-child(3)::before { content: "Interior"; }
+  td:nth-child(4)::before { content: "Exterior"; }
+  td:nth-child(5)::before { content: "Total"; }
+  td:nth-child(6)::before { content: "Classification"; }
+  td:nth-child(1) { grid-column: 1 / 4; font-size: 18px; font-weight: 800; }
+  td:nth-child(n+2):nth-child(-n+4) { background: #f7f8f5; }
+  td:nth-child(5) { grid-column: 1 / 2; border-bottom: 0; }
+  td:nth-child(6) { grid-column: 2 / 4; border-bottom: 0; color: var(--green); }
   tr.gold td { background: var(--goldbg); }
   .limits { padding: 16px; }
   footer { padding: 26px 16px 100px; font-size: 13px; }

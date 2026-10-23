@@ -3,9 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SDDA Title Tracker</title>
+  <title>SDDA Title Tracker Mobile</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="trial-lookup.css">
+  <link rel="stylesheet" href="mobile.css">
   <link rel="stylesheet" href="requirements.css">
   <style>.level-score-block{margin-top:20px}.level-score-block h3{margin:0 0 9px;color:var(--green);font-size:18px}.level-note{margin:-2px 0 10px;color:var(--muted);font-size:13px}</style>
 </head>
@@ -13,7 +14,7 @@
   <header class="hero">
     <div class="wrap hero-grid">
       <div>
-        <p class="eyebrow">Private, local account review</p>
+        <p class="eyebrow">Private, on-device account review</p>
         <h1>SDDA Title Tracker</h1>
         <p class="lede">To use this tracker, upload the DOG SCORES file downloaded from your <a href="https://www.sdda.ca/my-profile/" target="_blank" rel="noopener">SDDA account</a>. You may also upload the optional DOG TITLES file to confirm SDDA-recorded titles and title dates. Either file can be in CSV or XLSX format. The tracker will show recorded or calculated titles, qualifying score combinations, calculated Gold scores, and criteria still needed for further titles.</p>
       </div>
@@ -22,15 +23,31 @@
   </header>
 
   <main class="wrap">
-    <section class="privacy">Files stay in this browser. Nothing is uploaded to a server or saved after the page is closed.</section>
+    <section class="privacy"><strong>Your files stay private.</strong> Everything is calculated on this device and cleared when the page closes.</section>
+    <details class="download-help" open>
+      <summary><span><strong>How to get your SDDA files</strong><small>Scores required; Titles optional</small></span><b aria-hidden="true">+</b></summary>
+      <div class="download-help-body">
+        <ol>
+          <li>Go to <a href="https://www.sdda.ca/my-profile/" target="_blank" rel="noopener">your SDDA account</a> and sign in.</li>
+          <li>Open your registered dog’s record.</li>
+          <li>Open the dog’s <strong>Scores</strong> table and download or export it as CSV or XLSX.</li>
+          <li>Optional: open the dog’s <strong>Titles</strong> table and download it if you want the tracker to show SDDA-recorded titles and dates.</li>
+          <li>Return here and select the Scores file in Step 1. Add the Titles file in Step 2 if available.</li>
+        </ol>
+        <p>Use files for one dog at a time. The optional Trial Workbook is only needed when score dates are missing.</p>
+      </div>
+    </details>
     <section class="upload-grid" aria-label="Upload SDDA account downloads">
       <label class="upload-card"><span>1</span><strong>Required — Dog Scores CSV or XLSX</strong><small>Expected columns include Dog Number, Trial Number, Description, Score, Maximum Score</small><input id="scores-file" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><em id="scores-name">Choose Dog_Scores_Table CSV or XLSX</em></label>
       <label class="upload-card"><span>2</span><strong>Optional — Dog Titles CSV or XLSX</strong><small>Confirms official titles and dates. Expected: Description, Honours, Title Score, Title Date</small><input id="titles-file" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><em id="titles-name">Choose Dog_Titles_Table CSV or XLSX, if available</em></label>
     </section>
-    <section class="trial-lookup">
-      <div><p class="eyebrow">Optional date lookup</p><h2>Fill dates from the official Trial Workbook</h2><p>The SDDA workbook contains a <strong>Processed and Future Trials</strong> table with trial numbers and dates. Download the current workbook, then upload it here. The tracker will fill blank Event Date values when the trial number is listed.</p><div class="official-links"><a href="https://www.sdda.ca/wp-content/uploads/2026/09/TrialWorkbook-20260921.xlsx">Download current SDDA Trial Workbook</a><a href="https://www.sdda.ca/sdda-forms/" target="_blank" rel="noopener">Check SDDA Forms for a newer workbook</a></div></div>
-      <label class="workbook-upload"><strong>Upload Trial Workbook</strong><input id="workbook-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><span id="workbook-name">Choose the downloaded .xlsx file</span></label>
-    </section>
+    <details class="optional-date">
+      <summary><span><strong>Add missing trial dates</strong><small>Optional Trial Workbook lookup</small></span><b aria-hidden="true">+</b></summary>
+      <section class="trial-lookup">
+        <div><p>The SDDA workbook contains a <strong>Processed and Future Trials</strong> table with trial numbers and dates. Add it when score dates are missing and you need higher-championship cutoff calculations.</p><div class="official-links"><a href="https://www.sdda.ca/wp-content/uploads/2026/09/TrialWorkbook-20260921.xlsx">Download current Trial Workbook</a><a href="https://www.sdda.ca/sdda-forms/" target="_blank" rel="noopener">Check for a newer workbook</a></div></div>
+        <label class="workbook-upload"><strong>Choose Trial Workbook</strong><input id="workbook-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><span id="workbook-name">Select the downloaded XLSX file</span></label>
+      </section>
+    </details>
     <div id="message" class="message">Upload the Dog Scores file to calculate title progress. The Dog Titles file is optional.</div>
 
     <section id="report" hidden>
