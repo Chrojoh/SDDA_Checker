@@ -86,12 +86,13 @@ function byLevel(level, list = scores) { return list.filter((score) => score.lev
 function componentCounts(level, list = scores) { return Object.fromEntries(COMPONENTS.map((component) => [component, list.filter((score) => score.level === level && score.component === component).length])); }
 
 function workbookDate(value) {
-  if (typeof value === "number") {
-    const parsed = window.XLSX.SSF.parse_date_code(value);
+  const text = String(value ?? "").trim();
+  const numeric = typeof value === "number" ? value : /^\d{4,5}(?:\.\d+)?$/.test(text) ? Number(text) : NaN;
+  if (Number.isFinite(numeric)) {
+    const parsed = window.XLSX.SSF.parse_date_code(numeric);
     if (parsed) return `${String(parsed.y).padStart(4, "0")}-${String(parsed.m).padStart(2, "0")}-${String(parsed.d).padStart(2, "0")}`;
   }
   if (value instanceof Date && !Number.isNaN(value.valueOf())) return value.toISOString().slice(0, 10);
-  const text = String(value || "").trim();
   if (!text) return "";
   const parsed = new Date(text); return Number.isNaN(parsed.valueOf()) ? "" : parsed.toISOString().slice(0, 10);
 }
@@ -361,12 +362,12 @@ function render() {
 
 async function loadTitles(file) {
   const parsed = await parseAccountFile(file, (headers) => headers.some((header) => /^description$/i.test(header)) && headers.some((header) => /title score/i.test(header)) && headers.some((header) => /title date/i.test(header)), "Dog Titles");
-  titles = parsed.data.map((row) => ({ description: String(row.Description || "").trim(), honours: String(row.Honours || "").trim(), score: String(row["Title Score"] || "").trim() === "" ? null : Number(row["Title Score"]), date: String(row["Title Date"] || "").trim() })).filter((title) => title.description);
+  titles = parsed.data.map((row) => ({ description: String(row.Description || "").trim(), honours: String(row.Honours || "").trim(), score: String(row["Title Score"] || "").trim() === "" ? null : Number(row["Title Score"]), date: workbookDate(row["Title Date"]) })).filter((title) => title.description);
   $("titles-name").textContent = `${file.name} · ${titles.length} titles${parsed.sheetName === "CSV" ? "" : ` · ${parsed.sheetName}`}`; render();
 }
 async function loadScores(file) {
   const parsed = await parseAccountFile(file, (headers) => headers.some((header) => /^description$/i.test(header)) && headers.some((header) => /maximum score/i.test(header)) && headers.some((header) => /^score$/i.test(header)), "Dog Scores");
-  scores = parsed.data.map((row, index) => { const description = String(row.Description || "").trim(), level = levelFrom(description), component = componentFrom(description), score = Number(row.Score); if (!level || !component || !Number.isFinite(score)) return null; return { sourceRow: index + 2, dogNumber: String(row["Dog Number"] || "").trim(), dog: String(row["Registered Name"] || "").trim(), trial: String(row["Trial Number"] || "").trim(), date: String(row["Event Date"] || "").trim(), description, level, component, score, maximum: Number(row["Maximum Score"]) }; }).filter(Boolean);
+  scores = parsed.data.map((row, index) => { const description = String(row.Description || "").trim(), level = levelFrom(description), component = componentFrom(description), score = Number(row.Score); if (!level || !component || !Number.isFinite(score)) return null; return { sourceRow: index + 2, dogNumber: String(row["Dog Number"] || "").trim(), dog: String(row["Registered Name"] || "").trim(), trial: String(row["Trial Number"] || "").trim(), date: workbookDate(row["Event Date"]), description, level, component, score, maximum: Number(row["Maximum Score"]) }; }).filter(Boolean);
   if (trialDates.size) applyTrialDates();
   $("scores-name").textContent = `${file.name} · ${scores.length} qualifying scores${parsed.sheetName === "CSV" ? "" : ` · ${parsed.sheetName}`}`; render();
 }
