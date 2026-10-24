@@ -83,8 +83,8 @@ button { min-height: 48px; border-radius: 12px; font-size: 15px; }
   td::before { display: block; margin-bottom: 2px; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
   td:nth-child(1)::before { content: "Combination / Trial"; }
   td:nth-child(2)::before { content: "Container"; }
-  td:nth-child(3)::before { content: "Interior"; }
-  td:nth-child(4)::before { content: "Exterior"; }
+  td:nth-child(3)::before { content: "Exterior"; }
+  td:nth-child(4)::before { content: "Interior"; }
   td:nth-child(5)::before { content: "Total"; }
   td:nth-child(6)::before { content: "Classification"; }
   td:nth-child(1) { grid-column: 1 / 4; font-size: 18px; font-weight: 800; }

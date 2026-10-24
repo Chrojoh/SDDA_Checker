@@ -1,6 +1,6 @@
 "use strict";
 
-const COMPONENTS = ["Container", "Interior", "Exterior"];
+const COMPONENTS = ["Container", "Exterior", "Interior"];
 const LEVELS = ["Started", "Advanced", "Excellent", "Elite"];
 let titles = [], scores = [], trialDates = new Map(), dateMatches = 0, unmatchedTrials = [];
 
@@ -282,10 +282,10 @@ function render() {
 
   const cards = [];
   const levelRules = {
-    Started: ["Wintergreen; one hide in each component", "Container: 3 min · Interior: 5 min · Exterior: 5 min", "Components may be passed at different trials; no formal alert required"],
-    Advanced: ["Wintergreen and Pine; two hides in each component", "Container: 3 min · Interior: 5 min · Exterior: 5 min", "Pass the corresponding Started component first; formal alert is scored"],
-    Excellent: ["Wintergreen, Pine and Thyme; three hides in each component", "Container: 3 min · Interior: 15 min/3 rooms · Exterior: 5 min", "Pass the corresponding Advanced component first; call the clear Interior room"],
-    Elite: ["Excellent title required before entering Elite", "Container: 2–4 hides/3 min · Interior: 0–5 hides/10 min · Exterior/Vehicle: 0–3 hides/5 min", "All three components must qualify at the same trial; call every find and clear area", "No separate Amateur and Working streams"]
+    Started: ["Wintergreen; one hide in each component", "Container: 3 min · Exterior: 5 min · Interior: 5 min", "Components may be passed at different trials; no formal alert required"],
+    Advanced: ["Wintergreen and Pine; two hides in each component", "Container: 3 min · Exterior: 5 min · Interior: 5 min", "Pass the corresponding Started component first; formal alert is scored"],
+    Excellent: ["Wintergreen, Pine and Thyme; three hides in each component", "Container: 3 min · Exterior: 5 min · Interior: 15 min/3 rooms", "Pass the corresponding Advanced component first; call the clear Interior room"],
+    Elite: ["Excellent title required before entering Elite", "Container: 2–4 hides/3 min · Exterior/Vehicle: 0–3 hides/5 min · Interior: 0–5 hides/10 min", "All three components must qualify at the same trial; call every find and clear area", "No separate Amateur and Working streams"]
   };
   for (const level of LEVELS) {
     const earned = findTitle(titlePattern(level)); const counts = componentCounts(level); const missing = COMPONENTS.filter((component) => counts[component] === 0);
@@ -356,13 +356,14 @@ function render() {
 
   const classification = (total) => total >= 192 ? "Gold" : total >= 172 ? "Silver" : total >= 142 ? "Bronze" : "Satisfactory";
   const summary = (sets, label) => `<span>${sets.length} ${label}${sets.length === 1 ? "" : "s"}</span><span class="gold">${sets.filter((set) => set.gold).length} Gold</span><span>${sets.filter((set) => !set.gold).length} non-Gold</span>`;
-  const combinationRows = (sets) => sets.map((set) => `<tr class="${set.gold ? "gold" : ""}"><td>${set.special ? `SP locked · Trial ${esc(set.trial || "—")}` : set.rank}</td><td>${set.container.score}</td><td>${set.interior.score}</td><td>${set.exterior.score}</td><td>${set.total}</td><td>${classification(set.total)}</td></tr>`).join("") || `<tr><td colspan="6">No complete combinations are available.</td></tr>`;
+  const combinationRows = (sets) => sets.map((set) => `<tr class="${set.gold ? "gold" : ""}"><td>${set.special ? `SP locked · Trial ${esc(set.trial || "—")}` : set.rank}</td><td>${set.container.score}</td><td>${set.exterior.score}</td><td>${set.interior.score}</td><td>${set.total}</td><td>${classification(set.total)}</td></tr>`).join("") || `<tr><td colspan="6">No complete combinations are available.</td></tr>`;
   $("advanced-gold-summary").innerHTML = summary(advancedSets, "combination");
   $("advanced-gold-rows").innerHTML = combinationRows(advancedSets);
   $("excellent-gold-summary").innerHTML = summary(excellentSetsList, "combination");
   $("excellent-gold-rows").innerHTML = combinationRows(excellentSetsList);
   $("elite-gold-summary").innerHTML = summary(elSets, "same-trial score");
-  $("elite-gold-rows").innerHTML = elSets.map((set) => `<tr class="${set.gold ? "gold" : ""}"><td>Trial ${esc(set.trial || "—")}</td><td>${set.parts.Container.score}</td><td>${set.parts.Interior.score}</td><td>${set.parts.Exterior.score}</td><td>${set.total}</td><td>${classification(set.total)}</td></tr>`).join("") || `<tr><td colspan="6">No complete Elite same-trial scores are available.</td></tr>`;
+  $("elite-gold-rows").innerHTML = elSets.map((set) => `<tr class="${set.gold ? "gold" : ""}"><td>Trial ${esc(set.trial || "—")}</td><td>${set.parts.Container.score}</td><td>${set.parts.Exterior.score}</td><td>${set.parts.Interior.score}</td><td>${set.total}</td><td>${classification(set.total)}</td></tr>`).join("") || `<tr><td colspan="6">No complete Elite same-trial scores are available.</td></tr>`;
+  document.querySelectorAll(".level-score-block table thead tr").forEach((row) => { const cells = row.querySelectorAll("th"); if (cells.length >= 4) { cells[1].textContent = "Container"; cells[2].textContent = "Exterior"; cells[3].textContent = "Interior"; } });
 
   const blanks = scores.filter((score) => !score.date).length;
   $("limits").innerHTML = `<h3>Verification limits in these downloads</h3><ul><li>The score download contains no judge column, so two-judge and three-judge championship requirements cannot be proven.</li>${dateMatches ? `<li>${dateMatches} missing Event Date value${dateMatches === 1 ? " was" : "s were"} filled by matching Trial Number in the official Trial Workbook.</li>` : ""}${blanks ? `<li>${blanks} score row${blanks === 1 ? " still has" : "s still have"} no Event Date.${unmatchedTrials.length ? ` Trial number${unmatchedTrials.length === 1 ? "" : "s"} not found in that workbook: ${unmatchedTrials.join(", ")}.` : ""} Higher championship calculations cannot reliably exclude scores earned on or before a previous title date.</li>` : ""}<li>This report treats rows in the Dog Scores download as qualifying scores, consistent with the supplied Gold-score instructions.</li><li>SDDA remains the authority for official title approval.</li></ul>`;
@@ -455,12 +456,12 @@ async function downloadPdfReport() {
     const combinations = maximizeGoldCombinations(level);
     text(level, { size: 10, bold: true });
     if (!combinations.length) text(`No complete ${level} combination is available.`);
-    for (const set of combinations) text(`${set.special ? `SP locked, trial ${set.trial}` : `Combination ${set.rank}`}: C ${set.container.score} + I ${set.interior.score} + E ${set.exterior.score} = ${set.total} (${set.gold ? "GOLD" : "not Gold"})`, { size: 9, bold: set.gold });
+    for (const set of combinations) text(`${set.special ? `SP locked, trial ${set.trial}` : `Combination ${set.rank}`}: C ${set.container.score} + E ${set.exterior.score} + I ${set.interior.score} = ${set.total} (${set.gold ? "GOLD" : "not Gold"})`, { size: 9, bold: set.gold });
   }
   text("Elite (same-trial sets)", { size: 10, bold: true });
   const eliteCombinations = eliteSets();
   if (!eliteCombinations.length) text("No complete Elite same-trial set is available.");
-  for (const set of eliteCombinations) text(`Trial ${set.trial || "unknown"}: C ${set.parts.Container.score} + I ${set.parts.Interior.score} + E ${set.parts.Exterior.score} = ${set.total} (${set.gold ? "GOLD" : "not Gold"})`, { size: 9, bold: set.gold });
+  for (const set of eliteCombinations) text(`Trial ${set.trial || "unknown"}: C ${set.parts.Container.score} + E ${set.parts.Exterior.score} + I ${set.parts.Interior.score} = ${set.total} (${set.gold ? "GOLD" : "not Gold"})`, { size: 9, bold: set.gold });
 
   y -= 8;
   text("Limitations", { size: 11, bold: true, color: rgb(.61, .26, .24) });
