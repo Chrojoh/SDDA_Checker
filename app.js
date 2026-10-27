@@ -4,6 +4,7 @@ const COMPONENTS = ["Container", "Exterior", "Interior"];
 const LEVELS = ["Started", "Advanced", "Excellent", "Elite"];
 const GAME_NAMES = ["Aerial", "Distance", "Speed", "Team"];
 let titles = [], scores = [], games = [], trialDates = new Map(), dateMatches = 0, unmatchedTrials = [];
+let currentPdfUrl = "";
 
 const $ = (id) => document.getElementById(id);
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]));
@@ -415,9 +416,9 @@ function renderMobileDashboard() {
   scentTarget.innerHTML = scentCards.join("");
 
   const runRows = (sets, isElite = false) => sets.length ? `<div class="run-grid">${sets.map((set) => { const c = isElite ? set.parts.Container.score : set.container.score, e = isElite ? set.parts.Exterior.score : set.exterior.score, i = isElite ? set.parts.Interior.score : set.interior.score; return `<div class="run-row ${set.gold ? "gold" : ""}"><b>${isElite ? `Trial ${esc(set.trial || "—")}` : set.special ? "SP" : `#${set.rank}`}</b><span>C ${c}</span><span>E ${e}</span><span>I ${i}</span><strong>${set.total}</strong></div>`; }).join("")}</div>` : `<p class="run-empty">No complete combinations yet.</p>`;
-  $("mobile-scent-runs").innerHTML = [
-    accordion({ name: "Advanced runs", subtitle: `${advanced.length} combinations · ${advanced.filter((set) => set.gold).length} Gold`, body: `<p class="run-legend"><strong>SP = Special.</strong> The three components used to earn an initial Special title stay together as one locked combination.</p>${runRows(advanced)}`, accent: "level-accent-silver" }),
-    accordion({ name: "Excellent runs", subtitle: `${excellent.length} combinations · ${excellent.filter((set) => set.gold).length} Gold`, body: runRows(excellent), accent: "level-accent-gold" }),
+  $("mobile-scent-runs").innerHTML = `<p class="sp-definition"><strong>SP = Special.</strong> Its three title-earning components stay together as one locked combination.</p>` + [
+    accordion({ name: "Advanced runs", subtitle: `${advanced.length} combinations · ${advanced.filter((set) => set.gold).length} Gold`, body: runRows(advanced), accent: "level-accent-silver" }),
+    accordion({ name: "Excellent runs", subtitle: `${excellent.length} combinations · ${excellent.filter((set) => set.gold).length} Gold`, body: `<p class="run-legend"><strong>SP = Special.</strong> Its three title-earning Excellent components stay together as one locked combination.</p>${runRows(excellent)}`, accent: "level-accent-gold" }),
     accordion({ name: "Elite runs", subtitle: `${elite.length} same-trial scores · ${elite.filter((set) => set.gold).length} Gold`, body: runRows(elite, true), accent: "level-accent-elite" })
   ].join("");
 
@@ -548,23 +549,21 @@ async function downloadPdfReport() {
   const blob = new Blob([bytes], { type: "application/pdf" });
   const safeDog = dogDisplayName().replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
   const filename = `${safeDog}-SDDA-title-report-${localDateStamp()}.pdf`;
-  const file = new File([blob], filename, { type: "application/pdf" });
-  if (navigator.share && navigator.canShare?.({ files: [file] })) {
-    await navigator.share({ files: [file], title: `${dogDisplayName()} SDDA title report` });
-    return "shared";
-  }
-  const url = URL.createObjectURL(blob), link = document.createElement("a");
-  link.href = url; link.download = filename; link.rel = "noopener"; document.body.appendChild(link); link.click(); link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
-  return "downloaded";
+  if (currentPdfUrl) URL.revokeObjectURL(currentPdfUrl);
+  currentPdfUrl = URL.createObjectURL(blob);
+  const ready = $("pdf-ready");
+  ready.href = currentPdfUrl; ready.download = filename; ready.target = "_blank"; ready.rel = "noopener"; ready.hidden = false;
+  ready.textContent = `${filename} — tap to open or download`;
+  ready.click();
+  return "ready";
 }
 
 $("print-button").addEventListener("click", async () => {
   const button = $("print-button"), previous = button.textContent;
   try {
     button.disabled = true; button.textContent = "Creating PDF…";
-    const result = await downloadPdfReport();
-    button.textContent = result === "shared" ? "PDF ready to save or share" : "PDF download started";
+    await downloadPdfReport();
+    button.textContent = "PDF created below";
   } catch (error) {
     $("message").textContent = `PDF download failed: ${error.message}`;
     button.textContent = "Try PDF download again";
