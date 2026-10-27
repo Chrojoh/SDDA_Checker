@@ -81,7 +81,8 @@ function levelFrom(description) {
 function componentFrom(description) { return COMPONENTS.find((component) => new RegExp(component, "i").test(description)) || null; }
 function gameFrom(description) { const text = String(description || ""); return GAME_NAMES.find((game) => new RegExp(`(?:^|\\b)${game}(?:\\b|$)`, "i").test(text)) || null; }
 function titleText(title) { return `${title.description} ${title.honours}`.trim(); }
-function gamesTitleRecorded(game) { return titles.some((title) => new RegExp(`(?:^|\\b)${game}(?:\\b|$)|SD-G${game[0]}`, "i").test(titleText(title))); }
+function gameTitleRecord(game) { const codes = { Aerial: "GA", Distance: "GD", Speed: "GS", Team: "GT" }; return titles.find((title) => new RegExp(`(?:^|\\b)${game}(?:\\s+Games)?(?:\\b|$)|SD-${codes[game]}(?:\\b|$)`, "i").test(titleText(title))); }
+function gamesTitleRecorded(game) { return !!gameTitleRecord(game); }
 function findTitle(pattern) { return titles.find((title) => pattern.test(titleText(title))); }
 function dateLabel(value) {
   if (!value) return "Date not supplied";
@@ -279,9 +280,9 @@ function championshipTitle(kind) {
     elch: /(^|\b)(SD[- ]?)?ELCH(?!\d)|elite champion(?!\s*[234])/i,
     elch2: /ELCH\s*2|elite champion\s*2/i, elch3: /ELCH\s*3|elite champion\s*3/i, elch4: /ELCH\s*4|elite champion\s*4/i,
     gmch: /GMCH|grand master champion/i,
-    gch: /(^|\b)(SD[- ]?)?GCH(?!\d)|games champion(?!\s*[2345])/i,
-    gch2: /GCH\s*2|games champion\s*2/i, gch3: /GCH\s*3|games champion\s*3/i,
-    gch4: /GCH\s*4|games champion\s*4/i, gch5: /GCH\s*5|games champion\s*5/i
+    gch: /(^|\b)(SD[- ]?)?GCH(?!\d)|games champion(?!\s*[2345])|^All Games$/i,
+    gch2: /GCH\s*2|games champion\s*2|^All Games\s*2$/i, gch3: /GCH\s*3|games champion\s*3|^All Games\s*3$/i,
+    gch4: /GCH\s*4|games champion\s*4|^All Games\s*4$/i, gch5: /GCH\s*5|games champion\s*5|^All Games\s*5$/i
   };
   return findTitle(patterns[kind]);
 }
@@ -387,18 +388,20 @@ function render() {
   ], gmch ? `Recorded ${dateLabel(gmch.date)}.` : "The score requirements can be calculated, but judge names and official title approval require SDDA confirmation."));
 
   const extensions = [
-    { key: "mach2", prior: mach, title: "SD-MACH2", need: 10, excellent: 7, gold: 3, usedTotal: 10, usedExcellent: 3, usedGold: 3 },
-    { key: "mach3", prior: championshipTitle("mach2"), title: "SD-MACH3", need: 10, excellent: 10, gold: 3, usedTotal: 20, usedExcellent: 10, usedGold: 6 },
-    { key: "mach4", prior: championshipTitle("mach3"), title: "SD-MACH4", need: 10, excellent: 10, gold: 4, usedTotal: 30, usedExcellent: 20, usedGold: 9 }
+    { key: "mach2", previous: "mach", prior: mach, title: "SD-MACH2", need: 10, excellent: 7, gold: 3, usedTotal: 10, usedExcellent: 3, usedGold: 3 },
+    { key: "mach3", previous: "mach2", prior: championshipTitle("mach2"), title: "SD-MACH3", need: 10, excellent: 10, gold: 3, usedTotal: 20, usedExcellent: 10, usedGold: 6 },
+    { key: "mach4", previous: "mach3", prior: championshipTitle("mach3"), title: "SD-MACH4", need: 10, excellent: 10, gold: 4, usedTotal: 30, usedExcellent: 20, usedGold: 9 }
   ];
+  const legacyMachStageMet = new Map([["mach", !!mach || machScoresMet]]);
   for (const extension of extensions) {
-    const achieved = championshipTitle(extension.key); if (!extension.prior && !achieved) continue;
+    const achieved = championshipTitle(extension.key), previousMet = !!extension.prior || !!legacyMachStageMet.get(extension.previous); if (!previousMet && !achieved) continue;
     const progress = machExtensionProgress(extension, extension.prior);
     cards.push(progressCard(extension.title, achieved ? "Achieved" : "In progress", [
       { done: progress.total >= extension.need, text: `${progress.total}/${extension.need} new titling scores` },
       { done: progress.excellent >= extension.excellent, text: `${progress.excellent}/${extension.excellent} new Excellent combinations` },
       { done: progress.gold >= extension.gold, text: `${progress.gold}/${extension.gold} new Excellent Gold scores` }
-    ], `${achieved ? `Recorded ${dateLabel(achieved.date)}. ` : ""}${progress.mode === "dates" ? `Counts scores dated after ${dateLabel(extension.prior?.date)}.` : "Score dates are incomplete, so this uses the current totals minus the minimum requirements consumed by preceding championships."}`));
+    ], `${achieved ? `Recorded ${dateLabel(achieved.date)}. ` : ""}${progress.mode === "dates" ? `Counts scores dated after ${dateLabel(extension.prior?.date)}.` : "Uses the calculated prior-title starting point and subtracts the minimum requirements consumed by preceding championships."}`));
+    legacyMachStageMet.set(extension.key, !!achieved || (previousMet && progress.total >= extension.need && progress.excellent >= extension.excellent && progress.gold >= extension.gold));
   }
   $("progress").innerHTML = cards.join("");
 
@@ -444,8 +447,8 @@ function renderMobileDashboard() {
   const championCards = [
     { name: "SD-CH", found: championshipTitle("ch"), met: total >= 5 && excellent.length >= 2, items: [{ done: total >= 5, text: `${total}/5 Advanced or Excellent scores` }, { done: excellent.length >= 2, text: `${excellent.length}/2 must be Excellent` }] },
     { name: "SD-MACH", found: championshipTitle("mach"), met: total >= 10 && excellent.length >= 3 && gold >= 3, items: [{ done: total >= 10, text: `${total}/10 Advanced or Excellent scores` }, { done: excellent.length >= 3, text: `${excellent.length}/3 must be Excellent` }, { done: gold >= 3, text: `${gold}/3 Gold scores` }] },
-    { name: "SD-ELCH", found: championshipTitle("elch"), met: elite.length >= 5 && elite.filter((set) => set.gold).length >= 2, verificationRequired: true, items: [{ done: elite.length >= 5, text: `${elite.length}/5 complete Elite scores` }, { done: elite.filter((set) => set.gold).length >= 2, text: `${elite.filter((set) => set.gold).length}/2 Elite Gold scores` }, { done: false, text: "Two judges must be confirmed by SDDA" }] },
-    { name: "SD-GMCH", found: championshipTitle("gmch"), met: !!championshipTitle("mach") && !!championshipTitle("elch"), verificationRequired: true, items: [{ done: !!championshipTitle("mach"), text: "SD-MACH required" }, { done: !!championshipTitle("elch"), text: "SD-ELCH required" }, { done: false, text: "Three judges must be confirmed by SDDA" }] }
+    { name: "SD-ELCH", found: championshipTitle("elch"), met: elite.length >= 5 && elite.filter((set) => set.gold).length >= 2, verificationRequired: true, items: [{ done: elite.length >= 5, text: `${elite.length}/5 complete Elite scores` }, { done: elite.filter((set) => set.gold).length >= 2, text: `${elite.filter((set) => set.gold).length}/2 Elite Gold scores` }, { done: false, text: "At least 2 different judges required · cannot verify from these files" }] },
+    { name: "SD-GMCH", found: championshipTitle("gmch"), met: !!championshipTitle("mach") && !!championshipTitle("elch"), verificationRequired: true, items: [{ done: !!championshipTitle("mach"), text: "SD-MACH required" }, { done: !!championshipTitle("elch"), text: "SD-ELCH required" }, { done: false, text: "At least 3 different judges required · cannot verify from these files" }] }
   ];
   const repeatMachRules = [
     { key: "mach2", previous: "mach", name: "SD-MACH2", total: 10, excellent: 7, gold: 3, usedTotal: 10, usedExcellent: 3, usedGold: 3 },
@@ -477,7 +480,7 @@ function renderMobileDashboard() {
       { done: !!previous, text: `${rule.previous.toUpperCase()} must be recorded first` },
       { done: !!eligible && sets.length >= 5, text: eligible ? `${sets.length}/5 new Elite scores` : "Previous-title date and complete score dates required" },
       { done: !!eligible && eliteGold >= rule.gold, text: `${eliteGold}/${rule.gold} new Elite Gold scores` },
-      { done: false, text: "Judge requirement must be confirmed by SDDA" }
+      { done: true, text: "No additional judge-count requirement is listed for this repeat title" }
     ] });
   });
   championCards.forEach((entry) => { const achieved = !!entry.found || (entry.met && !entry.verificationRequired); const subtitle = entry.found ? "Recorded title" : entry.met && entry.verificationRequired ? "Score requirements met · verification needed" : entry.met ? "Score requirements met · not yet recorded" : "In progress"; scentCards.push(accordion({ name: entry.name, subtitle, achieved, date: entry.found?.date, body: reqList(entry.items), accent: entry.name.includes("EL") || entry.name.includes("GMCH") ? "level-accent-elite" : entry.name.includes("MACH") ? "level-accent-gold" : "" })); });
@@ -491,7 +494,7 @@ function renderMobileDashboard() {
   ].join("");
 
   const gameCounts = gamePassCounts(), gameTargets = [];
-  $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => { const recorded = gamesTitleRecorded(game), met = recorded || gameCounts[game] >= 3; gameTargets.push({ name: `${game} (SD-G${game[0]})`, kind: "Games", needed: Math.max(0, 3 - gameCounts[game]), items: [`${gameCounts[game]}/3 passes`] }); return accordion({ name: `${game} · SD-G${game[0]}`, subtitle: `${gameCounts[game]}/3 passes`, achieved: met, date: titles.find((title) => new RegExp(game, "i").test(titleText(title)))?.date, body: reqList([{ done: met, text: `${gameCounts[game]}/3 qualifying passes` }]) }); }).join("");
+  $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => { const title = gameTitleRecord(game), recorded = !!title, met = recorded || gameCounts[game] >= 3; gameTargets.push({ name: `${game} (SD-G${game[0]})`, kind: "Games", needed: recorded ? 0 : Math.max(0, 3 - gameCounts[game]), items: [recorded ? `Recorded ${dateLabel(title.date)}` : `${gameCounts[game]}/3 passes`] }); return accordion({ name: `${game} · SD-G${game[0]}`, subtitle: recorded ? "Recorded title" : `${gameCounts[game]}/3 passes`, achieved: met, date: title?.date, body: reqList([{ done: met, text: recorded ? `Title awarded ${dateLabel(title.date)}` : `${gameCounts[game]}/3 qualifying passes` }]) }); }).join("");
   const titledGames = GAME_NAMES.filter((game) => gamesTitleRecorded(game) || gameCounts[game] >= 3).length;
   const sortedPasses = Object.values(gameCounts).sort((a, b) => b - a);
   const gchRules = [
@@ -502,7 +505,12 @@ function renderMobileDashboard() {
     { key: "gch5", name: "SD-GCH5", thresholds: [29, 29, 29, 10], text: "Ten additional passes in all four Games" }
   ];
   $("mobile-game-runs").innerHTML = gchRules.map((rule) => {
-    const found = championshipTitle(rule.key), needed = rule.thresholds.reduce((sum, threshold, index) => sum + Math.max(0, threshold - (sortedPasses[index] || 0)), 0);
+    const found = championshipTitle(rule.key);
+    if (rule.key === "gch") {
+      const neededTitles = Math.max(0, 3 - titledGames);
+      return accordion({ name: rule.name, subtitle: found ? "Recorded title" : `${titledGames}/3 individual Games titles`, achieved: !!found || titledGames >= 3, date: found?.date, body: reqList([{ done: titledGames >= 3 || !!found, text: `${titledGames}/3 individual Games titles completed` }, { done: !!found, text: found ? `Title awarded ${dateLabel(found.date)}` : `${neededTitles} more individual Games title${neededTitles === 1 ? "" : "s"} needed` }]), accent: "level-accent-elite" });
+    }
+    const needed = rule.thresholds.reduce((sum, threshold, index) => sum + Math.max(0, threshold - (sortedPasses[index] || 0)), 0);
     return accordion({ name: rule.name, subtitle: found ? "Recorded title" : `${needed} estimated pass${needed === 1 ? "" : "es"} remaining`, achieved: !!found, date: found?.date, body: reqList([{ done: !!found, text: rule.text }, { done: false, text: "Banked passes may be used; the Titles file confirms the official award" }]), accent: "level-accent-elite" });
   }).join("");
 
@@ -514,10 +522,10 @@ function renderMobileDashboard() {
   const elchNeeded = Math.max(Math.max(0, 5 - elite.length), Math.max(0, 2 - elite.filter((set) => set.gold).length));
   if (!championshipTitle("ch") && chNeeded > 0) targets.push({ name: "SD-CH", kind: "Scent", needed: chNeeded, items: [`${Math.max(0, 5 - total)} more complete score combinations`, `${Math.max(0, 2 - excellent.length)} more Excellent combinations`] });
   if (!championshipTitle("mach") && machNeeded > 0) targets.push({ name: "SD-MACH", kind: "Scent", needed: machNeeded, items: [`${Math.max(0, 10 - total)} more complete combinations`, `${Math.max(0, 3 - excellent.length)} more Excellent combinations`, `${Math.max(0, 3 - gold)} more Gold scores`] });
-  if (!championshipTitle("elch") && elchNeeded > 0) targets.push({ name: "SD-ELCH", kind: "Scent", needed: elchNeeded, items: [`${Math.max(0, 5 - elite.length)} more Elite scores`, `${Math.max(0, 2 - elite.filter((set) => set.gold).length)} more Elite Gold scores`, "Judge requirement needs SDDA confirmation"] });
-  if (!championshipTitle("gmch")) { const missing = [!championshipTitle("mach") && "SD-MACH", !championshipTitle("elch") && "SD-ELCH"].filter(Boolean); targets.push({ name: "SD-GMCH", kind: "Scent", needed: Math.max(1, missing.length), items: [...missing.map((title) => `${title} required`), "Three judges must be confirmed by SDDA"] }); }
+  if (!championshipTitle("elch")) targets.push({ name: "SD-ELCH", kind: "Scent", needed: Math.max(1, elchNeeded), items: [`${Math.max(0, 5 - elite.length)} more Elite scores`, `${Math.max(0, 2 - elite.filter((set) => set.gold).length)} more Elite Gold scores`, "At least 2 different judges required · judge names unavailable in these files"] });
+  if (!championshipTitle("gmch")) { const missing = [!championshipTitle("mach") && "SD-MACH", !championshipTitle("elch") && "SD-ELCH"].filter(Boolean); targets.push({ name: "SD-GMCH", kind: "Scent", needed: Math.max(1, missing.length), items: [...missing.map((title) => `${title} required`), "At least 3 different judges required · judge names unavailable in these files"] }); }
   repeatMachRules.forEach((rule) => { if (championshipTitle(rule.key) || !machStageMet.get(rule.previous)) return; const previous = championshipTitle(rule.previous), progress = machExtensionProgress(rule, previous), needed = Math.max(Math.max(0, rule.total - progress.total), Math.max(0, rule.excellent - progress.excellent), Math.max(0, rule.gold - progress.gold)); targets.push({ name: rule.name, kind: "Scent", needed, items: [`${Math.max(0, rule.total - progress.total)} more new combinations`, `${Math.max(0, rule.excellent - progress.excellent)} more new Excellent combinations`, `${Math.max(0, rule.gold - progress.gold)} more new Excellent Gold scores`] }); });
-  repeatEliteRules.forEach((rule) => { if (championshipTitle(rule.key)) return; const previous = championshipTitle(rule.previous); if (!previous) return; const eligible = rowsAfter(previous.date), sets = eligible ? eliteSets(eligible) : [], eliteGold = sets.filter((set) => set.gold).length; const needed = eligible ? Math.max(Math.max(0, 5 - sets.length), Math.max(0, rule.gold - eliteGold)) : 1; targets.push({ name: rule.name, kind: "Scent", needed, items: eligible ? [`${Math.max(0, 5 - sets.length)} more new Elite scores`, `${Math.max(0, rule.gold - eliteGold)} more new Elite Gold scores`, "Judge requirement needs SDDA confirmation"] : [`Recorded ${rule.previous.toUpperCase()} title date and complete score dates required`] }); });
+  repeatEliteRules.forEach((rule) => { if (championshipTitle(rule.key)) return; const previous = championshipTitle(rule.previous); if (!previous) return; const eligible = rowsAfter(previous.date), sets = eligible ? eliteSets(eligible) : [], eliteGold = sets.filter((set) => set.gold).length; const needed = eligible ? Math.max(Math.max(0, 5 - sets.length), Math.max(0, rule.gold - eliteGold)) : 1; targets.push({ name: rule.name, kind: "Scent", needed, items: eligible ? [`${Math.max(0, 5 - sets.length)} more new Elite scores`, `${Math.max(0, rule.gold - eliteGold)} more new Elite Gold scores`] : [`Recorded ${rule.previous.toUpperCase()} title date and complete score dates required`] }); });
   gameTargets.filter((target) => target.needed > 0).forEach((target) => targets.push(target));
   if (titledGames < 3) targets.push({ name: "SD-GCH", kind: "Games", needed: 3 - titledGames, items: [`${3 - titledGames} more individual Games title${3 - titledGames === 1 ? "" : "s"}`] });
   gchRules.slice(1).forEach((rule, index) => { if (championshipTitle(rule.key) || !championshipTitle(gchRules[index].key)) return; const needed = rule.thresholds.reduce((sum, threshold, position) => sum + Math.max(0, threshold - (sortedPasses[position] || 0)), 0); targets.push({ name: rule.name, kind: "Games", needed, items: [rule.text, `${needed} estimated additional pass${needed === 1 ? "" : "es"} from the uploaded history`] }); });
