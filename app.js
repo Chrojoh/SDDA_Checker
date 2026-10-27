@@ -336,7 +336,7 @@ function render() {
     Started: ["Wintergreen; one hide in each component", "Container: 3 min · Exterior: 5 min · Interior: 5 min", "Components may be passed at different trials; no formal alert required"],
     Advanced: ["Wintergreen and Pine; two hides in each component", "Container: 3 min · Exterior: 5 min · Interior: 5 min", "Pass the corresponding Started component first; formal alert is scored"],
     Excellent: ["Wintergreen, Pine and Thyme; three hides in each component", "Container: 3 min · Exterior: 5 min · Interior: 15 min/3 rooms", "Pass the corresponding Advanced component first; call the clear Interior room"],
-    Elite: ["Excellent title required before entering Elite", "Container: 2–4 hides/3 min · Exterior/Vehicle: 0–3 hides/5 min · Interior: 0–5 hides/10 min", "All three components must qualify at the same trial; call every find and clear area", "No separate Amateur and Working streams"]
+    Elite: ["All three components must qualify at the same trial; call every find and clear area"]
   };
   for (const level of LEVELS) {
     const earned = findTitle(titlePattern(level)); const counts = componentCounts(level); const missing = COMPONENTS.filter((component) => counts[component] === 0);
@@ -346,11 +346,10 @@ function render() {
       const completeEliteScores = eliteSets().length;
       requirements = [
         { done: !!findTitle(titlePattern("Excellent")) || !!inferredTitles().find((title) => /^Excellent\b/i.test(title.description)), text: "Excellent title prerequisite" },
-        { done: completeEliteScores > 0, text: `${completeEliteScores} complete same-trial Elite score${completeEliteScores === 1 ? "" : "s"}` },
-        ...requirements
+        { done: completeEliteScores > 0, text: completeEliteScores > 0 ? `${completeEliteScores} complete same-trial Elite score${completeEliteScores === 1 ? "" : "s"}` : "One complete same-trial Elite score needed" }
       ];
       status = earned ? "Achieved" : completeEliteScores > 0 ? "Requirements shown as met" : "In progress";
-      note = earned ? `Recorded ${dateLabel(earned.date)}${earned.score == null ? "" : ` with title score ${earned.score}`}.` : "A Container, Interior and Exterior Q must share the same trial number.";
+      note = earned ? `Recorded ${dateLabel(earned.date)}${earned.score == null ? "" : ` with title score ${earned.score}`}.` : "";
     } else {
       status = earned ? "Achieved" : missing.length ? "In progress" : "Requirements shown as met";
       note = earned ? `Recorded ${dateLabel(earned.date)}${earned.score == null ? "" : ` with title score ${earned.score}`}.` : missing.length ? `Needs ${missing.join(" and ")}.` : "The account shows at least one qualifying score in every component.";
@@ -602,9 +601,26 @@ async function downloadPdfReport() {
     for (const line of lines) { if (y < 52) newPage(); page.drawText(line, { x: margin + indent, y, size, font, color }); y -= options.leading || lineHeight; }
     if (options.after) y -= options.after;
   }
+  function centeredText(value, options = {}) {
+    const size = options.size || 10, font = options.bold ? bold : regular, color = options.color || rgb(.10, .14, .12);
+    const lines = wrap(value, 612 - margin * 2, font, size);
+    for (const line of lines) { if (y < 52) newPage(); const width = font.widthOfTextAtSize(line, size); page.drawText(line, { x: Math.max(margin, (612 - width) / 2), y, size, font, color }); y -= options.leading || lineHeight; }
+    if (options.after) y -= options.after;
+  }
   function heading(value, size = 15) { if (y < 90) newPage(); y -= 5; text(value, { size, bold: true, color: rgb(.13, .37, .27), leading: size + 4, after: 4 }); }
+  function scoreTable(title, rows) {
+    const headers = ["Combination / Trial", "Container", "Exterior", "Interior", "Total", "Classification"];
+    const widths = [130, 70, 70, 70, 60, 120], tableWidth = widths.reduce((sum, width) => sum + width, 0), rowHeight = 19, sectionHeight = 23, headerHeight = 21;
+    const drawCells = (values, height, fill, header = false) => { let x = margin; values.forEach((value, index) => { page.drawRectangle({ x, y: y - height, width: widths[index], height, color: fill, borderColor: rgb(.42, .48, .44), borderWidth: .8 }); const cellFont = header ? bold : index === 0 || index === 5 ? bold : regular, size = header ? 7.5 : 8.5, safe = String(value ?? "").replace(/[^\x20-\x7E]/g, " "), textWidth = cellFont.widthOfTextAtSize(safe, size); page.drawText(safe, { x: index > 0 ? x + Math.max(4, (widths[index] - textWidth) / 2) : x + 6, y: y - height + 6, size, font: cellFont, color: rgb(.10, .14, .12) }); x += widths[index]; }); y -= height; };
+    const drawHeader = (continued = false) => { page.drawRectangle({ x: margin, y: y - sectionHeight, width: tableWidth, height: sectionHeight, color: rgb(.13, .37, .27), borderColor: rgb(.08, .24, .17), borderWidth: 1 }); page.drawText(`${title}${continued ? " (continued)" : ""}`, { x: margin + 7, y: y - 16, size: 10, font: bold, color: rgb(1, 1, 1) }); y -= sectionHeight; drawCells(headers, headerHeight, rgb(.89, .92, .90), true); };
+    if (y < 52 + sectionHeight + headerHeight + rowHeight) newPage(); drawHeader();
+    const tableRows = rows.length ? rows : [["No complete combinations", "-", "-", "-", "-", "-"]];
+    for (const row of tableRows) { if (y < 52 + rowHeight) { newPage(); drawHeader(true); } drawCells(row, rowHeight, row[5] === "Gold" ? rgb(1, .96, .84) : rgb(1, 1, 1)); }
+    y -= 10;
+  }
   newPage();
-  text(dogDisplayName(), { size: 24, bold: true, leading: 27 });
+  y -= 10;
+  text(dogDisplayName(), { size: 24, bold: true, leading: 27, after: 2 });
   text(`SDDA #${scores[0]?.dogNumber || "not supplied"} | ${scores.length} qualifying component scores | ${titles.length ? `${titles.length} titles recorded by SDDA` : `${inferredTitles().length} titles calculated from scores`}`, { size: 10, color: rgb(.35, .42, .38), after: 8 });
   text(`Generated ${new Date().toLocaleDateString()} from the member's SDDA account downloads.`, { size: 8, color: rgb(.4, .45, .42), after: 8 });
 
@@ -618,8 +634,11 @@ async function downloadPdfReport() {
   for (const card of document.querySelectorAll("#progress .progress-card")) {
     const name = card.querySelector("h3")?.textContent || "Title";
     const status = card.querySelector(".status")?.textContent || "";
+    const requirements = [...card.querySelectorAll("li:not(.info)")];
+    const complete = status === "Achieved" || (requirements.length > 0 && requirements.every((item) => item.classList.contains("done")));
+    if (complete) continue;
     text(`${name} - ${status}`, { size: 11, bold: true });
-    for (const item of card.querySelectorAll("li")) text(`${item.classList.contains("done") ? "[met]" : "[needed]"} ${item.textContent}`, { indent: 12, size: 9 });
+    for (const item of card.querySelectorAll("li")) text(`${item.classList.contains("info") ? "[rule]" : item.classList.contains("done") ? "[met]" : "[needed]"} ${item.textContent}`, { indent: 12, size: 9 });
     const note = card.querySelector("p")?.textContent; if (note) text(note, { indent: 12, size: 8, color: rgb(.38, .43, .4), after: 5 });
   }
 
@@ -627,14 +646,10 @@ async function downloadPdfReport() {
   text("Advanced and Excellent components are calculated separately. Initial Special titles remain locked, each component is used once, and Elite components remain grouped by trial.", { size: 9, color: rgb(.35, .42, .38), after: 5 });
   for (const level of ["Advanced", "Excellent"]) {
     const combinations = maximizeGoldCombinations(level);
-    text(level, { size: 10, bold: true });
-    if (!combinations.length) text(`No complete ${level} combination is available.`);
-    for (const set of combinations) text(`${set.special ? `SP locked, trial ${set.trial}` : `Combination ${set.rank}`}: C ${set.container.score} + E ${set.exterior.score} + I ${set.interior.score} = ${set.total} (${set.gold ? "GOLD" : "not Gold"})`, { size: 9, bold: set.gold });
+    scoreTable(level, combinations.map((set) => [set.special ? `SP - Trial ${set.trial || "-"}` : `Combination ${set.rank}`, set.container.score, set.exterior.score, set.interior.score, set.total, set.gold ? "Gold" : "Not Gold"]));
   }
-  text("Elite (same-trial sets)", { size: 10, bold: true });
   const eliteCombinations = eliteSets();
-  if (!eliteCombinations.length) text("No complete Elite same-trial set is available.");
-  for (const set of eliteCombinations) text(`Trial ${set.trial || "unknown"}: C ${set.parts.Container.score} + E ${set.parts.Exterior.score} + I ${set.parts.Interior.score} = ${set.total} (${set.gold ? "GOLD" : "not Gold"})`, { size: 9, bold: set.gold });
+  scoreTable("Elite - same-trial sets", eliteCombinations.map((set) => [`Trial ${set.trial || "-"}`, set.parts.Container.score, set.parts.Exterior.score, set.parts.Interior.score, set.total, set.gold ? "Gold" : "Not Gold"]));
 
   y -= 8;
   text("Limitations", { size: 11, bold: true, color: rgb(.61, .26, .24) });
