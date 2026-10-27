@@ -3,8 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SDDA Title Tracker Mobile</title>
+  <title>SDDA Title Tracker</title>
+  <script>location.replace("mobile-v2.html");</script>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="games.css?v=20261025-1">
   <link rel="stylesheet" href="trial-lookup.css">
   <link rel="stylesheet" href="mobile.css">
   <link rel="stylesheet" href="requirements.css">
@@ -58,6 +60,7 @@
 
       <section><div class="section-head"><div><p class="eyebrow">Recorded or calculated</p><h2>Titles achieved</h2></div><p>The card label shows whether a title came from the optional SDDA Titles file or was calculated from scores.</p></div><div id="achieved" class="card-grid"></div></section>
       <section><div class="section-head"><div><p class="eyebrow">Current position</p><h2>What is needed next</h2></div><p>“Calculated” means derived from the supplied score history and should be confirmed by SDDA.</p></div><div id="progress" class="progress-grid"></div></section>
+      <section id="games-section"><div class="section-head"><div><p class="eyebrow">Pass / No Pass competitions</p><h2>Games titles</h2></div><p>Games are tracked separately from scored components. A qualifying Games row counts as one pass.</p></div><div id="games-summary" class="summary-strip"></div><div id="games-grid" class="games-grid"></div><div id="games-championships" class="games-championships"></div></section>
       <section><div class="section-head"><div><p class="eyebrow">Gold calculations grouped by level</p><h2>Advanced, Excellent and Elite scores</h2></div><p>Advanced components combine only with Advanced, and Excellent only with Excellent. Each component is used once. Initial Special titles and all Elite scores remain grouped together.</p></div><div class="level-score-block"><h3>Advanced combinations</h3><div id="advanced-gold-summary" class="summary-strip"></div><div class="table-wrap"><table><thead><tr><th>Combination</th><th>Container</th><th>Interior</th><th>Exterior</th><th>Total</th><th>Classification</th></tr></thead><tbody id="advanced-gold-rows"></tbody></table></div></div><div class="level-score-block"><h3>Excellent combinations</h3><div id="excellent-gold-summary" class="summary-strip"></div><div class="table-wrap"><table><thead><tr><th>Combination</th><th>Container</th><th>Interior</th><th>Exterior</th><th>Total</th><th>Classification</th></tr></thead><tbody id="excellent-gold-rows"></tbody></table></div></div><div class="level-score-block"><h3>Elite same-trial scores</h3><p class="level-note">Every complete Elite score is shown because non-Gold scores still count toward the required Elite titling-score total.</p><div id="elite-gold-summary" class="summary-strip"></div><div class="table-wrap"><table><thead><tr><th>Trial</th><th>Container</th><th>Interior</th><th>Exterior</th><th>Total</th><th>Classification</th></tr></thead><tbody id="elite-gold-rows"></tbody></table></div></div></section>
       <section id="limits" class="limits"></section>
     </section>
@@ -65,6 +68,6 @@
   <footer>Independent planning aid. Confirm title applications and official eligibility with the Sporting Detection Dogs Association.</footer>
   <script src="vendor/xlsx.full.min.js"></script>
   <script src="vendor/pdf-lib.min.js"></script>
-  <script src="app.js?v=20261023-3"></script>
+  <script src="app.js?v=20261025-1"></script>
 </body>
 </html>
