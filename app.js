@@ -18,7 +18,7 @@ function dogDisplayName() {
 }
 function reportFileStem() {
   const dog = dogDisplayName().replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ");
-  return `${dog} - SDDA Title Tracker - ${localDateStamp()}`;
+  return `${dog} - SDDA Achievement Ledger - ${localDateStamp()}`;
 }
 
 function parseCsv(text) {
@@ -424,7 +424,7 @@ function renderMobileDashboard() {
     { name: "SD-ELCH", found: championshipTitle("elch"), met: elite.length >= 5 && elite.filter((set) => set.gold).length >= 2, items: [{ done: elite.length >= 5, text: `${elite.length}/5 complete Elite scores` }, { done: elite.filter((set) => set.gold).length >= 2, text: `${elite.filter((set) => set.gold).length}/2 Elite Gold scores` }, { done: false, text: "Two judges must be confirmed by SDDA" }] },
     { name: "SD-GMCH", found: championshipTitle("gmch"), met: false, items: [{ done: !!championshipTitle("mach"), text: "SD-MACH required" }, { done: !!championshipTitle("elch"), text: "SD-ELCH required" }, { done: false, text: "Three judges must be confirmed by SDDA" }] }
   ];
-  championCards.forEach((entry) => { const achieved = !!entry.found || entry.met; scentCards.push(accordion({ name: entry.name, subtitle: achieved ? "Achieved or requirements met" : "In progress", achieved, date: entry.found?.date, body: reqList(entry.items), accent: entry.name.includes("EL") ? "level-accent-elite" : entry.name.includes("MACH") ? "level-accent-gold" : "" })); });
+  championCards.forEach((entry) => { const achieved = !!entry.found || entry.met; scentCards.push(accordion({ name: entry.name, subtitle: achieved ? "Achieved or requirements met" : "In progress", achieved, date: entry.found?.date, body: reqList(entry.items), accent: entry.name.includes("EL") || entry.name.includes("GMCH") ? "level-accent-elite" : entry.name.includes("MACH") ? "level-accent-gold" : "" })); });
   scentTarget.innerHTML = scentCards.join("");
 
   const runRows = (sets, isElite = false) => sets.length ? `<div class="run-grid">${sets.map((set) => { const c = isElite ? set.parts.Container.score : set.container.score, e = isElite ? set.parts.Exterior.score : set.exterior.score, i = isElite ? set.parts.Interior.score : set.interior.score; return `<div class="run-row ${set.gold ? "gold" : ""}"><b>${isElite ? `Trial ${esc(set.trial || "—")}` : set.special ? "SP" : `#${set.rank}`}</b><span>C ${c}</span><span>E ${e}</span><span>I ${i}</span><strong>${set.total}</strong></div>`; }).join("")}</div>` : `<p class="run-empty">No complete combinations yet.</p>`;
@@ -505,7 +505,7 @@ async function downloadPdfReport() {
   let page, y;
   function newPage() {
     page = pdf.addPage(pageSize); y = 746;
-    page.drawText("SDDA Title Tracker", { x: margin, y: 765, size: 9, font: bold, color: rgb(.13, .37, .27) });
+    page.drawText("SDDA Achievement Ledger", { x: margin, y: 765, size: 9, font: bold, color: rgb(.36, .28, .48) });
     page.drawText(`Page ${pdf.getPageCount()}`, { x: 520, y: 765, size: 8, font: regular, color: rgb(.4, .45, .42) });
   }
   function wrap(text, maxWidth, font, size) {
