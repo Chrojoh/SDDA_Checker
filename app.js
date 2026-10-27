@@ -546,17 +546,25 @@ async function downloadPdfReport() {
   text("The supplied Dog Scores download has no judge column. Judge-diversity requirements cannot be verified. Blank Event Date values prevent reliable score cutoffs for higher championship extensions. Titles calculated without the optional Dog Titles file are not official confirmation. Confirm eligibility with SDDA.", { size: 8, color: rgb(.35, .36, .34) });
   const bytes = await pdf.save();
   const blob = new Blob([bytes], { type: "application/pdf" });
-  const url = URL.createObjectURL(blob), link = document.createElement("a");
   const safeDog = dogDisplayName().replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
-  link.href = url; link.download = `${safeDog}-SDDA-title-report.pdf`; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+  const filename = `${safeDog}-SDDA-title-report-${localDateStamp()}.pdf`;
+  const file = new File([blob], filename, { type: "application/pdf" });
+  if (navigator.share && navigator.canShare?.({ files: [file] })) {
+    await navigator.share({ files: [file], title: `${dogDisplayName()} SDDA title report` });
+    return "shared";
+  }
+  const url = URL.createObjectURL(blob), link = document.createElement("a");
+  link.href = url; link.download = filename; link.rel = "noopener"; document.body.appendChild(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  return "downloaded";
 }
 
 $("print-button").addEventListener("click", async () => {
   const button = $("print-button"), previous = button.textContent;
   try {
     button.disabled = true; button.textContent = "Creating PDF…";
-    await downloadPdfReport();
-    button.textContent = "PDF downloaded";
+    const result = await downloadPdfReport();
+    button.textContent = result === "shared" ? "PDF ready to save or share" : "PDF download started";
   } catch (error) {
     $("message").textContent = `PDF download failed: ${error.message}`;
     button.textContent = "Try PDF download again";
