@@ -286,7 +286,19 @@ function render() {
   $("report").hidden = false;
   const dog = dogDisplayName(), number = scores[0]?.dogNumber || "not supplied";
   document.title = reportFileStem();
-  $("dog-name").textContent = dog; $("dog-meta").textContent = `SDDA #${number} · ${scores.length} qualifying component scores · ${titles.length ? `${titles.length} titles recorded by SDDA` : `${inferredTitles().length} titles calculated from scores`}`;
+  const summaryInferred = inferredTitles();
+  const summaryTitle = (pattern) => titles.find((title) => pattern.test(titleText(title))) || summaryInferred.find((title) => pattern.test(titleText(title)));
+  const summaryAdvanced = maximizeGoldCombinations("Advanced"), summaryExcellent = maximizeGoldCombinations("Excellent"), summaryElite = eliteSets();
+  const summaryCombined = [...summaryAdvanced, ...summaryExcellent], summaryGolds = summaryCombined.filter((set) => set.gold).length;
+  const scentAchieved = [
+    !!summaryTitle(/^Started(?:\s|$)/i), !!summaryTitle(/^Advanced(?:\s|$)/i), !!summaryTitle(/^Excellent(?:\s|$)/i),
+    !!summaryTitle(/^Elite(?:\s|$)/i) || summaryElite.length > 0,
+    !!championshipTitle("ch") || (summaryCombined.length >= 5 && summaryExcellent.length >= 2),
+    !!championshipTitle("mach") || (summaryCombined.length >= 10 && summaryExcellent.length >= 3 && summaryGolds >= 3),
+    !!championshipTitle("elch") || (summaryElite.length >= 5 && summaryElite.filter((set) => set.gold).length >= 2),
+    !!championshipTitle("gmch")
+  ].filter(Boolean).length;
+  $("dog-name").textContent = dog; $("dog-meta").textContent = `SDDA #${number} · ${scores.length} qualifying component scores · ${scentAchieved} scent titles achieved · ${8 - scentAchieved} in progress`;
   $("message").textContent = titles.length
     ? `${trialDates.size ? `The Trial Workbook supplied dates for ${dateMatches} score rows. ` : ""}Scores loaded; titles are confirmed by the optional SDDA Titles file.`
     : `${trialDates.size ? `The Trial Workbook supplied dates for ${dateMatches} score rows. ` : ""}Scores loaded without a Titles file. Achievements are calculated from score history and are not official confirmation.`;
