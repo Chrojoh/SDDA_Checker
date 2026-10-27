@@ -455,7 +455,7 @@ function renderMobileDashboard() {
     const found = championshipTitle(rule.key), previous = championshipTitle(rule.previous), progress = machExtensionProgress(rule, previous);
     const met = progress.total >= rule.total && progress.excellent >= rule.excellent && progress.gold >= rule.gold;
     championCards.push({ name: rule.name, found, met, items: [
-      { done: !!previous, text: `${rule.previous.toUpperCase()} must be recorded first` },
+      { done: !!previous, text: previous ? `${rule.previous.toUpperCase()} recorded ${dateLabel(previous.date)}` : `${rule.previous.toUpperCase()} recorded title required; calculated score requirements alone do not unlock ${rule.name}` },
       { done: progress.total >= rule.total, text: `${progress.total}/${rule.total} new score combinations` },
       { done: progress.excellent >= rule.excellent, text: `${progress.excellent}/${rule.excellent} new Excellent combinations` },
       { done: progress.gold >= rule.gold, text: `${progress.gold}/${rule.gold} new Excellent Gold scores` },
@@ -476,7 +476,7 @@ function renderMobileDashboard() {
       { done: false, text: "Judge requirement must be confirmed by SDDA" }
     ] });
   });
-  championCards.forEach((entry) => { const achieved = !!entry.found || (entry.met && !entry.verificationRequired); const subtitle = entry.found ? "Achieved" : entry.met && entry.verificationRequired ? "Score requirements met · verification needed" : entry.met ? "Requirements met" : "In progress"; scentCards.push(accordion({ name: entry.name, subtitle, achieved, date: entry.found?.date, body: reqList(entry.items), accent: entry.name.includes("EL") || entry.name.includes("GMCH") ? "level-accent-elite" : entry.name.includes("MACH") ? "level-accent-gold" : "" })); });
+  championCards.forEach((entry) => { const achieved = !!entry.found; const subtitle = entry.found ? "Recorded title" : entry.met && entry.verificationRequired ? "Score requirements met · verification needed" : entry.met ? "Score requirements met · not yet recorded" : "In progress"; scentCards.push(accordion({ name: entry.name, subtitle, achieved, date: entry.found?.date, body: reqList(entry.items), accent: entry.name.includes("EL") || entry.name.includes("GMCH") ? "level-accent-elite" : entry.name.includes("MACH") ? "level-accent-gold" : "" })); });
   scentTarget.innerHTML = scentCards.join("");
 
   const runRows = (sets, isElite = false) => sets.length ? `<div class="run-grid">${sets.map((set) => { const c = isElite ? set.parts.Container.score : set.container.score, e = isElite ? set.parts.Exterior.score : set.exterior.score, i = isElite ? set.parts.Interior.score : set.interior.score; return `<div class="run-row ${set.gold ? "gold" : ""}"><b>${isElite ? `Trial ${esc(set.trial || "—")}` : set.special ? "SP" : `#${set.rank}`}</b><span>C ${c}</span><span>E ${e}</span><span>I ${i}</span><strong>${set.total}</strong></div>`; }).join("")}</div>` : `<p class="run-empty">No complete combinations yet.</p>`;
