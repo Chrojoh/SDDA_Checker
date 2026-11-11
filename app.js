@@ -542,7 +542,13 @@ async function loadTitles(file) {
 async function loadScores(file) {
   const parsed = await parseAccountFile(file, (headers) => headers.some((header) => /^description$/i.test(header)) && headers.some((header) => /maximum score/i.test(header)) && headers.some((header) => /^score$/i.test(header)), "Dog Scores");
   const standard = [], gameRows = [];
-  parsed.data.forEach((row, index) => { const description = String(row.Description || "").trim(), game = gameFrom(description); const common = { sourceRow: index + 2, dogNumber: String(row["Dog Number"] || "").trim(), dog: String(row["Registered Name"] || "").trim(), trial: String(row["Trial Number"] || "").trim(), date: workbookDate(row["Event Date"]), description }; if (game) { const result = String(row.Result ?? row.Status ?? row.Outcome ?? row.Score ?? "").trim(); if (!result) return; const explicitFail = /^(?:fail|failed|not\s*pass|no\s*pass|did\s*not\s*pass|nq|np|no|false|absent|withdrawn|0)$/i.test(result); gameRows.push({ ...common, game, pass: !explicitFail, result }); return; } const level = levelFrom(description), component = componentFrom(description), score = Number(row.Score); if (level && component && validComponentScore(level, component, row.Score)) standard.push({ ...common, level, component, score, maximum: Number(row["Maximum Score"]) }); });
+  parsed.data.forEach((row, index) => { const description = String(row.Description || "").trim(), game = gameFrom(description); const common = { sourceRow: index + 2, dogNumber: String(row["Dog Number"] || "").trim(), dog: String(row["Registered Name"] || "").trim(), trial: String(row["Trial Number"] || "").trim(), date: workbookDate(row["Event Date"]), description }; 
+if (game) {
+    const result = String(row.Result ?? row.Status ?? row.Outcome ?? row.Score ?? "").trim();
+    const explicitFail = /^(?:fail|failed|not\s*pass|no\s*pass|did\s*not\s*pass|nq|np|no|false|absent|withdrawn)$/i.test(result);
+    gameRows.push({ ...common, game, pass: !explicitFail, result });
+    return;
+} const level = levelFrom(description), component = componentFrom(description), score = Number(row.Score); if (level && component && validComponentScore(level, component, row.Score)) standard.push({ ...common, level, component, score, maximum: Number(row["Maximum Score"]) }); });
   scores = standard; games = gameRows;
   if (trialDates.size) applyTrialDates();
   $("scores-name").textContent = `${file.name} · ${scores.length} component scores${games.length ? ` · ${games.filter((row) => row.pass).length} Games passes` : ""}${parsed.sheetName === "CSV" ? "" : ` · ${parsed.sheetName}`}`; render();
