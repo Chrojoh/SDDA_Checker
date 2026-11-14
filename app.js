@@ -79,7 +79,7 @@ function levelFrom(description) {
   return LEVELS.find((level) => new RegExp(level, "i").test(text)) || null;
 }
 function componentFrom(description) { return COMPONENTS.find((component) => new RegExp(component, "i").test(description)) || null; }
-function gameFrom(description) { const text = String(description || ""); return GAME_NAMES.find((game) => new RegExp(`(?:^|\\b)${game}(?:\\b|$)`, "i").test(text)) || null; }
+function gameFrom(description) { const text = String(description || ""); const match = text.match(/\\bGames?\\s*[-:]\\s*(Aerial|Distance|Speed|Teams?)\\b/i) || text.match(/\\b(Aerial|Distance|Speed|Teams?)\\s+Games?\\b/i); if (!match) return null; const name = match[1].toLowerCase(); return name.startsWith("team") ? "Team" : name[0].toUpperCase() + name.slice(1); }
 function titleText(title) { return `${title.description} ${title.honours}`.trim(); }
 function gameTitleRecord(game) { const codes = { Aerial: "GA", Distance: "GD", Speed: "GS", Team: "GT" }; return titles.find((title) => new RegExp(`(?:^|\\b)${game}(?:\\s+Games)?(?:\\b|$)|SD-${codes[game]}(?:\\b|$)`, "i").test(titleText(title))); }
 function gamesTitleRecorded(game) { return !!gameTitleRecord(game); }
@@ -441,22 +441,25 @@ function renderMobileDashboard() {
     { name: "SD-GMCH", found: championshipTitle("gmch"), met: !!championshipTitle("mach") && !!championshipTitle("elch"), verificationRequired: true, items: [{ done: !!championshipTitle("mach"), text: "SD-MACH required" }, { done: !!championshipTitle("elch"), text: "SD-ELCH required" }, { done: false, text: "At least 3 different judges required · cannot verify from these files" }] }
   ];
   const repeatMachRules = [
-    { key: "mach2", previous: "mach", name: "SD-MACH2", total: 10, excellent: 7, gold: 3, usedTotal: 10, usedExcellent: 3, usedGold: 3 },
-    { key: "mach3", previous: "mach2", name: "SD-MACH3", total: 10, excellent: 10, gold: 3, usedTotal: 20, usedExcellent: 10, usedGold: 6 },
-    { key: "mach4", previous: "mach3", name: "SD-MACH4", total: 10, excellent: 10, gold: 4, usedTotal: 30, usedExcellent: 20, usedGold: 9 }
+    { key: "mach2", previous: "mach", name: "SD-MACH2", excellent: 7, maxAdvanced: 3, gold: 3 },
+    { key: "mach3", previous: "mach2", name: "SD-MACH3", excellent: 10, gold: 3 },
+    { key: "mach4", previous: "mach3", name: "SD-MACH4", excellent: 10, gold: 4 }
   ];
   const machStageMet = new Map([["mach", !!championshipTitle("mach") || (total >= 10 && excellent.length >= 3 && gold >= 3)]]);
   repeatMachRules.forEach((rule) => {
     const found = championshipTitle(rule.key), previous = championshipTitle(rule.previous), progress = machExtensionProgress(rule, previous);
     const previousMet = !!previous || !!machStageMet.get(rule.previous);
-    const met = previousMet && progress.total >= rule.total && progress.excellent >= rule.excellent && progress.gold >= rule.gold;
-    championCards.push({ name: rule.name, found, met, items: [
-      { done: previousMet, text: previous ? `${rule.previous.toUpperCase()} recorded ${dateLabel(previous.date)}` : previousMet ? `${rule.previous.toUpperCase()} score requirements met · calculated starting point` : `${rule.previous.toUpperCase()} requirements must be met first` },
-      { done: progress.total >= rule.total, text: `${progress.total}/${rule.total} new score combinations` },
-      { done: progress.excellent >= rule.excellent, text: `${progress.excellent}/${rule.excellent} new Excellent combinations` },
-      { done: progress.gold >= rule.gold, text: `${progress.gold}/${rule.gold} new Excellent Gold scores` },
-      { done: progress.mode === "dates", text: progress.mode === "dates" ? `Counted after ${dateLabel(previous?.date)}` : "Calculated by subtracting preceding minimum requirements" }
-    ] });
+    const countedAdvanced = rule.maxAdvanced ? Math.min(progress.advanced, rule.maxAdvanced) : 0;
+    const countedTotal = progress.excellent + countedAdvanced;
+    const met = previousMet && progress.verified && progress.excellent >= rule.excellent && progress.gold >= rule.gold && (!rule.maxAdvanced || countedTotal >= 10);
+    const items = [
+      { done: !!previous && progress.verified, text: previous ? `${rule.previous.toUpperCase()} recorded · cutoff Trial ${progress.cutoffTrial ?? "unavailable"}` : `${rule.previous.toUpperCase()} title record needed to establish cutoff` },
+      { done: progress.verified && progress.excellent >= rule.excellent, text: `${progress.verified ? progress.excellent : "—"}/${rule.excellent} additional Excellent combinations` },
+      { done: progress.verified && progress.gold >= rule.gold, text: `${progress.verified ? progress.gold : "—"}/${rule.gold} additional Excellent Gold combinations` }
+    ];
+    if (rule.maxAdvanced) items.push({ done: progress.verified && countedTotal >= 10, text: progress.verified ? `${countedAdvanced} of up to ${rule.maxAdvanced} Advanced combinations counted · ${countedTotal}/10 total` : "Advanced score allowance cannot be checked until the previous title cutoff is known" });
+    items.push({ done: progress.verified, text: progress.verified ? `Only scores from trials after Trial ${progress.cutoffTrial} count` : "Previous title trial cutoff and complete trial numbers required" });
+    championCards.push({ name: rule.name, found, met: !!found || met, items });
     machStageMet.set(rule.key, !!found || met);
   });
   const repeatEliteRules = [
@@ -597,7 +600,18 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
   if (!championshipTitle("mach") && machNeeded > 0) targets.push({ name: "SD-MACH", kind: "Scent", needed: machNeeded, items: [`${Math.max(0, 10 - total)} more complete combinations`, `${Math.max(0, 3 - excellent.length)} more Excellent combinations`, `${Math.max(0, 3 - gold)} more Gold scores`] });
   if (!championshipTitle("elch")) targets.push({ name: "SD-ELCH", kind: "Scent", needed: Math.max(1, elchNeeded), items: [`${Math.max(0, 5 - elite.length)} more Elite scores`, `${Math.max(0, 2 - elite.filter((set) => set.gold).length)} more Elite Gold scores`, "At least 2 different judges required · judge names unavailable in these files"] });
   if (!championshipTitle("gmch")) { const missing = [!championshipTitle("mach") && "SD-MACH", !championshipTitle("elch") && "SD-ELCH"].filter(Boolean); targets.push({ name: "SD-GMCH", kind: "Scent", needed: Math.max(1, missing.length), items: [...missing.map((title) => `${title} required`), "At least 3 different judges required · judge names unavailable in these files"] }); }
-  repeatMachRules.forEach((rule) => { if (championshipTitle(rule.key) || !machStageMet.get(rule.previous)) return; const previous = championshipTitle(rule.previous), progress = machExtensionProgress(rule, previous), needed = Math.max(Math.max(0, rule.total - progress.total), Math.max(0, rule.excellent - progress.excellent), Math.max(0, rule.gold - progress.gold)); targets.push({ name: rule.name, kind: "Scent", needed, items: [`${Math.max(0, rule.total - progress.total)} more new combinations`, `${Math.max(0, rule.excellent - progress.excellent)} more new Excellent combinations`, `${Math.max(0, rule.gold - progress.gold)} more new Excellent Gold scores`] }); });
+  repeatMachRules.forEach((rule) => {
+    if (championshipTitle(rule.key) || !machStageMet.get(rule.previous)) return;
+    const previous = championshipTitle(rule.previous), progress = machExtensionProgress(rule, previous);
+    const countedAdvanced = rule.maxAdvanced ? Math.min(progress.advanced, rule.maxAdvanced) : 0;
+    const countedTotal = progress.excellent + countedAdvanced;
+    const items = progress.verified ? [
+      `${progress.excellent}/${rule.excellent} additional Excellent combinations`,
+      `${progress.gold}/${rule.gold} additional Excellent Gold combinations`,
+      ...(rule.maxAdvanced ? [`${countedAdvanced} Advanced combinations counted · ${countedTotal}/10 total`] : [])
+    ] : ["Previous title trial cutoff and complete trial numbers required; only later scores may count."];
+    targets.push({ name: rule.name, kind: "Scent", needed: progress.verified ? Math.max(Math.max(0,rule.excellent-progress.excellent),Math.max(0,rule.gold-progress.gold),rule.maxAdvanced?Math.max(0,10-countedTotal):0) : 1, items });
+  });
   repeatEliteRules.forEach((rule) => { if (championshipTitle(rule.key)) return; const previous = championshipTitle(rule.previous); if (!previous) return; const eligible = scoreRowsAfterTitle(previous), sets = eligible ? eliteSets(eligible) : [], eliteGold = sets.filter((set) => set.gold).length; const needed = eligible ? Math.max(Math.max(0, 5 - sets.length), Math.max(0, rule.gold - eliteGold)) : 1; targets.push({ name: rule.name, kind: "Scent", needed, items: eligible ? [`${Math.max(0, 5 - sets.length)} more new Elite scores`, `${Math.max(0, rule.gold - eliteGold)} more new Elite Gold scores`] : [`Recorded ${rule.previous.toUpperCase()} title date and complete score dates required`] }); });
   gameTargets.filter((target) => target.needed > 0).forEach((target) => targets.push(target));
   gchProgress.forEach(({ rule, remaining, met, progressText }) => {
