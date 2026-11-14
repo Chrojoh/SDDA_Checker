@@ -651,7 +651,7 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
         { done: met || !!found, text: "At least 3 passes in each of any 3 different Games" },
         { done: met || !!found, text: progressText },
         { done: !!found, text: found ? "Title recorded " + dateLabel(found.date) : "Official award not shown in the uploaded Titles file" }
-      ]) + "<p class='level-note'>Banked surplus Games passes can count toward repeat GCH titles, even if earned before the previous title. Each pass counts once; passes already counted toward an earlier GCH requirement are not counted again.",
+      ]) + "<p class='level-note'>Checker calculation: surplus Games passes can count toward repeat GCH titles, including passes earned before the previous title. Each pass is counted once and is not recycled for another repeat-title requirement. The rulebook says banked passes may be used, but does not spell out pass-by-pass reuse in further detail.</p>",
       accent: "level-accent-elite"
     })
   ).join("");
