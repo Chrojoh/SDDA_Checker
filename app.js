@@ -312,11 +312,15 @@ function machExtensionProgress(rule) {
   const totalPool = advanced.length + excellent.length;
   const excellentPool = excellent.length;
   const excellentGoldPool = excellent.filter((set) => set.gold).length;
+  const remainingExcellent = Math.max(0, excellentPool - rule.usedExcellent);
+  const remainingGold = Math.max(0, excellentGoldPool - rule.usedGold);
   return {
     mode: "consumption",
     total: Math.max(0, totalPool - rule.usedTotal),
-    excellent: Math.max(0, excellentPool - rule.usedExcellent),
-    gold: Math.max(0, excellentGoldPool - rule.usedGold),
+    excellent: remainingExcellent,
+    // Excellent Gold combinations are a subset of the remaining Excellent
+    // combinations, never an independent pool.
+    gold: Math.min(remainingExcellent, remainingGold),
     totalPool, excellentPool, excellentGoldPool
   };
 }
