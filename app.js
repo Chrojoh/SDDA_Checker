@@ -82,7 +82,7 @@ function componentFrom(description) { return COMPONENTS.find((component) => new 
 function gameFrom(description) { const text = String(description || ""); const match = text.match(/\bGames?\s*[-:]\s*(Aerial|Distance|Speed|Teams?)\b/i) || text.match(/\b(Aerial|Distance|Speed|Teams?)\s+Games?\b/i); if (!match) return null; const name = match[1].toLowerCase(); return name.startsWith("team") ? "Team" : name[0].toUpperCase() + name.slice(1); }
 
 function titleText(title) { return `${title.description} ${title.honours}`.trim(); }
-function gameTitleRecord(game) { const codes = { Aerial: "GA", Distance: "GD", Speed: "GS", Team: "GT" }; return titles.find((title) => new RegExp(`(?:^|\\b)${game}(?:\\s+Games)?(?:\\b|$)|SD-${codes[game]}(?:\\b|$)`, "i").test(titleText(title))); }
+function gameTitleRecord(game) { const codes = { Aerial: "GA", Distance: "GD", Speed: "GS", Team: "GT" }; return titles.find((title) => new RegExp(`(?:^|\\b)${game}(?:\s+Games)?(?:\\b|$)|SD-${codes[game]}(?:\\b|$)`, "i").test(titleText(title))); }
 function gamesTitleRecorded(game) { return !!gameTitleRecord(game); }
 function findTitle(pattern) { return titles.find((title) => pattern.test(titleText(title))); }
 function dateLabel(value) {
@@ -256,7 +256,7 @@ function progressCard(title, status, requirements, note = "") {
   return `<article class="progress-card"><h3>${esc(title)}</h3><span class="status ${statusClass}">${esc(status)}</span><ul class="requirements">${requirements.map((requirement) => `<li class="${requirement.done ? "done" : ""}${requirement.info ? " info" : ""}">${esc(requirement.text)}</li>`).join("")}</ul>${note ? `<p>${esc(note)}</p>` : ""}</article>`;
 }
 
-function titlePattern(level) { return new RegExp(`^${level}(?:\\s|$)`, "i"); }
+function titlePattern(level) { return new RegExp(`^${level}(?:\s|$)`, "i"); }
 function championshipTitle(kind){
  const p={
  ch:/(?:^|\b)(?:SD[- ]?)?CH(?:\b|$)|scent detection champion|^Champion$/i,
@@ -412,8 +412,8 @@ function renderMobileDashboard() {
   const titleFor = (pattern) => shown.find((title) => pattern.test(titleText(title))) || inferred.find((title) => pattern.test(titleText(title)));
   const reqList = (items) => `<ul class="requirement-list">${items.map((item) => `<li class="${item.done ? "done" : ""}">${esc(item.text)}</li>`).join("")}</ul>`;
   const accordion = ({ name, subtitle, achieved, date, body, accent = "" }) => `<details class="title-accordion ${accent}"><summary><span class="summary-copy"><strong>${esc(name)}</strong><small>${esc(subtitle)}</small></span>${achieved ? (date ? `<span class="achievement-date">${esc(dateLabel(date))}</span>` : `<span class="achievement-check" aria-label="Achieved">✓</span>`) : ""}<span class="chevron" aria-hidden="true">⌄</span></summary><div class="accordion-body">${body}</div></details>`;
-  const excellentTitleMet = !!titles.find((title) => /^Excellent(?:\\s|$)/i.test(titleText(title)))
-    || !!inferred.find((title) => /^Excellent(?:\\s|$)/i.test(titleText(title)))
+  const excellentTitleMet = !!titles.find((title) => /^Excellent(?:\s|$)/i.test(titleText(title)))
+    || !!inferred.find((title) => /^Excellent(?:\s|$)/i.test(titleText(title)))
     || COMPONENTS.every((component) => componentCounts("Excellent")[component] > 0);
   const levelTitles = [
     { name: "Started", pattern: /^Started(?:\s|$)/i }, { name: "Advanced", pattern: /^Advanced(?:\s|$)/i },
@@ -430,6 +430,9 @@ function renderMobileDashboard() {
   });
   const advanced = maximizeGoldCombinations("Advanced"), excellent = maximizeGoldCombinations("Excellent"), elite = eliteSets();
   const total = advanced.length + excellent.length, gold = [...advanced, ...excellent].filter((set) => set.gold).length;
+  // Keep championship prerequisite calculations local to this renderer.
+  const machScoresMet = total >= 10 && excellent.length >= 3 && gold >= 3;
+  const elchScoresMet = elite.length >= 5 && elite.filter((set) => set.gold).length >= 2;
   const championCards = [
     { name: "SD-CH", found: championshipTitle("ch"), met: total >= 5 && excellent.length >= 2, items: [{ done: total >= 5, text: `${total}/5 Advanced or Excellent scores` }, { done: excellent.length >= 2, text: `${excellent.length}/2 must be Excellent` }] },
     { name: "SD-MACH", found: championshipTitle("mach"), met: total >= 10 && excellent.length >= 3 && gold >= 3, items: [{ done: total >= 10, text: `${total}/10 Advanced or Excellent scores` }, { done: excellent.length >= 3, text: `${excellent.length}/3 must be Excellent` }, { done: gold >= 3, text: `${gold}/3 Gold scores` }] },
@@ -566,7 +569,7 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
   ).join("");
 
   const targets = [];
-  for (const level of ["Started", "Advanced", "Excellent"]) { if (titleFor(new RegExp(`^${level}(?:\\s|$)`, "i"))) continue; const counts = componentCounts(level), missing = COMPONENTS.filter((component) => !counts[component]); targets.push({ name: level, kind: "Scent", needed: missing.length, items: missing.map((component) => `${component} qualifying score`) }); }
+  for (const level of ["Started", "Advanced", "Excellent"]) { if (titleFor(new RegExp(`^${level}(?:\s|$)`, "i"))) continue; const counts = componentCounts(level), missing = COMPONENTS.filter((component) => !counts[component]); targets.push({ name: level, kind: "Scent", needed: missing.length, items: missing.map((component) => `${component} qualifying score`) }); }
   if (!titleFor(/^Elite(?:\s|$)/i)) targets.push({ name: "Elite", kind: "Scent", needed: titleFor(/^Excellent(?:\s|$)/i) ? 1 : 2, items: [titleFor(/^Excellent(?:\s|$)/i) ? "One complete same-trial Elite score" : "Complete Excellent prerequisite", "One complete same-trial Elite score"] });
   const chNeeded = Math.max(Math.max(0, 5 - total), Math.max(0, 2 - excellent.length));
   const machNeeded = Math.max(Math.max(0, 10 - total), Math.max(0, 3 - excellent.length), Math.max(0, 3 - gold));
