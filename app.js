@@ -584,21 +584,38 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
   const titledGames = GAME_NAMES.filter((game) => gamesTitleRecorded(game) || gameCounts[game] >= 3).length;
   const sortedPasses = Object.values(gameCounts).sort((a, b) => b - a);
   const gchRules = [
-    { key: "gch", name: "SD-GCH", thresholds: [3, 3, 3], text: "An individual title in any three Games" },
-    { key: "gch2", name: "SD-GCH2", thresholds: [7, 7, 7], text: "Four additional passes in any three Games" },
-    { key: "gch3", name: "SD-GCH3", thresholds: [12, 12, 12], text: "Five additional passes in any three Games" },
-    { key: "gch4", name: "SD-GCH4", thresholds: [19, 19, 19], text: "Seven additional passes in any three Games" },
-    { key: "gch5", name: "SD-GCH5", thresholds: [29, 29, 29, 10], text: "Ten additional passes in all four Games" }
+    { key: "gch", name: "SD-GCH", thresholds: [3, 3, 3], text: "3 passes in each of any 3 Games" },
+    { key: "gch2", name: "SD-GCH2", thresholds: [7, 7, 7], text: "7 passes in each of any 3 Games (4 additional passes per Game)" },
+    { key: "gch3", name: "SD-GCH3", thresholds: [12, 12, 12], text: "12 passes in each of any 3 Games (5 additional passes per Game)" },
+    { key: "gch4", name: "SD-GCH4", thresholds: [19, 19, 19], text: "19 passes in each of any 3 Games (7 additional passes per Game)" },
+    { key: "gch5", name: "SD-GCH5", thresholds: [29, 29, 29, 10], text: "29 passes in three Games and 10 in the fourth (10 additional passes in all four Games)" }
   ];
-  $("mobile-game-runs").innerHTML = gchRules.map((rule) => {
+  const gchProgress = gchRules.map((rule) => {
     const found = championshipTitle(rule.key);
-    if (rule.key === "gch") {
-      const neededTitles = Math.max(0, 3 - titledGames);
-      return accordion({ name: rule.name, subtitle: found ? "Recorded title" : `${titledGames}/3 individual Games titles`, achieved: !!found || titledGames >= 3, date: found?.date, body: reqList([{ done: titledGames >= 3 || !!found, text: `${titledGames}/3 individual Games titles completed` }, { done: !!found, text: found ? `Title awarded ${dateLabel(found.date)}` : `${neededTitles} more individual Games title${neededTitles === 1 ? "" : "s"} needed` }]), accent: "level-accent-elite" });
-    }
-    const needed = rule.thresholds.reduce((sum, threshold, index) => sum + Math.max(0, threshold - (sortedPasses[index] || 0)), 0);
-    return accordion({ name: rule.name, subtitle: found ? "Recorded title" : `${needed} estimated pass${needed === 1 ? "" : "es"} remaining`, achieved: !!found, date: found?.date, body: reqList([{ done: !!found, text: rule.text }, { done: false, text: "Banked passes may be used; the Titles file confirms the official award" }]), accent: "level-accent-elite" });
-  }).join("");
+    const needed = rule.key === "gch"
+      ? Math.max(0, 3 - titledGames)
+      : rule.thresholds.reduce((sum, threshold, index) => sum + Math.max(0, threshold - (sortedPasses[index] || 0)), 0);
+    const met = needed === 0;
+    const progressText = rule.key === "gch"
+      ? `${titledGames}/3 individual Games titles`
+      : rule.thresholds.map((threshold, index) => `${sortedPasses[index] || 0}/${threshold}`).join(", ");
+    return { rule, found, needed, met, progressText };
+  });
+  $("mobile-game-runs").innerHTML = gchProgress.map(({ rule, found, needed, met, progressText }) =>
+    accordion({
+      name: rule.name,
+      subtitle: found ? "Recorded title" : met ? "Score requirements met · not yet recorded" : `${needed} more pass(es) needed`,
+      achieved: !!found || met,
+      date: found?.date,
+      body: reqList([
+        { done: met, text: rule.text },
+        { done: met, text: `Current / required: ${progressText}` },
+        { done: !!found, text: found ? `Title awarded ${dateLabel(found.date)}` : "Official award not shown in the uploaded Titles file" },
+        { done: true, text: "Passes are banked; earlier Games championship titles do not consume them." }
+      ]),
+      accent: "level-accent-elite"
+    })
+  ).join("");
 
   const targets = [];
   for (const level of ["Started", "Advanced", "Excellent"]) { if (titleFor(new RegExp(`^${level}(?:\\s|$)`, "i"))) continue; const counts = componentCounts(level), missing = COMPONENTS.filter((component) => !counts[component]); targets.push({ name: level, kind: "Scent", needed: missing.length, items: missing.map((component) => `${component} qualifying score`) }); }
@@ -614,7 +631,10 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
   repeatEliteRules.forEach((rule) => { if (championshipTitle(rule.key)) return; const previous = championshipTitle(rule.previous); if (!previous) return; const eligible = rowsAfter(previous.date), sets = eligible ? eliteSets(eligible) : [], eliteGold = sets.filter((set) => set.gold).length; const needed = eligible ? Math.max(Math.max(0, 5 - sets.length), Math.max(0, rule.gold - eliteGold)) : 1; targets.push({ name: rule.name, kind: "Scent", needed, items: eligible ? [`${Math.max(0, 5 - sets.length)} more new Elite scores`, `${Math.max(0, rule.gold - eliteGold)} more new Elite Gold scores`] : [`Recorded ${rule.previous.toUpperCase()} title date and complete score dates required`] }); });
   gameTargets.filter((target) => target.needed > 0).forEach((target) => targets.push(target));
   if (titledGames < 3) targets.push({ name: "SD-GCH", kind: "Games", needed: 3 - titledGames, items: [`${3 - titledGames} more individual Games title${3 - titledGames === 1 ? "" : "s"}`] });
-  gchRules.slice(1).forEach((rule, index) => { if (championshipTitle(rule.key) || !championshipTitle(gchRules[index].key)) return; const needed = rule.thresholds.reduce((sum, threshold, position) => sum + Math.max(0, threshold - (sortedPasses[position] || 0)), 0); targets.push({ name: rule.name, kind: "Games", needed, items: [rule.text, `${needed} estimated additional pass${needed === 1 ? "" : "es"} from the uploaded history`] }); });
+  gchProgress.slice(1).forEach(({ rule, found, needed, met, progressText }) => {
+    if (found || met) return;
+    targets.push({ name: rule.name, kind: "Games", needed, items: [rule.text, `Current / required Games counts: ${progressText}`, `${needed} additional pass(es) needed from the uploaded history`] });
+  });
   targets.sort((a, b) => a.needed - b.needed || a.name.localeCompare(b.name));
   $("mobile-next-list").innerHTML = targets.map((target) => `<article class="next-card"><header><div><h3>${esc(target.name)}</h3><p class="next-kind">${esc(target.kind)}</p></div><span class="remaining-badge">${target.needed} item${target.needed === 1 ? "" : "s"}</span></header><ol>${target.items.filter((item) => !/^0 more/i.test(item)).map((item) => `<li>${esc(item)}</li>`).join("")}</ol></article>`).join("") || `<article class="next-card"><h3>Everything shown is complete</h3><p>Check with SDDA for the next eligible extension.</p></article>`;
 }
