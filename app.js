@@ -449,6 +449,9 @@ function renderMobileDashboard() {
   const titleFor = (pattern) => shown.find((title) => pattern.test(titleText(title))) || inferred.find((title) => pattern.test(titleText(title)));
   const reqList = (items) => `<ul class="requirement-list">${items.map((item) => `<li class="${item.done ? "done" : ""}">${esc(item.text)}</li>`).join("")}</ul>`;
   const accordion = ({ name, subtitle, achieved, date, body, accent = "" }) => `<details class="title-accordion ${accent}"><summary><span class="summary-copy"><strong>${esc(name)}</strong><small>${esc(subtitle)}</small></span>${achieved ? (date ? `<span class="achievement-date">${esc(dateLabel(date))}</span>` : `<span class="achievement-check" aria-label="Achieved">✓</span>`) : ""}<span class="chevron" aria-hidden="true">⌄</span></summary><div class="accordion-body">${body}</div></details>`;
+  const excellentTitleMet = !!titles.find((title) => /^Excellent(?:\\s|$)/i.test(titleText(title)))
+    || !!inferred.find((title) => /^Excellent(?:\\s|$)/i.test(titleText(title)))
+    || COMPONENTS.every((component) => componentCounts("Excellent")[component] > 0);
   const levelTitles = [
     { name: "Started", pattern: /^Started(?:\s|$)/i }, { name: "Advanced", pattern: /^Advanced(?:\s|$)/i },
     { name: "Excellent", pattern: /^Excellent(?:\s|$)/i }, { name: "Elite", pattern: /^Elite(?:\s|$)/i, elite: true }
