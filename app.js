@@ -93,7 +93,7 @@ function byLevel(level, list = scores) { return list.filter((score) => score.lev
 function componentCounts(level, list = scores) { return Object.fromEntries(COMPONENTS.map((component) => [component, list.filter((score) => score.level === level && score.component === component).length])); }
 function gamePassCounts(){return Object.fromEntries(GAME_NAMES.map(g=>[g,Math.max(games.filter(r=>r.game===g&&r.pass!==false).length,gamesTitleRecorded(g)?3:0)]));}
 const GAME_CHAMPIONSHIP_RULES=[{key:"gch",name:"SD-GCH",type:"base",target:0,text:"3 passes in each of any 3 Games"},{key:"gch2",name:"SD-GCH2",type:"three",target:4,text:"4 additional passes across any 3 Games (13 cumulative)"},{key:"gch3",name:"SD-GCH3",type:"three",target:9,text:"5 additional passes after GCH2 (18 cumulative)"},{key:"gch4",name:"SD-GCH4",type:"three",target:16,text:"7 additional passes after GCH3 (25 cumulative)"},{key:"gch5",name:"SD-GCH5",type:"four",target:26,text:"10 additional passes after GCH4 across all 4 Games (35 cumulative)"}];
-function gameChampionshipProgress(counts,rule){let best=null;for(let a=0;a<4;a++)for(let b=a+1;b<4;b++)for(let c=b+1;c<4;c++){const trio=[GAME_NAMES[a],GAME_NAMES[b],GAME_NAMES[c]],fourth=GAME_NAMES.find(g=>!trio.includes(g)),baseMissing=trio.reduce((s,g)=>s+Math.max(0,3-counts[g]),0),extras3=trio.reduce((s,g)=>s+Math.max(0,counts[g]-3),0),extras=rule.type==="four"?extras3+counts[fourth]:extras3,missingAdditionalGames=rule.type==="four"?GAME_NAMES.filter(g=>counts[g]<=0).length:0,remaining=baseMissing+Math.max(Math.max(0,rule.target-extras),missingAdditionalGames),met=baseMissing===0&&extras>=rule.target&&missingAdditionalGames===0;if(!best||remaining<best.remaining||(remaining===best.remaining&&extras>best.extras))best={met,remaining,extras,baseMissing,trio,fourth};}return {...best,progressText:best.extras+"/"+rule.target+" additional passes in "+best.trio.join(", ")+(rule.type==="four"?" + "+best.fourth:"")};}
+function gameChampionshipProgress(counts,rule){let best=null;for(let a=0;a<4;a++)for(let b=a+1;b<4;b++)for(let c=b+1;c<4;c++){const trio=[GAME_NAMES[a],GAME_NAMES[b],GAME_NAMES[c]],fourth=GAME_NAMES.find(g=>!trio.includes(g)),baseMissing=trio.reduce((s,g)=>s+Math.max(0,3-counts[g]),0),extras3=trio.reduce((s,g)=>s+Math.max(0,counts[g]-3),0),extras=rule.type==="four"?extras3+counts[fourth]:extras3,missingAdditionalGames=rule.type==="four"?GAME_NAMES.filter(g=>counts[g]<=0).length:0,remaining=baseMissing+Math.max(Math.max(0,rule.target-extras),missingAdditionalGames),met=baseMissing===0&&extras>=rule.target&&missingAdditionalGames===0;if(!best||remaining<best.remaining||(remaining===best.remaining&&extras>best.extras))best={met,remaining,extras,baseMissing,trio,fourth};}return {...best,progressText:rule.type==="base"?"3 passes each in "+best.trio.join(", "):best.extras+"/"+rule.target+" additional passes in "+best.trio.join(", ")+(rule.type==="four"?" + "+best.fourth:"")};}
 
 
 function validComponentScore(level, component, value) {
@@ -544,13 +544,13 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
   $("mobile-game-runs").innerHTML = gchProgress.map(({ rule, found, remaining, met, progressText }) =>
     accordion({
       name: rule.name,
-      subtitle: met ? "Current-rule pass requirements met" : `${remaining} more pass(es) needed`,
-      achieved: met,
+      subtitle: found ? "Recorded by SDDA" : met ? "Current-rule pass requirements met" : `${remaining} more pass(es) needed`,
+      achieved: met || !!found,
       date: found?.date,
       body: reqList([
-        { done: met, text: rule.text },
-        { done: met, text: "At least 3 passes in each of any 3 different Games" },
-        { done: met, text: progressText },
+        { done: met || !!found, text: rule.text },
+        { done: met || !!found, text: "At least 3 passes in each of any 3 different Games" },
+        { done: met || !!found, text: progressText },
         { done: !!found, text: found ? `Title recorded ${dateLabel(found.date)}` : "Official award not shown in the uploaded Titles file" },
         { done: true, text: "Games passes are banked and may be reused for later Games championship titles." }
       ]),
