@@ -360,7 +360,7 @@ function render() {
   const gmch = championshipTitle("gmch");
   const gmchScoresMet = (!!mach || machScoresMet) && (!!elch || elchScoresMet);
   cards.push(progressCard("SD-GMCH", gmch ? "Achieved" : gmchScoresMet ? "Score requirements met; judge verification needed" : "In progress", [
-    { done: !!mach || machScoresMet, text: mach ? "SD-MACH recorded" : machScoresMet ? "Calculated SD-MACH score requirements met" : "SD-MACH required" }, { done: !!elch || elchScoresMet, text: elch ? "SD-ELCH recorded" : elchScoresMet ? "Calculated SD-ELCH score requirements met" : "SD-ELCH required" }, { done: false, text: "At least 3 judges: cannot verify from this score download" }
+    { done: !!mach || machScoresMet, text: mach ? "SD-MACH recorded" : machScoresMet ? "Calculated SD-MACH score requirements met" : "SD-MACH required" }, { done: !!elch, text: elch ? "SD-ELCH recorded" : elchScoresMet ? "SD-ELCH score requirements met · at least 2 judges still need verification" : "SD-ELCH required" }, { done: false, text: "At least 3 judges: cannot verify from this score download" }
   ], gmch ? `Recorded ${dateLabel(gmch.date)}.` : "The score requirements can be calculated, but judge names and official title approval require SDDA confirmation."));
 
   const extensions = [
@@ -567,7 +567,7 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
   if (!championshipTitle("ch") && chNeeded > 0) targets.push({ name: "SD-CH", kind: "Scent", needed: chNeeded, items: [`${Math.max(0, 5 - total)} more complete score combinations`, `${Math.max(0, 2 - excellent.length)} more Excellent combinations`] });
   if (!championshipTitle("mach") && machNeeded > 0) targets.push({ name: "SD-MACH", kind: "Scent", needed: machNeeded, items: [`${Math.max(0, 10 - total)} more complete combinations`, `${Math.max(0, 3 - excellent.length)} more Excellent combinations`, `${Math.max(0, 3 - gold)} more Gold scores`] });
   if (!championshipTitle("elch")) targets.push({ name: "SD-ELCH", kind: "Scent", needed: Math.max(1, elchNeeded), items: [`${Math.max(0, 5 - elite.length)} more Elite scores`, `${Math.max(0, 2 - elite.filter((set) => set.gold).length)} more Elite Gold scores`, "At least 2 different judges required · judge names unavailable in these files"] });
-  if (!championshipTitle("gmch")) { const missing = [!championshipTitle("mach") && "SD-MACH", !championshipTitle("elch") && "SD-ELCH"].filter(Boolean); targets.push({ name: "SD-GMCH", kind: "Scent", needed: Math.max(1, missing.length), items: [...missing.map((title) => `${title} required`), "At least 3 different judges required · judge names unavailable in these files"] }); }
+  if (!championshipTitle("gmch")) { const machMet = !!championshipTitle("mach") || machScoresMet, elchMet = !!championshipTitle("elch") || elchScoresMet; const missing = [!machMet && "SD-MACH", !elchMet && "SD-ELCH"]; targets.push({ name: "SD-GMCH", kind: "Scent", needed: Math.max(1, missing.filter(Boolean).length), items: [...(machMet ? ["SD-MACH score requirements met"] : ["SD-MACH required"]), ...(championshipTitle("elch") ? ["SD-ELCH recorded"] : elchMet ? ["SD-ELCH score requirements met · at least 2 judges still need verification"] : ["SD-ELCH required"]), "At least 3 different judges required · judge names unavailable in these files"] }); }
   repeatMachRules.forEach((rule) => {
     if (championshipTitle(rule.key) || !machStageMet.get(rule.previous)) return;
     const previous = championshipTitle(rule.previous), progress = machExtensionProgress(rule, previous);
