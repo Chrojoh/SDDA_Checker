@@ -301,25 +301,63 @@ function rowsAfter(date) {
   return scores.filter((score) => score.date > date);
 }
 
-function machExtensionProgress(rule, priorTitle) {
-  const cutoffTrial = trialCutoffForTitle(priorTitle);
-  const relevantScores = scores.filter((score) => score.level === "Advanced" || score.level === "Excellent");
-  const missingTrialRows = relevantScores.filter((score) => !score.trial || !Number.isFinite(Number(score.trial))).length;
-  if (cutoffTrial == null || missingTrialRows > 0) {
-    return { verified: false, cutoffTrial, advanced: 0, excellent: 0, gold: 0, missingTrialRows };
+function machTitleStage(title) {
+  if (!title) return 0;
+  const value = titleText(title).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const match = value.match(/(?:master champion|mach)\s*([2-4])\b/);
+  if (match) return Number(match[1]);
+  return /master champion|\bmach\b/.test(value) ? 1 : 0;
+}
+
+function machCutoffRowForTitle(title) {
+  const stage = machTitleStage(title);
+  if (!stage) return null;
+  const ordered = scores.filter((score) => score.level === "Advanced" || score.level === "Excellent")
+    .sort((a, b) => Number(a.sourceRow) - Number(b.sourceRow));
+  let cutoffRow = 0;
+  for (let currentStage = 1; currentStage <= stage; currentStage++) {
+    const prefix = [];
+    let foundCutoff = false;
+    for (const score of ordered) {
+      if (Number(score.sourceRow) <= cutoffRow) continue;
+      prefix.push(score);
+      const advanced = maximizeGoldCombinations("Advanced", prefix);
+      const excellent = maximizeGoldCombinations("Excellent", prefix);
+      const combined = [...advanced, ...excellent];
+      const gold = combined.filter((set) => set.gold).length;
+      const excellentGold = excellent.filter((set) => set.gold).length;
+      let met = false;
+      if (currentStage === 1) met = combined.length >= 10 && excellent.length >= 3 && gold >= 3;
+      else if (currentStage === 2) met = excellent.length >= 7 && excellentGold >= 3;
+      else if (currentStage === 3) met = excellent.length >= 10 && excellentGold >= 3;
+      else if (currentStage === 4) met = excellent.length >= 10 && excellentGold >= 4;
+      if (met) {
+        cutoffRow = Number(score.sourceRow);
+        foundCutoff = true;
+        break;
+      }
+    }
+    if (!foundCutoff) return null;
   }
-  // Event Dates are optional once the previous title has been mapped to a
-  // trial number. Only Advanced/Excellent rows affect MACH extensions.
-  const eligible = relevantScores.filter((score) => Number(score.trial) > cutoffTrial);
+  return cutoffRow;
+}
+
+function machExtensionProgress(rule, priorTitle) {
+  const cutoffRow = machCutoffRowForTitle(priorTitle);
+  const relevantScores = scores.filter((score) => score.level === "Advanced" || score.level === "Excellent");
+  if (cutoffRow == null || relevantScores.some((score) => !Number.isFinite(Number(score.sourceRow)))) {
+    return { verified: false, cutoffRow, advanced: 0, excellent: 0, gold: 0 };
+  }
+  // The uploaded score rows are treated as chronological, as confirmed by the user.
+  const eligible = relevantScores.filter((score) => Number(score.sourceRow) > cutoffRow);
   const advanced = maximizeGoldCombinations("Advanced", eligible);
   const excellent = maximizeGoldCombinations("Excellent", eligible);
   return {
     verified: true,
-    cutoffTrial,
+    cutoffRow,
     advanced: advanced.length,
     excellent: excellent.length,
-    gold: excellent.filter((set) => set.gold).length,
-    missingTrialRows: 0
+    gold: excellent.filter((set) => set.gold).length
   };
 }
 function scoreRowsAfterTitle(priorTitle){
@@ -425,14 +463,14 @@ function render() {
     const countedAdvanced = extension.maxAdvanced ? Math.min(progress.advanced, extension.maxAdvanced) : 0;
     const met = previousMet && progress.verified && progress.excellent >= extension.excellent && progress.gold >= extension.gold;
     const requirements = [
-      { done: !!extension.prior && progress.verified, text: extension.prior ? `${extension.previous.toUpperCase()} recorded · cutoff Trial ${progress.cutoffTrial ?? "unavailable"}` : `${extension.previous.toUpperCase()} title record required to establish the cutoff` },
+      { done: !!extension.prior && progress.verified, text: extension.prior ? `${extension.previous.toUpperCase()} recorded · chronological score row ${progress.cutoffRow ?? "unavailable"}` : `${extension.previous.toUpperCase()} title record required to establish the cutoff` },
       { done: progress.verified && progress.excellent >= extension.excellent, text: `${progress.verified ? progress.excellent : "—"}/${extension.excellent} additional Excellent combinations` },
       { done: progress.verified && progress.gold >= extension.gold, text: `${progress.verified ? progress.gold : "—"}/${extension.gold} additional Excellent Gold combinations` }
     ];
     if (extension.maxAdvanced) requirements.push({ done: progress.verified, text: progress.verified ? `${countedAdvanced} of up to ${extension.maxAdvanced} Advanced combinations may be included (optional)` : "Advanced allowance cannot be checked until the previous title cutoff is known" });
-    requirements.push({ done: progress.verified, text: progress.verified ? `Only scores from trials after Trial ${progress.cutoffTrial} count` : "Previous title trial cutoff and trial numbers for Advanced/Excellent scores required" });
+    requirements.push({ done: progress.verified, text: progress.verified ? `Only scores listed after score row ${progress.cutoffRow} count` : "Previous title score sequence could not be established from the uploaded chronological score list" });
     cards.push(progressCard(extension.title, achieved ? "Achieved" : !progress.verified ? "Cannot verify cutoff" : met ? "Score requirements met" : "In progress", requirements,
-      `${achieved ? `Recorded ${dateLabel(achieved.date)}. ` : ""}${progress.verified ? "Repeat MACH requirements use only Advanced/Excellent scores after the previous title trial. Event Dates are not required once the title date is mapped to a trial number." : "Upload the Titles file and Trial Workbook to establish the prior title trial cutoff."}`));
+      `${achieved ? `Recorded ${dateLabel(achieved.date)}. ` : ""}${progress.verified ? "Repeat MACH requirements use only Advanced/Excellent score rows listed after the previous title requirements were first met in the chronological export." : "The previous title cutoff is calculated from the chronological order of the uploaded score rows."}`));
     legacyMachStageMet.set(extension.key, !!achieved || met);
   }
   $("progress").innerHTML = cards.join("");
@@ -501,12 +539,12 @@ function renderMobileDashboard() {
     const countedTotal = progress.excellent + countedAdvanced;
     const met = previousMet && progress.verified && progress.excellent >= rule.excellent && progress.gold >= rule.gold;
     const items = [
-      { done: !!previous && progress.verified, text: previous ? `${rule.previous.toUpperCase()} recorded · cutoff Trial ${progress.cutoffTrial ?? "unavailable"}` : `${rule.previous.toUpperCase()} title record needed to establish cutoff` },
+      { done: !!previous && progress.verified, text: previous ? `${rule.previous.toUpperCase()} recorded · chronological score row ${progress.cutoffRow ?? "unavailable"}` : `${rule.previous.toUpperCase()} title record needed to establish cutoff` },
       { done: progress.verified && progress.excellent >= rule.excellent, text: `${progress.verified ? progress.excellent : "—"}/${rule.excellent} additional Excellent combinations` },
       { done: progress.verified && progress.gold >= rule.gold, text: `${progress.verified ? progress.gold : "—"}/${rule.gold} additional Excellent Gold combinations` }
     ];
     if (rule.maxAdvanced) items.push({ done: progress.verified, text: progress.verified ? `${countedAdvanced} of up to ${rule.maxAdvanced} Advanced combinations may be included (optional)` : "Advanced score allowance cannot be checked until the previous title cutoff is known" });
-    items.push({ done: progress.verified, text: progress.verified ? `Only scores from trials after Trial ${progress.cutoffTrial} count` : "Previous title trial cutoff and trial numbers for Advanced/Excellent scores required" });
+    items.push({ done: progress.verified, text: progress.verified ? `Only scores listed after score row ${progress.cutoffRow} count` : "Previous title score sequence could not be established from the uploaded chronological score list" });
     championCards.push({ name: rule.name, found, met: !!found || met, items });
     machStageMet.set(rule.key, !!found || met);
   });
@@ -600,22 +638,24 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
     });
 }).join("");
   const gchProgress = GAME_CHAMPIONSHIP_RULES.map(rule => ({ rule, found: championshipTitle(rule.key), ...gameChampionshipProgress(gameCounts, rule) }));
-  $("mobile-game-runs").innerHTML = gchProgress.map(({ rule, found, remaining, met, progressText }) =>
+  // Keep all four individual Games titles and GCH through GCH5 in one visible list.
+  $("mobile-game-titles").innerHTML += gchProgress.map(({ rule, found, remaining, met, progressText }) =>
     accordion({
       name: rule.name,
-      subtitle: found ? "Recorded by SDDA" : met ? "Current-rule pass requirements met" : `${remaining} more pass(es) needed`,
+      subtitle: found ? "Recorded by SDDA" : met ? "Current-rule pass requirements met" : String(remaining) + " more pass(es) needed",
       achieved: met || !!found,
       date: found?.date,
       body: reqList([
         { done: met || !!found, text: rule.text },
         { done: met || !!found, text: "At least 3 passes in each of any 3 different Games" },
         { done: met || !!found, text: progressText },
-        { done: !!found, text: found ? `Title recorded ${dateLabel(found.date)}` : "Official award not shown in the uploaded Titles file" },
+        { done: !!found, text: found ? "Title recorded " + dateLabel(found.date) : "Official award not shown in the uploaded Titles file" },
         { done: true, text: "Games passes are banked and may be reused for later Games championship titles." }
       ]),
       accent: "level-accent-elite"
     })
   ).join("");
+  $("mobile-game-runs").innerHTML = "";
 
   const targets = [];
   for (const level of ["Started", "Advanced", "Excellent"]) { if (titleFor(new RegExp(`^${level}(?:\s|$)`, "i"))) continue; const counts = componentCounts(level), missing = COMPONENTS.filter((component) => !counts[component]); targets.push({ name: level, kind: "Scent", needed: missing.length, items: missing.map((component) => `${component} qualifying score`) }); }
