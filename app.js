@@ -581,7 +581,6 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
         accent: "level-accent-silver"
     });
 }).join("");
-  const titledGames = GAME_NAMES.filter((game) => gamesTitleRecorded(game) || gameCounts[game] >= 3).length;
   const sortedPasses = Object.values(gameCounts).sort((a, b) => b - a);
   const topThreeTotal = sortedPasses.slice(0, 3).reduce((sum, count) => sum + count, 0);
   const allFourTotal = sortedPasses.reduce((sum, count) => sum + count, 0);
@@ -607,7 +606,7 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
   $("mobile-game-runs").innerHTML = gchProgress.map(({ rule, found, remaining, met, progressText }) =>
     accordion({
       name: rule.name,
-      subtitle: found ? "Recorded title" : met ? "Current-rule pass requirements met" : `${remaining} more pass(es) needed`,
+      subtitle: met ? "Current-rule pass requirements met" : `${remaining} more pass(es) needed`,
       achieved: met,
       date: found?.date,
       body: reqList([
@@ -634,9 +633,8 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
   repeatMachRules.forEach((rule) => { if (championshipTitle(rule.key) || !machStageMet.get(rule.previous)) return; const previous = championshipTitle(rule.previous), progress = machExtensionProgress(rule, previous), needed = Math.max(Math.max(0, rule.total - progress.total), Math.max(0, rule.excellent - progress.excellent), Math.max(0, rule.gold - progress.gold)); targets.push({ name: rule.name, kind: "Scent", needed, items: [`${Math.max(0, rule.total - progress.total)} more new combinations`, `${Math.max(0, rule.excellent - progress.excellent)} more new Excellent combinations`, `${Math.max(0, rule.gold - progress.gold)} more new Excellent Gold scores`] }); });
   repeatEliteRules.forEach((rule) => { if (championshipTitle(rule.key)) return; const previous = championshipTitle(rule.previous); if (!previous) return; const eligible = rowsAfter(previous.date), sets = eligible ? eliteSets(eligible) : [], eliteGold = sets.filter((set) => set.gold).length; const needed = eligible ? Math.max(Math.max(0, 5 - sets.length), Math.max(0, rule.gold - eliteGold)) : 1; targets.push({ name: rule.name, kind: "Scent", needed, items: eligible ? [`${Math.max(0, 5 - sets.length)} more new Elite scores`, `${Math.max(0, rule.gold - eliteGold)} more new Elite Gold scores`] : [`Recorded ${rule.previous.toUpperCase()} title date and complete score dates required`] }); });
   gameTargets.filter((target) => target.needed > 0).forEach((target) => targets.push(target));
-  if (titledGames < 3) targets.push({ name: "SD-GCH", kind: "Games", needed: 3 - titledGames, items: [`${3 - titledGames} more individual Games title${3 - titledGames === 1 ? "" : "s"}`] });
-  gchProgress.forEach(({ rule, found, remaining, met, progressText }) => {
-    if (found || met) return;
+  gchProgress.forEach(({ rule, remaining, met, progressText }) => {
+    if (met) return;
     targets.push({ name: rule.name, kind: "Games", needed: remaining, items: [rule.text, "At least 3 passes in each of 3 different Games", `Current progress: ${progressText}`, `${remaining} more pass(es) needed from the uploaded history`] });
   });
   targets.sort((a, b) => a.needed - b.needed || a.name.localeCompare(b.name));
