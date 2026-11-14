@@ -492,8 +492,71 @@ function renderMobileDashboard() {
     accordion({ name: "Elite runs", subtitle: `${elite.length} same-trial scores · ${elite.filter((set) => set.gold).length} Gold`, body: runRows(elite, true), accent: "level-accent-elite" })
   ].join("");
 
-  const gameCounts = gamePassCounts(), gameTargets = [];
-  $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => { const title = gameTitleRecord(game), recorded = !!title, met = recorded || gameCounts[game] >= 3; gameTargets.push({ name: `${game} (SD-G${game[0]})`, kind: "Games", needed: recorded ? 0 : Math.max(0, 3 - gameCounts[game]), items: [recorded ? `Recorded ${dateLabel(title.date)}` : `${gameCounts[game]}/3 passes`] }); return accordion({ name: `${game} · SD-G${game[0]}`, subtitle: recorded ? "Recorded title" : `${gameCounts[game]}/3 passes`, achieved: met, date: title?.date, body: reqList([{ done: met, text: recorded ? `Title awarded ${dateLabel(title.date)}` : `${gameCounts[game]}/3 qualifying passes` }]) }); }).join("");
+
+const gameCounts = gamePassCounts(), gameTargets = [];
+
+$("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
+    const title = gameTitleRecord(game);
+    const recorded = !!title;
+    const passes = gameCounts[game];
+    const met = recorded || passes >= 3;
+
+    // All attempts recorded for this particular game
+    const entries = games.filter(row => row.game === game);
+
+    const fails = entries.filter(row => !row.pass).length;
+
+    // Display individual attempts using the existing Scent ledger styling
+    const history = entries.length
+        ? `<div class="run-grid">
+            ${entries.map(row => `
+                <div class="run-row">
+                    <b>Trial ${esc(row.trial || "—")}</b>
+                    <span>${esc(dateLabel(row.date))}</span>
+                    <strong>${row.pass ? "Q / PASS" : "FAIL"}</strong>
+                </div>
+            `).join("")}
+           </div>`
+        : `<p class="run-empty">No Games attempts recorded.</p>`;
+
+    gameTargets.push({
+        name: `${game} (SD-G${game[0]})`,
+        kind: "Games",
+        needed: recorded ? 0 : Math.max(0, 3 - passes),
+        items: [
+            recorded
+                ? `Recorded ${dateLabel(title.date)}`
+                : `${passes}/3 passes`
+        ]
+    });
+
+    const body = `
+        ${reqList([{
+            done: met,
+            text: recorded
+                ? `Title awarded ${dateLabel(title.date)}`
+                : `${passes}/3 qualifying passes`
+        }])}
+
+        <div class="run-summary">
+            <strong>${passes} Qs / passes</strong>
+            <span>${fails} failures · ${entries.length} total attempts</span>
+        </div>
+
+        ${history}
+    `;
+
+    return accordion({
+        name: `${game} · SD-G${game[0]}`,
+        subtitle: recorded
+            ? "Recorded title"
+            : `${passes}/3 passes`,
+        achieved: met,
+        date: title?.date,
+        body,
+        accent: "level-accent-silver"
+    });
+}).join("");
   const titledGames = GAME_NAMES.filter((game) => gamesTitleRecorded(game) || gameCounts[game] >= 3).length;
   const sortedPasses = Object.values(gameCounts).sort((a, b) => b - a);
   const gchRules = [
