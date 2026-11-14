@@ -105,22 +105,10 @@ function validComponentScore(level, component, value) {
 }
 
 function renderGames() {
-  const counts = gamePassCounts(), total = Object.values(counts).reduce((sum, count) => sum + count, 0);
-  const titled = GAME_NAMES.filter((game) => counts[game] >= 3 || gamesTitleRecorded(game));
-  $("games-summary").innerHTML = `<span>${total} recorded Games pass${total === 1 ? "" : "es"}</span><span>${titled.length}/4 individual Games titles</span><span class="${titled.length >= 3 ? "gold" : ""}">${titled.length >= 3 ? "SD-GCH requirements shown as met" : `${Math.max(0, 3 - titled.length)} more Games title${3 - titled.length === 1 ? "" : "s"} needed for SD-GCH`}</span>`;
-  $("games-grid").innerHTML = GAME_NAMES.map((game) => { const passes = counts[game], recorded = gamesTitleRecorded(game), met = passes >= 3 || recorded; const details = game === "Aerial" ? "1 hide · 1 distractor · recommended 2 min; judge may adjust" : game === "Distance" ? "1 hide · no distractors · recommended 3 min; judge may adjust" : game === "Speed" ? "2–4 hides · 2–4 distractors · fixed 60 sec" : "2–5 hides · 2–4 distractors · recommended 5 min; judge may adjust"; return `<article class="game-card"><h3>${game} <small>SD-G${game[0]}</small></h3><span class="status ${met ? "met" : passes ? "partial" : "unknown"}">${met ? "Title achieved / shown as met" : passes ? "In progress" : "No pass data"}</span><div class="game-count"><strong>${passes}</strong><span>/ 3 passes</span></div><div class="game-meter" role="progressbar" aria-label="${esc(game)} passes" aria-valuemin="0" aria-valuemax="3" aria-valuenow="${Math.min(passes, 3)}"><i style="width:${Math.min(100, passes / 3 * 100)}%"></i></div><p>${details}</p>${recorded ? `<p><strong>Recorded in the Titles file.</strong></p>` : ""}</article>`; }).join("");
-  const gameCounts = GAME_NAMES.map((game) => counts[game] || 0).sort((a, b) => b - a);
-  const topThreeTotal = gameCounts.slice(0, 3).reduce((sum, count) => sum + count, 0);
-  const allFourTotal = gameCounts.reduce((sum, count) => sum + count, 0);
-  const baseMet = gameCounts.slice(0, 3).every((count) => count >= 3);
-  const gchTargets = [
-    { name: "SD-GCH", target: 9, current: topThreeTotal, met: baseMet, note: "3 passes in each of 3 different Games" },
-    { name: "SD-GCH2", target: 13, current: topThreeTotal, met: baseMet && topThreeTotal >= 13, note: "13 cumulative passes across the top 3 Games" },
-    { name: "SD-GCH3", target: 18, current: topThreeTotal, met: baseMet && topThreeTotal >= 18, note: "18 cumulative passes across the top 3 Games" },
-    { name: "SD-GCH4", target: 25, current: topThreeTotal, met: baseMet && topThreeTotal >= 25, note: "25 cumulative passes across the top 3 Games" },
-    { name: "SD-GCH5", target: 35, current: allFourTotal, met: baseMet && allFourTotal >= 35, note: "35 cumulative passes across all 4 Games" }
-  ];
-  $("games-championships").innerHTML = `<h3>Games Championship ladder</h3><div class="game-ladder">${gchTargets.map((item) => `<p><strong>${item.name}</strong><span>${item.met ? "Requirement met" : `${Math.max(0, item.target - item.current)} more passes needed`} · ${item.current}/${item.target} · ${item.note}</span></p>`).join("")}</div><p class="level-note">Games championship passes are cumulative and are not consumed by earlier titles. GCH through GCH4 use the top three Games; GCH5 uses all four.</p>`;
+ const counts=gamePassCounts(),total=Object.values(counts).reduce((a,b)=>a+b,0),titled=GAME_NAMES.filter(g=>counts[g]>=3),progress=GAME_CHAMPIONSHIP_RULES.map(rule=>({rule,...gameChampionshipProgress(counts,rule)}));
+ $("games-summary").innerHTML="<span>"+total+" banked Games passes</span><span>"+titled.length+"/4 individual Games titles</span><span>"+(progress[0].met?"SD-GCH requirements met":progress[0].remaining+" more pass(es) needed for SD-GCH")+"</span>";
+ $("games-grid").innerHTML=GAME_NAMES.map(game=>{const passes=counts[game],entries=games.filter(r=>r.game===game&&r.pass!==false),recorded=gameTitleRecord(game),met=passes>=3,details=game==="Aerial"?"1 hide · 1 distractor · recommended 2 min; judge may adjust":game==="Distance"?"1 hide · no distractors · recommended 3 min; judge may adjust":game==="Speed"?"2–4 hides · 2–4 distractors · fixed 60 sec":"2–5 hides · 2–4 distractors · recommended 5 min; judge may adjust",rows=entries.map(r=>"<div class='game-attempt'><span>"+esc(dateLabel(r.date))+"</span><span>Trial "+esc(r.trial||"—")+"</span><strong>Q / PASS</strong></div>").join("");return "<article class='game-card'><h3>"+esc(game)+" <small>SD-G"+game[0]+"</small></h3><span class='status "+(met?"met":passes?"partial":"unknown")+"'>"+(met?"Individual title requirement met":passes?"In progress":"No pass data")+"</span><div class='game-count'><strong>"+passes+"</strong><span>/ 3 passes</span></div><p>"+details+"</p><div class='game-history'><h4>Games pass history</h4><div class='game-history-summary'><span>"+passes+" passes</span><span>"+entries.length+" listed entries</span></div><div class='game-attempt-header'><span>Date</span><span>Trial</span><span>Result</span></div>"+(rows||"<p>No Games pass entries recorded.</p>")+"</div>"+(recorded?"<p><strong>SDDA title record:</strong> "+esc(dateLabel(recorded.date))+"</p>":"")+"</article>";}).join("");
+ $("games-championships").innerHTML="<h3>Games Championship progress · Rule Book v5.1</h3><div class='game-ladder'>"+progress.map(({rule,met,remaining,progressText})=>"<p><strong>"+rule.name+"</strong><span>"+rule.text+"</span><span class='status "+(met?"met":"partial")+"'>"+(met?"Pass requirements met":remaining+" more pass(es) needed")+"</span><small>"+progressText+"</small></p>").join("")+"</div><p class='level-note'>GCH requires 3 passes in each of any 3 Games. GCH2 requires 13, GCH3 18 and GCH4 25 cumulative passes across the top three Games. GCH5 requires 35 across all four Games. Passes are banked and not consumed by earlier titles.</p>";
 }
 
 function workbookDate(value) {
@@ -551,28 +539,7 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
         accent: "level-accent-silver"
     });
 }).join("");
-  const sortedPasses = Object.values(gameCounts).sort((a, b) => b - a);
-  const topThreeTotal = sortedPasses.slice(0, 3).reduce((sum, count) => sum + count, 0);
-  const allFourTotal = sortedPasses.reduce((sum, count) => sum + count, 0);
-  const baseMissing = sortedPasses.slice(0, 3).reduce((sum, count) => sum + Math.max(0, 3 - count), 0);
-  const baseMet = baseMissing === 0;
-  const gchRules = [
-    { key: "gch", name: "SD-GCH", type: "top-three", target: 9, text: "3 passes in each of any 3 Games (9 total)" },
-    { key: "gch2", name: "SD-GCH2", type: "top-three", target: 13, text: "4 additional passes across any 3 Games (13 cumulative passes)" },
-    { key: "gch3", name: "SD-GCH3", type: "top-three", target: 18, text: "5 additional passes across any 3 Games (18 cumulative passes)" },
-    { key: "gch4", name: "SD-GCH4", type: "top-three", target: 25, text: "7 additional passes across any 3 Games (25 cumulative passes)" },
-    { key: "gch5", name: "SD-GCH5", type: "all-four", target: 35, text: "10 additional passes across all 4 Games (35 cumulative passes)" }
-  ];
-  const gchProgress = gchRules.map((rule) => {
-    const found = championshipTitle(rule.key);
-    const current = rule.type === "all-four" ? allFourTotal : topThreeTotal;
-    const remaining = Math.max(baseMissing, Math.max(0, rule.target - current));
-    const met = baseMet && current >= rule.target;
-    const progressText = rule.type === "all-four"
-      ? `${allFourTotal}/${rule.target} total passes across all four Games`
-      : `${topThreeTotal}/${rule.target} total passes across the top three Games`;
-    return { rule, found, current, remaining, met, progressText };
-  });
+  const gchProgress = GAME_CHAMPIONSHIP_RULES.map(rule => ({ rule, found: championshipTitle(rule.key), ...gameChampionshipProgress(gameCounts, rule) }));
   $("mobile-game-runs").innerHTML = gchProgress.map(({ rule, found, remaining, met, progressText }) =>
     accordion({
       name: rule.name,
@@ -581,7 +548,7 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
       date: found?.date,
       body: reqList([
         { done: met, text: rule.text },
-        { done: baseMet, text: "At least 3 passes in each of 3 different Games" },
+        { done: baseMet, text: "At least 3 passes in each of any 3 different Games" },
         { done: met, text: progressText },
         { done: !!found, text: found ? `Title recorded ${dateLabel(found.date)}` : "Official award not shown in the uploaded Titles file" },
         { done: true, text: "Games passes are banked and may be reused for later Games championship titles." }
