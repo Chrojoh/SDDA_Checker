@@ -303,7 +303,8 @@ function rowsAfter(date) {
 
 function machTitleStage(title) {
   if (!title) return 0;
-  const value = titleText(title).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const raw = typeof title === "string" ? title : titleText(title);
+  const value = raw.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   const match = value.match(/(?:master champion|mach)\s*([2-4])\b/);
   if (match) return Number(match[1]);
   return /master champion|\bmach\b/.test(value) ? 1 : 0;
@@ -342,8 +343,8 @@ function machCutoffRowForTitle(title) {
   return cutoffRow;
 }
 
-function machExtensionProgress(rule, priorTitle) {
-  const cutoffRow = machCutoffRowForTitle(priorTitle);
+function machExtensionProgress(rule, priorTitleOrStage) {
+  const cutoffRow = machCutoffRowForTitle(priorTitleOrStage);
   const relevantScores = scores.filter((score) => score.level === "Advanced" || score.level === "Excellent");
   if (cutoffRow == null || relevantScores.some((score) => !Number.isFinite(Number(score.sourceRow)))) {
     return { verified: false, cutoffRow, advanced: 0, excellent: 0, gold: 0 };
@@ -533,13 +534,13 @@ function renderMobileDashboard() {
   ];
   const machStageMet = new Map([["mach", !!championshipTitle("mach") || (total >= 10 && excellent.length >= 3 && gold >= 3)]]);
   repeatMachRules.forEach((rule) => {
-    const found = championshipTitle(rule.key), previous = championshipTitle(rule.previous), progress = machExtensionProgress(rule, previous);
-    const previousMet = !!previous || !!machStageMet.get(rule.previous);
+    const found = championshipTitle(rule.key), previous = championshipTitle(rule.previous), progress = machExtensionProgress(rule, rule.previous);
+    const previousMet = progress.verified || !!previous || !!machStageMet.get(rule.previous);
     const countedAdvanced = rule.maxAdvanced ? Math.min(progress.advanced, rule.maxAdvanced) : 0;
     const countedTotal = progress.excellent + countedAdvanced;
     const met = previousMet && progress.verified && progress.excellent >= rule.excellent && progress.gold >= rule.gold;
     const items = [
-      { done: !!previous && progress.verified, text: previous ? `${rule.previous.toUpperCase()} recorded · chronological score row ${progress.cutoffRow ?? "unavailable"}` : `${rule.previous.toUpperCase()} title record needed to establish cutoff` },
+      { done: progress.verified, text: progress.verified ? `${rule.previous.toUpperCase()} requirements reached · chronological score row ${progress.cutoffRow}` : `${rule.previous.toUpperCase()} score requirements could not be located in the chronological export` },
       { done: progress.verified && progress.excellent >= rule.excellent, text: `${progress.verified ? progress.excellent : "—"}/${rule.excellent} additional Excellent combinations` },
       { done: progress.verified && progress.gold >= rule.gold, text: `${progress.verified ? progress.gold : "—"}/${rule.gold} additional Excellent Gold combinations` }
     ];
