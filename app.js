@@ -448,7 +448,7 @@ function render() {
   const gmch = championshipTitle("gmch");
   const gmchScoresMet = (!!mach || machScoresMet) && (!!elch || elchScoresMet);
   cards.push(progressCard("SD-GMCH", gmch ? "Achieved" : gmchScoresMet ? "Score requirements met; judge verification needed" : "In progress", [
-    { done: !!mach || machScoresMet, text: mach ? "SD-MACH recorded" : machScoresMet ? "Calculated SD-MACH score requirements met" : "SD-MACH required" }, { done: !!elch, text: elch ? "SD-ELCH recorded" : elchScoresMet ? "SD-ELCH score requirements met · at least 2 judges still need verification" : "SD-ELCH required" }, { done: false, text: "At least 3 judges: cannot verify from this score download" }
+    { done: !!mach || machScoresMet, text: (!!mach || machScoresMet ? "✅ " : "") + (mach ? "SD-MACH recorded" : machScoresMet ? "Calculated SD-MACH score requirements met" : "SD-MACH required") }, { done: !!elch || elchScoresMet, text: (!!elch || elchScoresMet ? "✅ " : "") + (elch ? "SD-ELCH recorded" : elchScoresMet ? "SD-ELCH score requirements met · at least 2 judges still need verification" : "SD-ELCH required") }, { done: false, text: "At least 3 judges: cannot verify from this score download" }
   ], gmch ? `Recorded ${dateLabel(gmch.date)}.` : "The score requirements can be calculated, but judge names and official title approval require SDDA confirmation."));
 
   const extensions = [
@@ -647,7 +647,7 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
       achieved: met || !!found,
       date: found?.date,
       body: reqList([
-        { done: met || !!found, text: rule.text },
+        { done: met || !!found, text: (rule.key === "gch4" && (met || !!found) ? "✅ " : "") + rule.text },
         { done: met || !!found, text: "At least 3 passes in each of any 3 different Games" },
         { done: met || !!found, text: progressText },
         { done: !!found, text: found ? "Title recorded " + dateLabel(found.date) : "Official award not shown in the uploaded Titles file" },
@@ -686,8 +686,10 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
     if (met || found) return;
     targets.push({ name: rule.name, kind: "Games", needed: remaining, items: [rule.text, "At least 3 passes in each of 3 different Games", `Current progress: ${progressText}`, `${remaining} more pass(es) needed from the uploaded history`] });
   });
-  targets.sort((a, b) => a.needed - b.needed || a.name.localeCompare(b.name));
-  $("mobile-next-list").innerHTML = targets.map((target) => `<article class="next-card"><header><div><h3>${esc(target.name)}</h3><p class="next-kind">${esc(target.kind)}</p></div><span class="remaining-badge">${target.needed} item${target.needed === 1 ? "" : "s"}</span></header><ol>${target.items.filter((item) => !/^0 more/i.test(item)).map((item) => `<li>${esc(item)}</li>`).join("")}</ol></article>`).join("") || `<article class="next-card"><h3>Everything shown is complete</h3><p>Check with SDDA for the next eligible extension.</p></article>`;
+  // Closest Titles should only list titles with actual outstanding work.
+  const actionableTargets = targets.filter((target) => Number(target.needed) > 0);
+  actionableTargets.sort((a, b) => a.needed - b.needed || a.name.localeCompare(b.name));
+  $("mobile-next-list").innerHTML = actionableTargets.map((target) => `<article class="next-card"><header><div><h3>${esc(target.name)}</h3><p class="next-kind">${esc(target.kind)}</p></div><span class="remaining-badge">${target.needed} item${target.needed === 1 ? "" : "s"}</span></header><ol>${target.items.filter((item) => !/^0 more/i.test(item)).map((item) => `<li>${esc(item)}</li>`).join("")}</ol></article>`).join("") || `<article class="next-card"><h3>Everything shown is complete</h3><p>Check with SDDA for the next eligible extension.</p></article>`;
 }
 
 async function loadTitles(file) {
