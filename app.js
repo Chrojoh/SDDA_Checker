@@ -109,7 +109,7 @@ function renderGames() {
  const counts=gamePassCounts(),total=Object.values(counts).reduce((a,b)=>a+b,0),titled=GAME_NAMES.filter(g=>counts[g]>=3),progress=GAME_CHAMPIONSHIP_RULES.map(rule=>({rule,...gameChampionshipProgress(counts,rule)}));
  $("games-summary").innerHTML="<span>"+total+" banked Games passes</span><span>"+titled.length+"/4 individual Games titles</span><span>"+(progress[0].met?"SD-GCH requirements met":progress[0].remaining+" more pass(es) needed for SD-GCH")+"</span>";
  $("games-grid").innerHTML=GAME_NAMES.map(game=>{const passes=counts[game],entries=games.filter(r=>r.game===game&&r.pass!==false),recorded=gameTitleRecord(game),met=passes>=3,details=game==="Aerial"?"1 hide · 1 distractor · recommended 2 min; judge may adjust":game==="Distance"?"1 hide · no distractors · recommended 3 min; judge may adjust":game==="Speed"?"2–4 hides · 2–4 distractors · fixed 60 sec":"2–5 hides · 2–4 distractors · recommended 5 min; judge may adjust",rows=entries.map(r=>"<div class='game-attempt'><span>"+esc(dateLabel(r.date))+"</span><span>Trial "+esc(r.trial||"—")+"</span><strong>Q / PASS</strong></div>").join("");return "<article class='game-card'><h3>"+esc(game)+" <small>SD-G"+game[0]+"</small></h3><span class='status "+(met?"met":passes?"partial":"unknown")+"'>"+(met?"Individual title requirement met":passes?"In progress":"No pass data")+"</span><div class='game-count'><strong>"+passes+"</strong><span>/ 3 passes</span></div><p>"+details+"</p><div class='game-history'><h4>Games pass history</h4><div class='game-history-summary'><span>"+passes+" passes</span><span>"+entries.length+" listed entries</span></div><div class='game-attempt-header'><span>Date</span><span>Trial</span><span>Result</span></div>"+(rows||"<p>No Games pass entries recorded.</p>")+"</div>"+(recorded?"<p><strong>SDDA title record:</strong> "+esc(dateLabel(recorded.date))+"</p>":"")+"</article>";}).join("");
- $("games-championships").innerHTML="<h3>Games Championship progress · Rule Book v5.1</h3><div class='game-ladder'>"+progress.map(({rule,met,remaining,progressText})=>"<p><strong>"+rule.name+"</strong><span>"+rule.text+"</span><span class='status "+(met?"met":"partial")+"'>"+(met?"Pass requirements met":remaining+" more pass(es) needed")+"</span><small>"+progressText+"</small></p>").join("")+"</div><p class='level-note'>GCH requires 3 passes in each of any 3 Games. GCH2 adds 4 passes, GCH3 adds 5 more, GCH4 adds 7 more, and GCH5 adds 10 more across all four Games. These correspond to cumulative totals of 13, 18, 25 and 35. Games passes are banked and can be reused. Passes are banked and not consumed by earlier titles.</p>";
+ $("games-championships").innerHTML="<h3>Games Championship progress · Rule Book v5.1</h3><div class='game-ladder'>"+progress.map(({rule,met,remaining,progressText})=>"<p><strong>"+rule.name+"</strong><span>"+rule.text+"</span><span class='status "+(met?"met":"partial")+"'>"+(met?"Pass requirements met":remaining+" more pass(es) needed")+"</span><small>"+progressText+"</small></p>").join("")+"</div><p class='level-note'>GCH requires 3 passes in each of any 3 Games. GCH2 adds 4 passes, GCH3 adds 5 more, GCH4 adds 7 more, and GCH5 adds 10 more across all four Games. These correspond to cumulative totals of 13, 18, 25 and 35. Surplus Games passes may be banked for repeat GCH titles, including passes earned before the previous title. Each pass counts once and cannot be counted again toward another repeat-title requirement.</p>";
 }
 
 function workbookDate(value) {
@@ -647,12 +647,11 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
       achieved: met || !!found,
       date: found?.date,
       body: reqList([
-        { done: met || !!found, text: (rule.key === "gch4" && (met || !!found) ? "✅ " : "") + rule.text },
+        { done: met || !!found, text: rule.text },
         { done: met || !!found, text: "At least 3 passes in each of any 3 different Games" },
         { done: met || !!found, text: progressText },
-        { done: !!found, text: found ? "Title recorded " + dateLabel(found.date) : "Official award not shown in the uploaded Titles file" },
-        { done: true, text: "Games passes are banked and may be reused for later Games championship titles." }
-      ]),
+        { done: !!found, text: found ? "Title recorded " + dateLabel(found.date) : "Official award not shown in the uploaded Titles file" }
+      ]) + "<p class='level-note'>Checker calculation: surplus Games passes can count toward repeat GCH titles, including passes earned before the previous title. Each pass is counted once and is not recycled for another repeat-title requirement. The rulebook says banked passes may be used, but does not spell out pass-by-pass reuse in further detail.</p>",
       accent: "level-accent-elite"
     })
   ).join("");
