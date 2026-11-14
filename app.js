@@ -177,7 +177,7 @@ function highToLow(level, list = scores) {
 }
 
 function maximizeGoldCombinations(level,list=scores,maximum=Infinity){
- const special=list===scores?initialSpecialSet(level,list):null,lockedRows=new Set(special?COMPONENTS.map(c=>special.parts[c].sourceRow):[]),eligible=list.filter(s=>s.level===level&&!lockedRows.has(s.sourceRow)),ranked=Object.fromEntries(COMPONENTS.map(c=>[c,eligible.filter(s=>s.component===c).sort((a,b)=>b.score-a.score)])),count=Math.min(Math.max(0,maximum-(special?1:0)),...COMPONENTS.map(c=>ranked[c].length)),locked=special?[{rank:"SP",container:special.parts.Container,interior:special.parts.Interior,exterior:special.parts.Exterior,total:special.total,gold:special.gold,special:true,level,trial:special.trial}]:[];
+ const originalSpecial=initialSpecialSet(level,scores),includedRows=new Set(list.map(s=>s.sourceRow)),special=originalSpecial&&COMPONENTS.every(component=>includedRows.has(originalSpecial.parts[component].sourceRow))?originalSpecial:null,lockedRows=new Set(special?COMPONENTS.map(c=>special.parts[c].sourceRow):[]),eligible=list.filter(s=>s.level===level&&!lockedRows.has(s.sourceRow)),ranked=Object.fromEntries(COMPONENTS.map(c=>[c,eligible.filter(s=>s.component===c).sort((a,b)=>b.score-a.score)])),count=Math.min(Math.max(0,maximum-(special?1:0)),...COMPONENTS.map(c=>ranked[c].length)),locked=special?[{rank:"SP",container:special.parts.Container,interior:special.parts.Interior,exterior:special.parts.Exterior,total:special.total,gold:special.gold,special:true,level,trial:special.trial}]:[];
  if(!count)return locked;
  const containers=ranked.Container.slice(0,count).sort((a,b)=>a.score-b.score),interiors=ranked.Interior.slice(0,count).sort((a,b)=>a.score-b.score),exteriors=ranked.Exterior.slice(0,count).sort((a,b)=>a.score-b.score),goldSets=[],used=new Set();
  for(const container of containers){let best=null;for(let i=0;i<interiors.length;i++)for(let e=0;e<exteriors.length;e++){const total=container.score+interiors[i].score+exteriors[e].score;if(total>=192&&(!best||total<best.total))best={i,e,total};}if(!best)continue;const interior=interiors.splice(best.i,1)[0],exterior=exteriors.splice(best.e,1)[0];used.add(container.sourceRow);goldSets.push({level,container,interior,exterior,total:best.total,gold:true});}
@@ -276,9 +276,33 @@ function rowsAfter(date) {
   return scores.filter((score) => score.date > date);
 }
 
-function machExtensionProgress(rule,priorTitle){const cutoffTrial=trialCutoffForTitle(priorTitle);if(cutoffTrial==null||scores.some(s=>!s.trial||!Number.isFinite(Number(s.trial))))return {verified:false,cutoffTrial:null,advanced:0,excellent:0,gold:0};const eligible=scores.filter(s=>Number(s.trial)>cutoffTrial),advanced=maximizeGoldCombinations("Advanced",eligible),excellent=maximizeGoldCombinations("Excellent",eligible);return {verified:true,cutoffTrial,advanced:advanced.length,excellent:excellent.length,gold:excellent.filter(s=>s.gold).length};}
-function trialCutoffForTitle(title){if(!title)return null;const m=String(title.honours||"").match(/trial\s*#?\s*(\d+)/i);if(m)return Number(m[1]);if(!title.date)return null;const found=[];for(const [trial,info] of trialDates.entries())if(info.date===title.date&&Number.isFinite(Number(trial)))found.push(Number(trial));if(!found.length)scores.forEach(s=>{if(s.date===title.date&&s.trial&&Number.isFinite(Number(s.trial)))found.push(Number(s.trial));});return found.length?Math.max(...found):null;}
-function scoreRowsAfterTitle(priorTitle){const cutoffTrial=trialCutoffForTitle(priorTitle);if(cutoffTrial==null||scores.some(s=>!s.trial||!Number.isFinite(Number(s.trial))))return null;return scores.filter(s=>Number(s.trial)>cutoffTrial);}
+function machExtensionProgress(rule, priorTitle) {
+  const cutoffTrial = trialCutoffForTitle(priorTitle);
+  const relevantScores = scores.filter((score) => score.level === "Advanced" || score.level === "Excellent");
+  const missingTrialRows = relevantScores.filter((score) => !score.trial || !Number.isFinite(Number(score.trial))).length;
+  if (cutoffTrial == null || missingTrialRows > 0) {
+    return { verified: false, cutoffTrial, advanced: 0, excellent: 0, gold: 0, missingTrialRows };
+  }
+  // Event Dates are optional once the previous title has been mapped to a
+  // trial number. Only Advanced/Excellent rows affect MACH extensions.
+  const eligible = relevantScores.filter((score) => Number(score.trial) > cutoffTrial);
+  const advanced = maximizeGoldCombinations("Advanced", eligible);
+  const excellent = maximizeGoldCombinations("Excellent", eligible);
+  return {
+    verified: true,
+    cutoffTrial,
+    advanced: advanced.length,
+    excellent: excellent.length,
+    gold: excellent.filter((set) => set.gold).length,
+    missingTrialRows: 0
+  };
+}
+function scoreRowsAfterTitle(priorTitle){
+  const cutoffTrial = trialCutoffForTitle(priorTitle);
+  const eliteScores = scores.filter((score) => score.level === "Elite");
+  if (cutoffTrial == null || eliteScores.some((score) => !score.trial || !Number.isFinite(Number(score.trial)))) return null;
+  return eliteScores.filter((score) => Number(score.trial) > cutoffTrial);
+}
 
 
 function render() {
@@ -381,9 +405,9 @@ function render() {
       { done: progress.verified && progress.gold >= extension.gold, text: `${progress.verified ? progress.gold : "—"}/${extension.gold} additional Excellent Gold combinations` }
     ];
     if (extension.maxAdvanced) requirements.push({ done: progress.verified, text: progress.verified ? `${countedAdvanced} of up to ${extension.maxAdvanced} Advanced combinations may be included (optional)` : "Advanced allowance cannot be checked until the previous title cutoff is known" });
-    requirements.push({ done: progress.verified, text: progress.verified ? `Only scores from trials after Trial ${progress.cutoffTrial} count` : "Previous title trial cutoff and complete trial numbers required" });
+    requirements.push({ done: progress.verified, text: progress.verified ? `Only scores from trials after Trial ${progress.cutoffTrial} count` : "Previous title trial cutoff and trial numbers for Advanced/Excellent scores required" });
     cards.push(progressCard(extension.title, achieved ? "Achieved" : !progress.verified ? "Cannot verify cutoff" : met ? "Score requirements met" : "In progress", requirements,
-      `${achieved ? `Recorded ${dateLabel(achieved.date)}. ` : ""}${progress.verified ? "Repeat MACH requirements use only scores after the previous title trial." : "Upload the Titles file and Trial Workbook to establish the prior title trial cutoff."}`));
+      `${achieved ? `Recorded ${dateLabel(achieved.date)}. ` : ""}${progress.verified ? "Repeat MACH requirements use only Advanced/Excellent scores after the previous title trial. Event Dates are not required once the title date is mapped to a trial number." : "Upload the Titles file and Trial Workbook to establish the prior title trial cutoff."}`));
     legacyMachStageMet.set(extension.key, !!achieved || met);
   }
   $("progress").innerHTML = cards.join("");
@@ -457,7 +481,7 @@ function renderMobileDashboard() {
       { done: progress.verified && progress.gold >= rule.gold, text: `${progress.verified ? progress.gold : "—"}/${rule.gold} additional Excellent Gold combinations` }
     ];
     if (rule.maxAdvanced) items.push({ done: progress.verified, text: progress.verified ? `${countedAdvanced} of up to ${rule.maxAdvanced} Advanced combinations may be included (optional)` : "Advanced score allowance cannot be checked until the previous title cutoff is known" });
-    items.push({ done: progress.verified, text: progress.verified ? `Only scores from trials after Trial ${progress.cutoffTrial} count` : "Previous title trial cutoff and complete trial numbers required" });
+    items.push({ done: progress.verified, text: progress.verified ? `Only scores from trials after Trial ${progress.cutoffTrial} count` : "Previous title trial cutoff and trial numbers for Advanced/Excellent scores required" });
     championCards.push({ name: rule.name, found, met: !!found || met, items });
     machStageMet.set(rule.key, !!found || met);
   });
