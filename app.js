@@ -90,7 +90,11 @@ function dateLabel(value) {
 }
 function byLevel(level, list = scores) { return list.filter((score) => score.level === level); }
 function componentCounts(level, list = scores) { return Object.fromEntries(COMPONENTS.map((component) => [component, list.filter((score) => score.level === level && score.component === component).length])); }
-function gamePassCounts() { return Object.fromEntries(GAME_NAMES.map((game) => [game, games.filter((row) => row.game === game).length])); }
+function gamePassCounts(){return Object.fromEntries(GAME_NAMES.map(g=>[g,Math.max(games.filter(r=>r.game===g&&r.pass!==false).length,gamesTitleRecorded(g)?3:0)]));}
+const GAME_CHAMPIONSHIP_RULES=[{key:"gch",name:"SD-GCH",type:"base",target:0,text:"3 passes in each of any 3 Games"},{key:"gch2",name:"SD-GCH2",type:"three",target:4,text:"4 additional passes in any 3 Games"},{key:"gch3",name:"SD-GCH3",type:"three",target:5,text:"5 additional passes in any 3 Games"},{key:"gch4",name:"SD-GCH4",type:"three",target:7,text:"7 additional passes in any 3 Games"},{key:"gch5",name:"SD-GCH5",type:"four",target:10,text:"10 additional passes across all 4 Games"}];
+function gameChampionshipProgress(counts,rule){let best=null;for(let a=0;a<4;a++)for(let b=a+1;b<4;b++)for(let c=b+1;c<4;c++){const trio=[GAME_NAMES[a],GAME_NAMES[b],GAME_NAMES[c]],fourth=GAME_NAMES.find(g=>!trio.includes(g)),baseMissing=trio.reduce((s,g)=>s+Math.max(0,3-counts[g]),0),extras3=trio.reduce((s,g)=>s+Math.max(0,counts[g]-3),0),extras=rule.type==="four"?extras3+counts[fourth]:extras3,rep=rule.type==="four"&&counts[fourth]===0?1:0,remaining=baseMissing+Math.max(Math.max(0,rule.target-extras),rep),met=baseMissing===0&&extras>=rule.target&&rep===0;if(!best||remaining<best.remaining)best={met,remaining,extras,baseMissing,trio,fourth};}return {...best,progressText:best.extras+"/"+rule.target+" additional passes in "+best.trio.join(", ")+(rule.type==="four"?" + "+best.fourth:"")};}
+
+
 function validComponentScore(level, component, value) {
   const text = String(value ?? "").trim();
   if (!text) return false;
@@ -183,35 +187,16 @@ function highToLow(level, list = scores) {
   return combinations;
 }
 
-function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
-  const special = list === scores ? initialSpecialSet(level, list) : null;
-  const lockedRows = new Set(special ? COMPONENTS.map((component) => special.parts[component].sourceRow) : []);
-  const eligible = list.filter((score) => score.level === level && !lockedRows.has(score.sourceRow));
-  const ranked = Object.fromEntries(COMPONENTS.map((component) => [component, eligible.filter((score) => score.component === component).sort((a, b) => b.score - a.score)]));
-  const count = Math.min(Math.max(0, maximum - (special ? 1 : 0)), ...COMPONENTS.map((component) => ranked[component].length));
-  const locked = special ? [{ rank: "SP", container: special.parts.Container, interior: special.parts.Interior, exterior: special.parts.Exterior, total: special.total, gold: special.gold, special: true, level, trial: special.trial }] : [];
-  if (!count) return locked;
-  const containers = ranked.Container.slice(0, count), interiors = ranked.Interior.slice(0, count), exteriors = ranked.Exterior.slice(0, count);
-  let seed = 0x5dda2026;
-  const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
-  const shuffle = (values) => {
-    const result = [...values];
-    for (let index = result.length - 1; index > 0; index--) { const swap = Math.floor(random() * (index + 1)); [result[index], result[swap]] = [result[swap], result[index]]; }
-    return result;
-  };
-  let best = [], bestGolds = -1;
-  for (let attempt = 0; attempt < 60000; attempt++) {
-    const iRows = attempt ? shuffle(interiors) : interiors, eRows = attempt ? shuffle(exteriors) : exteriors;
-    const combinations = containers.map((container, index) => {
-      const interior = iRows[index], exterior = eRows[index], total = container.score + interior.score + exterior.score;
-      return { level, rank: index + 1, container, interior, exterior, total, gold: total >= 192 };
-    });
-    const golds = combinations.filter((combination) => combination.gold).length;
-    if (golds > bestGolds) { best = combinations; bestGolds = golds; if (bestGolds === count) break; }
-  }
-  const arranged = best.sort((a, b) => b.total - a.total).map((combination, index) => ({ ...combination, rank: index + 1 }));
-  return [...locked, ...arranged];
+function maximizeGoldCombinations(level,list=scores,maximum=Infinity){
+ const special=list===scores?initialSpecialSet(level,list):null,lockedRows=new Set(special?COMPONENTS.map(c=>special.parts[c].sourceRow):[]),eligible=list.filter(s=>s.level===level&&!lockedRows.has(s.sourceRow)),ranked=Object.fromEntries(COMPONENTS.map(c=>[c,eligible.filter(s=>s.component===c).sort((a,b)=>b.score-a.score)])),count=Math.min(Math.max(0,maximum-(special?1:0)),...COMPONENTS.map(c=>ranked[c].length)),locked=special?[{rank:"SP",container:special.parts.Container,interior:special.parts.Interior,exterior:special.parts.Exterior,total:special.total,gold:special.gold,special:true,level,trial:special.trial}]:[];
+ if(!count)return locked;
+ const containers=ranked.Container.slice(0,count).sort((a,b)=>a.score-b.score),interiors=ranked.Interior.slice(0,count).sort((a,b)=>a.score-b.score),exteriors=ranked.Exterior.slice(0,count).sort((a,b)=>a.score-b.score),goldSets=[],used=new Set();
+ for(const container of containers){let best=null;for(let i=0;i<interiors.length;i++)for(let e=0;e<exteriors.length;e++){const total=container.score+interiors[i].score+exteriors[e].score;if(total>=192&&(!best||total<best.total))best={i,e,total};}if(!best)continue;const interior=interiors.splice(best.i,1)[0],exterior=exteriors.splice(best.e,1)[0];used.add(container.sourceRow);goldSets.push({level,container,interior,exterior,total:best.total,gold:true});}
+ const left=containers.filter(r=>!used.has(r.sourceRow)).sort((a,b)=>b.score-a.score);interiors.sort((a,b)=>b.score-a.score);exteriors.sort((a,b)=>b.score-a.score);
+ const rest=left.map((container,i)=>{const interior=interiors[i],exterior=exteriors[i],total=container.score+interior.score+exterior.score;return {level,container,interior,exterior,total,gold:total>=192};});
+ return [...locked,...[...goldSets,...rest].sort((a,b)=>b.total-a.total).map((set,i)=>({...set,rank:i+1}))];
 }
+
 
 function eliteSets(list = scores) {
   const trials = new Map();
@@ -283,47 +268,29 @@ function progressCard(title, status, requirements, note = "") {
 }
 
 function titlePattern(level) { return new RegExp(`^${level}(?:\\s|$)`, "i"); }
-function championshipTitle(kind) {
-  const patterns = {
-    ch: /(^|\b)(SD[- ]?)?CH(\b|$)|scent detection champion|^Champion$/i,
-    mach: /(^|\b)(SD[- ]?)?MACH(?!\d)|master champion(?!\s*[234])/i,
-    mach2: /MACH\s*2|master champion\s*2/i, mach3: /MACH\s*3|master champion\s*3/i, mach4: /MACH\s*4|master champion\s*4/i,
-    elch: /(^|\b)(SD[- ]?)?ELCH(?!\d)|elite champion(?!\s*[234])/i,
-    elch2: /ELCH\s*2|elite champion\s*2/i, elch3: /ELCH\s*3|elite champion\s*3/i, elch4: /ELCH\s*4|elite champion\s*4/i,
-    gmch: /GMCH|grand master champion/i,
-    gch: /(^|\b)(SD[- ]?)?GCH(?!\d)|games champion(?!\s*[2345])|^All Games$/i,
-    gch2: /GCH\s*2|games champion\s*2|^All Games\s*2$/i, gch3: /GCH\s*3|games champion\s*3|^All Games\s*3$/i,
-    gch4: /GCH\s*4|games champion\s*4|^All Games\s*4$/i, gch5: /GCH\s*5|games champion\s*5|^All Games\s*5$/i
-  };
-  return findTitle(patterns[kind]);
+function championshipTitle(kind){
+ const p={
+ ch:/(?:^|\b)(?:SD[- ]?)?CH(?:\b|$)|scent detection champion|^Champion$/i,
+ mach:/(?:^|\b)(?:SD[- ]?)?MACH(?!\s*[2-4]\b)(?:\b|$)|master champion(?!\s*[2-4]\b)/i,
+ mach2:/(?:^|\b)(?:SD[- ]?)?MACH\s*2(?:\b|$)|master champion\s*2\b/i,mach3:/(?:^|\b)(?:SD[- ]?)?MACH\s*3(?:\b|$)|master champion\s*3\b/i,mach4:/(?:^|\b)(?:SD[- ]?)?MACH\s*4(?:\b|$)|master champion\s*4\b/i,
+ elch:/(?:^|\b)(?:SD[- ]?)?ELCH(?!\s*[2-4]\b)(?:\b|$)|elite champion(?!\s*[2-4]\b)/i,
+ elch2:/(?:^|\b)(?:SD[- ]?)?ELCH\s*2(?:\b|$)|elite champion\s*2\b/i,elch3:/(?:^|\b)(?:SD[- ]?)?ELCH\s*3(?:\b|$)|elite champion\s*3\b/i,elch4:/(?:^|\b)(?:SD[- ]?)?ELCH\s*4(?:\b|$)|elite champion\s*4\b/i,
+ gmch:/(?:^|\b)(?:SD[- ]?)?GMCH(?:\b|$)|grand master champion/i,
+ gch:/(?:^|\b)(?:SD[- ]?)?GCH(?!\s*[2-5]\b)(?:\b|$)|games champion(?!\s*[2-5]\b)|^All Games$/i,
+ gch2:/(?:^|\b)(?:SD[- ]?)?GCH\s*2(?:\b|$)|games champion\s*2\b|^All Games\s*2$/i,gch3:/(?:^|\b)(?:SD[- ]?)?GCH\s*3(?:\b|$)|games champion\s*3\b|^All Games\s*3$/i,gch4:/(?:^|\b)(?:SD[- ]?)?GCH\s*4(?:\b|$)|games champion\s*4\b|^All Games\s*4$/i,gch5:/(?:^|\b)(?:SD[- ]?)?GCH\s*5(?:\b|$)|games champion\s*5\b|^All Games\s*5$/i
+ };return findTitle(p[kind]);
 }
+
 
 function rowsAfter(date) {
   if (!date || scores.some((score) => !score.date)) return null;
   return scores.filter((score) => score.date > date);
 }
 
-function machExtensionProgress(rule) {
-  // Each earlier MACH level consumes its combinations. Calculate the complete
-  // pool, then subtract the cumulative allocations; do not rely on dates.
-  // SP combinations remain one locked combination in maximizeGoldCombinations.
-  const advanced = maximizeGoldCombinations("Advanced");
-  const excellent = maximizeGoldCombinations("Excellent");
-  const totalPool = advanced.length + excellent.length;
-  const excellentPool = excellent.length;
-  const excellentGoldPool = excellent.filter((set) => set.gold).length;
-  const remainingExcellent = Math.max(0, excellentPool - rule.usedExcellent);
-  const remainingGold = Math.max(0, excellentGoldPool - rule.usedGold);
-  return {
-    mode: "consumption",
-    total: Math.max(0, totalPool - rule.usedTotal),
-    excellent: remainingExcellent,
-    // Excellent Gold combinations are a subset of the remaining Excellent
-    // combinations, never an independent pool.
-    gold: Math.min(remainingExcellent, remainingGold),
-    totalPool, excellentPool, excellentGoldPool
-  };
-}
+function machExtensionProgress(rule,priorTitle){const cutoffTrial=trialCutoffForTitle(priorTitle);if(cutoffTrial==null||scores.some(s=>!s.trial||!Number.isFinite(Number(s.trial))))return {verified:false,cutoffTrial:null,advanced:0,excellent:0,gold:0};const eligible=scores.filter(s=>Number(s.trial)>cutoffTrial),advanced=maximizeGoldCombinations("Advanced",eligible),excellent=maximizeGoldCombinations("Excellent",eligible);return {verified:true,cutoffTrial,advanced:advanced.length,excellent:excellent.length,gold:excellent.filter(s=>s.gold).length};}
+function trialCutoffForTitle(title){if(!title)return null;const m=String(title.honours||"").match(/trial\s*#?\s*(\d+)/i);if(m)return Number(m[1]);if(!title.date)return null;const found=[];for(const [trial,info] of trialDates.entries())if(info.date===title.date&&Number.isFinite(Number(trial)))found.push(Number(trial));if(!found.length)scores.forEach(s=>{if(s.date===title.date&&s.trial&&Number.isFinite(Number(s.trial)))found.push(Number(s.trial));});return found.length?Math.max(...found):null;}
+function scoreRowsAfterTitle(priorTitle){const cutoffTrial=trialCutoffForTitle(priorTitle);if(cutoffTrial==null||scores.some(s=>!s.trial||!Number.isFinite(Number(s.trial))))return null;return scores.filter(s=>Number(s.trial)>cutoffTrial);}
+
 
 function render() {
   if (!scores.length) { $("report").hidden = true; return; }
@@ -498,7 +465,7 @@ function renderMobileDashboard() {
     { key: "elch4", previous: "elch3", name: "SD-ELCH4", gold: 5 }
   ];
   repeatEliteRules.forEach((rule) => {
-    const found = championshipTitle(rule.key), previous = championshipTitle(rule.previous), eligible = rowsAfter(previous?.date), sets = eligible ? eliteSets(eligible) : [], eliteGold = sets.filter((set) => set.gold).length;
+    const found = championshipTitle(rule.key), previous = championshipTitle(rule.previous), eligible = scoreRowsAfterTitle(previous), sets = eligible ? eliteSets(eligible) : [], eliteGold = sets.filter((set) => set.gold).length;
     championCards.push({ name: rule.name, found, met: !!eligible && sets.length >= 5 && eliteGold >= rule.gold, verificationRequired: true, items: [
       { done: !!previous, text: `${rule.previous.toUpperCase()} must be recorded first` },
       { done: !!eligible && sets.length >= 5, text: eligible ? `${sets.length}/5 new Elite scores` : "Previous-title date and complete score dates required" },
@@ -631,7 +598,7 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
   if (!championshipTitle("elch")) targets.push({ name: "SD-ELCH", kind: "Scent", needed: Math.max(1, elchNeeded), items: [`${Math.max(0, 5 - elite.length)} more Elite scores`, `${Math.max(0, 2 - elite.filter((set) => set.gold).length)} more Elite Gold scores`, "At least 2 different judges required · judge names unavailable in these files"] });
   if (!championshipTitle("gmch")) { const missing = [!championshipTitle("mach") && "SD-MACH", !championshipTitle("elch") && "SD-ELCH"].filter(Boolean); targets.push({ name: "SD-GMCH", kind: "Scent", needed: Math.max(1, missing.length), items: [...missing.map((title) => `${title} required`), "At least 3 different judges required · judge names unavailable in these files"] }); }
   repeatMachRules.forEach((rule) => { if (championshipTitle(rule.key) || !machStageMet.get(rule.previous)) return; const previous = championshipTitle(rule.previous), progress = machExtensionProgress(rule, previous), needed = Math.max(Math.max(0, rule.total - progress.total), Math.max(0, rule.excellent - progress.excellent), Math.max(0, rule.gold - progress.gold)); targets.push({ name: rule.name, kind: "Scent", needed, items: [`${Math.max(0, rule.total - progress.total)} more new combinations`, `${Math.max(0, rule.excellent - progress.excellent)} more new Excellent combinations`, `${Math.max(0, rule.gold - progress.gold)} more new Excellent Gold scores`] }); });
-  repeatEliteRules.forEach((rule) => { if (championshipTitle(rule.key)) return; const previous = championshipTitle(rule.previous); if (!previous) return; const eligible = rowsAfter(previous.date), sets = eligible ? eliteSets(eligible) : [], eliteGold = sets.filter((set) => set.gold).length; const needed = eligible ? Math.max(Math.max(0, 5 - sets.length), Math.max(0, rule.gold - eliteGold)) : 1; targets.push({ name: rule.name, kind: "Scent", needed, items: eligible ? [`${Math.max(0, 5 - sets.length)} more new Elite scores`, `${Math.max(0, rule.gold - eliteGold)} more new Elite Gold scores`] : [`Recorded ${rule.previous.toUpperCase()} title date and complete score dates required`] }); });
+  repeatEliteRules.forEach((rule) => { if (championshipTitle(rule.key)) return; const previous = championshipTitle(rule.previous); if (!previous) return; const eligible = scoreRowsAfterTitle(previous), sets = eligible ? eliteSets(eligible) : [], eliteGold = sets.filter((set) => set.gold).length; const needed = eligible ? Math.max(Math.max(0, 5 - sets.length), Math.max(0, rule.gold - eliteGold)) : 1; targets.push({ name: rule.name, kind: "Scent", needed, items: eligible ? [`${Math.max(0, 5 - sets.length)} more new Elite scores`, `${Math.max(0, rule.gold - eliteGold)} more new Elite Gold scores`] : [`Recorded ${rule.previous.toUpperCase()} title date and complete score dates required`] }); });
   gameTargets.filter((target) => target.needed > 0).forEach((target) => targets.push(target));
   gchProgress.forEach(({ rule, remaining, met, progressText }) => {
     if (met) return;
