@@ -548,7 +548,7 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
       date: found?.date,
       body: reqList([
         { done: met, text: rule.text },
-        { done: baseMet, text: "At least 3 passes in each of any 3 different Games" },
+        { done: met, text: "At least 3 passes in each of any 3 different Games" },
         { done: met, text: progressText },
         { done: !!found, text: found ? `Title recorded ${dateLabel(found.date)}` : "Official award not shown in the uploaded Titles file" },
         { done: true, text: "Games passes are banked and may be reused for later Games championship titles." }
