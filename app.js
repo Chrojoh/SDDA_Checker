@@ -271,6 +271,31 @@ function championshipTitle(kind){
 }
 
 
+function trialCutoffForTitle(title) {
+  if (!title) return null;
+  const honoursMatch = String(title.honours || "").match(/trial\\s*#?\\s*(\\d+)/i);
+  if (honoursMatch) return Number(honoursMatch[1]);
+  if (!title.date) return null;
+
+  // Titles exports contain the award date, not the trial number. When
+  // several trials share that date, use the latest trial as a conservative
+  // cutoff so no score from the award date can be reused accidentally.
+  const matchingTrials = [];
+  for (const [trial, info] of trialDates.entries()) {
+    if (info.date === title.date && Number.isFinite(Number(trial))) {
+      matchingTrials.push(Number(trial));
+    }
+  }
+  if (!matchingTrials.length) {
+    scores.forEach((score) => {
+      if (score.date === title.date && score.trial && Number.isFinite(Number(score.trial))) {
+        matchingTrials.push(Number(score.trial));
+      }
+    });
+  }
+  return matchingTrials.length ? Math.max(...matchingTrials) : null;
+}
+
 function rowsAfter(date) {
   if (!date || scores.some((score) => !score.date)) return null;
   return scores.filter((score) => score.date > date);
