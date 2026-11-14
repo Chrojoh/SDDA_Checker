@@ -470,7 +470,7 @@ function render() {
     if (extension.maxAdvanced) requirements.push({ done: progress.verified, text: progress.verified ? `${countedAdvanced} of up to ${extension.maxAdvanced} Advanced combinations may be included (optional)` : "Advanced allowance cannot be checked until the previous title cutoff is known" });
     requirements.push({ done: progress.verified, text: progress.verified ? `Only scores listed after score row ${progress.cutoffRow} count` : "Previous title score sequence could not be established from the uploaded chronological score list" });
     cards.push(progressCard(extension.title, achieved ? "Achieved" : !progress.verified ? "Cannot verify cutoff" : met ? "Score requirements met" : "In progress", requirements,
-      `${achieved ? `Recorded ${dateLabel(achieved.date)}. ` : ""}${progress.verified ? "Repeat MACH requirements use only Advanced/Excellent scores after the previous title trial. Event Dates are not required once the title date is mapped to a trial number." : "Upload the Titles file and Trial Workbook to establish the prior title trial cutoff."}`));
+      `${achieved ? `Recorded ${dateLabel(achieved.date)}. ` : ""}${progress.verified ? "Repeat MACH requirements use only Advanced/Excellent score rows listed after the previous title requirements were first met in the chronological export." : "The previous title cutoff is calculated from the chronological order of the uploaded score rows."}`));
     legacyMachStageMet.set(extension.key, !!achieved || met);
   }
   $("progress").innerHTML = cards.join("");
