@@ -253,7 +253,7 @@ function displayedTitles() { return titles.length ? titles.map((title) => ({ ...
 function progressCard(title, status, requirements, note = "") {
   const met = status === "Achieved" || status === "Requirements shown as met";
   const statusClass = met ? "met" : status.includes("cannot") || status.includes("verification") ? "unknown" : "partial";
-  return `<article class="progress-card"><h3>${esc(title)}</h3><span class="status ${statusClass}">${esc(status)}</span><ul class="requirements">${requirements.map((requirement) => `<li class="${requirement.done ? "done" : ""}${requirement.info ? " info" : ""}">${esc(requirement.text)}</li>`).join("")}</ul>${note ? `<p>${esc(note)}</p>` : ""}</article>`;
+  return `<article class="progress-card"><h3>${esc(title)}</h3><span class="status ${statusClass}">${esc(status)}</span><ul class="requirements">${requirements.map((requirement) => `<li class="${requirement.done ? "done" : ""}${requirement.info ? " info" : ""}">${requirement.done ? "✅ " : ""}${esc(requirement.text)}</li>`).join("")}</ul>${note ? `<p>${esc(note)}</p>` : ""}</article>`;
 }
 
 function titlePattern(level) { return new RegExp(`^${level}(?:\s|$)`, "i"); }
@@ -448,7 +448,7 @@ function render() {
   const gmch = championshipTitle("gmch");
   const gmchScoresMet = (!!mach || machScoresMet) && (!!elch || elchScoresMet);
   cards.push(progressCard("SD-GMCH", gmch ? "Achieved" : gmchScoresMet ? "Score requirements met; judge verification needed" : "In progress", [
-    { done: !!mach || machScoresMet, text: (!!mach || machScoresMet ? "✅ " : "") + (mach ? "SD-MACH recorded" : machScoresMet ? "Calculated SD-MACH score requirements met" : "SD-MACH required") }, { done: !!elch || elchScoresMet, text: (!!elch || elchScoresMet ? "✅ " : "") + (elch ? "SD-ELCH recorded" : elchScoresMet ? "SD-ELCH score requirements met · at least 2 judges still need verification" : "SD-ELCH required") }, { done: false, text: "At least 3 judges: cannot verify from this score download" }
+    { done: !!mach || machScoresMet, text: mach ? "SD-MACH recorded" : machScoresMet ? "Calculated SD-MACH score requirements met" : "SD-MACH required" }, { done: !!elch || elchScoresMet, text: elch ? "SD-ELCH recorded" : elchScoresMet ? "SD-ELCH score requirements met · at least 2 judges still need verification" : "SD-ELCH required" }, { done: false, text: "At least 3 judges: cannot verify from this score download" }
   ], gmch ? `Recorded ${dateLabel(gmch.date)}.` : "The score requirements can be calculated, but judge names and official title approval require SDDA confirmation."));
 
   const extensions = [
@@ -498,7 +498,7 @@ function renderMobileDashboard() {
   if (!scentTarget) return;
   const inferred = inferredTitles(), shown = displayedTitles();
   const titleFor = (pattern) => shown.find((title) => pattern.test(titleText(title))) || inferred.find((title) => pattern.test(titleText(title)));
-  const reqList = (items) => `<ul class="requirement-list">${items.map((item) => `<li class="${item.done ? "done" : ""}">${esc(item.text)}</li>`).join("")}</ul>`;
+  const reqList = (items) => `<ul class="requirement-list">${items.map((item) => `<li class="${item.done ? "done" : ""}">${item.done ? "✅ " : ""}${esc(item.text)}</li>`).join("")}</ul>`;
   const accordion = ({ name, subtitle, achieved, date, body, accent = "" }) => `<details class="title-accordion ${accent}"><summary><span class="summary-copy"><strong>${esc(name)}</strong><small>${esc(subtitle)}</small></span>${achieved ? (date ? `<span class="achievement-date">${esc(dateLabel(date))}</span>` : `<span class="achievement-check" aria-label="Achieved">✓</span>`) : ""}<span class="chevron" aria-hidden="true">⌄</span></summary><div class="accordion-body">${body}</div></details>`;
   const excellentTitleMet = !!titles.find((title) => /^Excellent(?:\s|$)/i.test(titleText(title)))
     || !!inferred.find((title) => /^Excellent(?:\s|$)/i.test(titleText(title)))
