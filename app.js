@@ -3,7 +3,7 @@
 const COMPONENTS = ["Container", "Exterior", "Interior"];
 const LEVELS = ["Started", "Advanced", "Excellent", "Elite"];
 const GAME_NAMES = ["Aerial", "Distance", "Speed", "Team"];
-let titles = [], scores = [], games = [], trialDates = new Map(), dateMatches = 0, unmatchedTrials = [];
+let titles = [], scores = [], games = [];
 let currentPdfUrl = "";
 window.sddaJudgeVerification = window.sddaJudgeVerification || { elch: false, gmch: false };
 
@@ -124,17 +124,6 @@ function workbookDate(value) {
   if (!text) return "";
   const parsed = new Date(text); return Number.isNaN(parsed.valueOf()) ? "" : parsed.toISOString().slice(0, 10);
 }
-function applyTrialDates() {
-  dateMatches = 0;
-  scores = scores.map((score) => {
-    if (score.date || !score.trial) return score;
-    const found = trialDates.get(String(score.trial));
-    if (!found) return score;
-    dateMatches++; return { ...score, date: found.date, dateSource: `Official Trial Workbook (${found.city || "trial listing"})` };
-  });
-  unmatchedTrials = [...new Set(scores.filter((score) => !score.date && score.trial).map((score) => String(score.trial)))].sort((a, b) => Number(a) - Number(b));
-}
-
 function initialSpecialSet(level, list = scores) {
   if (level !== "Advanced" && level !== "Excellent") return null;
   const ordered = list.filter((score) => score.level === level).sort((a, b) => {
@@ -282,11 +271,6 @@ function trialCutoffForTitle(title) {
   // several trials share that date, use the latest trial as a conservative
   // cutoff so no score from the award date can be reused accidentally.
   const matchingTrials = [];
-  for (const [trial, info] of trialDates.entries()) {
-    if (info.date === title.date && Number.isFinite(Number(trial))) {
-      matchingTrials.push(Number(trial));
-    }
-  }
   if (!matchingTrials.length) {
     scores.forEach((score) => {
       if (score.date === title.date && score.trial && Number.isFinite(Number(score.trial))) {
@@ -391,8 +375,8 @@ function render() {
   ].filter(Boolean).length;
   $("dog-name").textContent = dog; $("dog-meta").textContent = `SDDA #${number} · ${scores.length} qualifying component scores · ${scentAchieved} scent titles achieved · ${8 - scentAchieved} in progress`;
   $("message").textContent = titles.length
-    ? `${trialDates.size ? `The Trial Workbook supplied dates for ${dateMatches} score rows. ` : ""}Scores loaded; titles are confirmed by the optional SDDA Titles file.`
-    : `${trialDates.size ? `The Trial Workbook supplied dates for ${dateMatches} score rows. ` : ""}Scores loaded without a Titles file. Achievements are calculated from score history and are not official confirmation.`;
+    ? "Scores and recorded titles loaded. Results are saved on this device."
+    : "Scores loaded. Achievements are calculated from score history and are not official SDDA confirmation.";
 
   const shownTitles = displayedTitles();
   $("achieved").innerHTML = shownTitles.map((title) => `<article class="title-card"><h3>${esc(title.description)}</h3><span class="status met">${title.calculated ? "Calculated from scores" : "Recorded by SDDA"}</span><div class="score">${title.score == null || Number.isNaN(title.score) ? "—" : esc(title.score)}</div><p>${title.score == null || Number.isNaN(title.score) ? "No title score supplied" : title.calculated ? "Calculated component total" : "Recorded title score"}</p><p><strong>${esc(dateLabel(title.date))}</strong>${title.honours ? ` · ${esc(title.honours)}` : ""}</p></article>`).join("") || `<article class="title-card"><h3>No complete title found</h3><p>The score history does not yet contain a qualifying score in every required component.</p></article>`;
@@ -491,7 +475,7 @@ function render() {
   document.querySelectorAll(".level-score-block table thead tr").forEach((row) => { const cells = row.querySelectorAll("th"); if (cells.length >= 4) { cells[1].textContent = "Container"; cells[2].textContent = "Exterior"; cells[3].textContent = "Interior"; } });
 
   const blanks = scores.filter((score) => !score.date).length;
-  $("limits").innerHTML = `<h3>Verification limits in these downloads</h3><ul><li>The score download contains no judge column, so two-judge and three-judge championship requirements cannot be proven.</li>${dateMatches ? `<li>${dateMatches} missing Event Date value${dateMatches === 1 ? " was" : "s were"} filled by matching Trial Number in the official Trial Workbook.</li>` : ""}${blanks ? `<li>${blanks} score row${blanks === 1 ? " still has" : "s still have"} no Event Date.${unmatchedTrials.length ? ` Trial number${unmatchedTrials.length === 1 ? "" : "s"} not found in that workbook: ${unmatchedTrials.join(", ")}.` : ""} Higher championship calculations cannot reliably exclude scores earned on or before a previous title date.</li>` : ""}<li>This report treats rows in the Dog Scores download as qualifying scores, consistent with the supplied Gold-score instructions.</li><li>SDDA remains the authority for official title approval.</li></ul>`;
+  $("limits").innerHTML = `<h3>Verification limits in these downloads</h3><ul><li>The Score File supplies Event Date values used directly for title cutoffs and chronological calculations.</li><li>The Score File does not include judge names, so two-judge and three-judge championship requirements require handler confirmation.</li>${blanks ? `<li>${blanks} score row${blanks === 1 ? " has" : "s have"} no Event Date. Date-based repeat-title cutoffs cannot be fully verified for those records.</li>` : ""}<li>This report treats rows in the Dog Scores download as qualifying scores, consistent with the supplied Gold-score instructions.</li><li>SDDA remains the authority for official title approval.</li></ul>`;
 }
 
 function renderMobileDashboard() {
@@ -709,32 +693,11 @@ if (game) {
     return;
 } const level = levelFrom(description), component = componentFrom(description), score = Number(row.Score); if (level && component && validComponentScore(level, component, row.Score)) standard.push({ ...common, level, component, score, maximum: Number(row["Maximum Score"]) }); });
   scores = standard; games = gameRows;
-  if (trialDates.size) applyTrialDates();
   $("scores-name").textContent = `${file.name} · ${scores.length} component scores${games.length ? ` · ${games.filter((row) => row.pass).length} Games passes` : ""}${parsed.sheetName === "CSV" ? "" : ` · ${parsed.sheetName}`}`; render();
-}
-
-async function loadTrialWorkbook(file) {
-  const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: false });
-  const sheet = workbook.Sheets["Processed and Future Trials"];
-  if (!sheet) throw new Error("That workbook does not contain the 'Processed and Future Trials' sheet.");
-  const rows = window.XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
-  const lookup = new Map();
-  for (const row of rows.slice(2)) {
-    for (const start of [0, 6]) {
-      const trial = String(row[start] || "").trim(), date = workbookDate(row[start + 1]), city = String(row[start + 2] || "").trim();
-      if (trial && date) lookup.set(trial, { date, city });
-    }
-  }
-  if (!lookup.size) throw new Error("No trial-number/date records were found in that workbook.");
-  trialDates = lookup; applyTrialDates();
-  $("workbook-name").textContent = `${file.name} · ${lookup.size} trial dates · ${dateMatches} score rows matched`;
-  $("message").textContent = dateMatches ? `Matched ${dateMatches} blank score-row dates using Trial Number.` : `Loaded ${lookup.size} official trial dates, but none of this dog's blank-date trial numbers were listed.`;
-  render();
 }
 
 $("titles-file").addEventListener("change", async (event) => { try { if (event.target.files[0]) await loadTitles(event.target.files[0]); } catch (error) { $("message").textContent = error.message; } });
 $("scores-file").addEventListener("change", async (event) => { try { if (event.target.files[0]) await loadScores(event.target.files[0]); } catch (error) { $("message").textContent = error.message; } });
-$("workbook-file").addEventListener("change", async (event) => { try { if (event.target.files[0]) await loadTrialWorkbook(event.target.files[0]); } catch (error) { $("message").textContent = `Trial Workbook import failed: ${error.message}`; } });
 
 document.querySelectorAll(".tracker-tab").forEach((button) => button.addEventListener("click", () => {
   document.querySelectorAll(".tracker-tab").forEach((tab) => { const active = tab === button; tab.classList.toggle("active", active); tab.setAttribute("aria-selected", String(active)); });
