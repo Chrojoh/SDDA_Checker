@@ -207,7 +207,10 @@ function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
       const tail = solve(index + 1, usedI | bitI, usedE | bitE);
       if (tail.gold + 1 > best.gold) {
         best = { gold: tail.gold + 1, picks: [{ containerIndex: index, ...pair }, ...tail.picks] };
-        if (best.gold === Math.min(containers.length, interiors.length, exteriors.length)) break;
+        const usedICount = usedI.toString(2).replace(/0/g, "").length;
+      const usedECount = usedE.toString(2).replace(/0/g, "").length;
+      const remainingUpperBound = Math.min(containers.length - index, interiors.length - usedICount, exteriors.length - usedECount);
+      if (best.gold === remainingUpperBound) break;
       }
     }
     memo.set(key, best);
@@ -511,7 +514,7 @@ function render() {
   for (const extension of extensions) {
     const achieved = championshipTitle(extension.key), previousMet = !!extension.prior || !!legacyMachStageMet.get(extension.previous);
     if (!previousMet && !achieved) continue;
-    const progress = machExtensionProgress(extension, extension.prior);
+    const progress = machExtensionProgress(extension, extension.prior || extension.previous);
     const countedAdvanced = extension.maxAdvanced ? Math.min(progress.advanced, extension.maxAdvanced) : 0;
     const met = previousMet && progress.verified && progress.excellent >= extension.excellent && progress.gold >= extension.gold;
     const requirements = [
@@ -522,7 +525,7 @@ function render() {
     if (extension.maxAdvanced) requirements.push({ done: progress.verified, text: progress.verified ? `${countedAdvanced} of up to ${extension.maxAdvanced} Advanced combinations may be included (optional)` : "Advanced allowance cannot be checked until the previous title cutoff is known" });
     requirements.push({ done: progress.verified, text: progress.verified ? `Only Qs from trials after Trial ${progress.cutoffTrial} count` : "Previous title score sequence could not be established from the uploaded chronological score list" });
     cards.push(progressCard(extension.title, achieved ? "Achieved" : !progress.verified ? "Cannot verify cutoff" : met ? "Score requirements met" : "In progress", requirements,
-      `${achieved ? `Recorded ${dateLabel(achieved.date)}. ` : ""}${progress.verified ? "Repeat MACH requirements use only Advanced/Excellent score rows listed after the previous title requirements were first met in the chronological export." : "The cutoff is reconstructed from the trial that completed the previous title requirements."}`));
+      `${achieved ? `Recorded ${dateLabel(achieved.date)}. ` : ""}${progress.verified ? "Repeat MACH requirements use only Qs from trials after the trial that completed the previous title." : "The cutoff is reconstructed from the trial that completed the previous title requirements."}`));
     legacyMachStageMet.set(extension.key, !!achieved || met);
   }
   $("progress").innerHTML = cards.join("");
