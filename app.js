@@ -358,8 +358,9 @@ function machTitleStage(title) {
 function machCutoffRowForTitle(title) {
   const stage = machTitleStage(title);
   if (!stage) return null;
-  const ordered = scores.filter((score) => (score.level === "Advanced" || score.level === "Excellent") && score.trial && Number.isFinite(Number(score.trial)))
-    .sort((a, b) => Number(a.sourceRow) - Number(b.sourceRow));
+  const relevant = scores.filter((score) => score.level === "Advanced" || score.level === "Excellent");
+  if (relevant.some((score) => !score.trial || !Number.isFinite(Number(score.trial)) || !Number.isFinite(Number(score.sourceRow)))) return null;
+  const ordered = relevant.sort((a, b) => Number(a.sourceRow) - Number(b.sourceRow));
   // Build complete trial batches. Separate trial numbers on the same date remain
   // separate cutoffs; all rows from the title-completing trial are excluded.
   const byTrial = new Map();
@@ -371,6 +372,9 @@ function machCutoffRowForTitle(title) {
     group.rows.push(score);
   }
   const trialGroups = [...byTrial.values()].sort((a, b) => a.firstRow - b.firstRow);
+  // A trial number must increase with the chronological score export. If the
+  // file cannot establish that ordering, do not guess at a repeat-title cutoff.
+  if (trialGroups.some((group, index) => index > 0 && group.trial <= trialGroups[index - 1].trial)) return null;
   let cutoffTrial = 0;
   for (let currentStage = 1; currentStage <= stage; currentStage++) {
     const prefix = [];
