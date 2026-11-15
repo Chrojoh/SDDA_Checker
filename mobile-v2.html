@@ -116,7 +116,7 @@ async function restoreBackup(file){
 }
 window.sddaJudgeVerification={elch:false,gmch:false};
 const originalLoadScores=loadScores,originalLoadTitles=loadTitles,originalLoadTrialWorkbook=loadTrialWorkbook;
-loadScores=async function(file){await originalLoadScores(file);await saveCurrent();};
+loadScores=async function(file){const previousId=scores.length?dogId():null;await originalLoadScores(file);const nextId=scores.length?dogId():null;if(previousId&&nextId&&previousId!==nextId){titles=[];window.sddaJudgeVerification={elch:false,gmch:false};const e=document.getElementById("judge-elch"),g=document.getElementById("judge-gmch");if(e)e.checked=false;if(g)g.checked=false;const t=document.getElementById("titles-name");if(t)t.textContent="Choose the Titles file for this dog, if available.";render();}await saveCurrent();};
 loadTitles=async function(file){await originalLoadTitles(file);await saveCurrent();};
 loadTrialWorkbook=async function(file){await originalLoadTrialWorkbook(file);await saveCurrent();};
 document.addEventListener("DOMContentLoaded",()=>{});
