@@ -166,16 +166,76 @@ function highToLow(level, list = scores) {
   return combinations;
 }
 
-function maximizeGoldCombinations(level,list=scores,maximum=Infinity){
- const originalSpecial=initialSpecialSet(level,scores),includedRows=new Set(list.map(s=>s.sourceRow)),special=originalSpecial&&COMPONENTS.every(component=>includedRows.has(originalSpecial.parts[component].sourceRow))?originalSpecial:null,lockedRows=new Set(special?COMPONENTS.map(c=>special.parts[c].sourceRow):[]),eligible=list.filter(s=>s.level===level&&!lockedRows.has(s.sourceRow)),ranked=Object.fromEntries(COMPONENTS.map(c=>[c,eligible.filter(s=>s.component===c).sort((a,b)=>b.score-a.score)])),count=Math.min(Math.max(0,maximum-(special?1:0)),...COMPONENTS.map(c=>ranked[c].length)),locked=special?[{rank:"SP",container:special.parts.Container,interior:special.parts.Interior,exterior:special.parts.Exterior,total:special.total,gold:special.gold,special:true,level,trial:special.trial}]:[];
- if(!count)return locked;
- const containers=ranked.Container.slice(0,count).sort((a,b)=>a.score-b.score),interiors=ranked.Interior.slice(0,count).sort((a,b)=>a.score-b.score),exteriors=ranked.Exterior.slice(0,count).sort((a,b)=>a.score-b.score),goldSets=[],used=new Set();
- for(const container of containers){let best=null;for(let i=0;i<interiors.length;i++)for(let e=0;e<exteriors.length;e++){const total=container.score+interiors[i].score+exteriors[e].score;if(total>=192&&(!best||total<best.total))best={i,e,total};}if(!best)continue;const interior=interiors.splice(best.i,1)[0],exterior=exteriors.splice(best.e,1)[0];used.add(container.sourceRow);goldSets.push({level,container,interior,exterior,total:best.total,gold:true});}
- const left=containers.filter(r=>!used.has(r.sourceRow)).sort((a,b)=>b.score-a.score);interiors.sort((a,b)=>b.score-a.score);exteriors.sort((a,b)=>b.score-a.score);
- const rest=left.map((container,i)=>{const interior=interiors[i],exterior=exteriors[i],total=container.score+interior.score+exterior.score;return {level,container,interior,exterior,total,gold:total>=192};});
- return [...locked,...[...goldSets,...rest].sort((a,b)=>b.total-a.total).map((set,i)=>({...set,rank:i+1}))];
-}
+function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
+  const originalSpecial = initialSpecialSet(level, scores);
+  const includedRows = new Set(list.map((score) => score.sourceRow));
+  const special = originalSpecial && COMPONENTS.every((component) => includedRows.has(originalSpecial.parts[component].sourceRow)) ? originalSpecial : null;
+  const lockedRows = new Set(special ? COMPONENTS.map((component) => special.parts[component].sourceRow) : []);
+  const eligible = list.filter((score) => score.level === level && !lockedRows.has(score.sourceRow));
+  const ranked = Object.fromEntries(COMPONENTS.map((component) => [component, eligible.filter((score) => score.component === component).sort((a, b) => b.score - a.score || a.sourceRow - b.sourceRow)]));
+  const count = Math.min(Math.max(0, maximum - (special ? 1 : 0)), ...COMPONENTS.map((component) => ranked[component].length));
+  const locked = special ? [{ rank: "SP", container: special.parts.Container, interior: special.parts.Interior, exterior: special.parts.Exterior, total: special.total, gold: special.gold, special: true, level, trial: special.trial }] : [];
+  if (!count) return locked;
 
+  // Exact maximum-cardinality 3-partite matching for Gold (>=192). Each score row
+  // is a distinct resource; a row can appear in at most one selected combination.
+  const containers = ranked.Container.slice(0, count);
+  const interiors = ranked.Interior;
+  const exteriors = ranked.Exterior;
+  const validPairs = containers.map((container) => {
+    const pairs = [];
+    for (let i = 0; i < interiors.length; i++) {
+      for (let e = 0; e < exteriors.length; e++) {
+        const total = container.score + interiors[i].score + exteriors[e].score;
+        if (total >= 192) pairs.push({ i, e, total });
+      }
+    }
+    pairs.sort((a, b) => a.total - b.total || a.i - b.i || a.e - b.e);
+    return pairs;
+  });
+  const memo = new Map();
+  function solve(index, usedI, usedE) {
+    if (index >= containers.length) return { gold: 0, picks: [] };
+    const key = index + "|" + usedI.toString(36) + "|" + usedE.toString(36);
+    const cached = memo.get(key);
+    if (cached) return cached;
+    let best = solve(index + 1, usedI, usedE);
+    best = { gold: best.gold, picks: best.picks };
+    for (const pair of validPairs[index]) {
+      const bitI = 1n << BigInt(pair.i), bitE = 1n << BigInt(pair.e);
+      if ((usedI & bitI) !== 0n || (usedE & bitE) !== 0n) continue;
+      const tail = solve(index + 1, usedI | bitI, usedE | bitE);
+      if (tail.gold + 1 > best.gold) {
+        best = { gold: tail.gold + 1, picks: [{ containerIndex: index, ...pair }, ...tail.picks] };
+        const usedICount = usedI.toString(2).replace(/0/g, "").length;
+      const usedECount = usedE.toString(2).replace(/0/g, "").length;
+      const remainingUpperBound = Math.min(containers.length - index, interiors.length - usedICount, exteriors.length - usedECount);
+      if (best.gold === remainingUpperBound) break;
+      }
+    }
+    memo.set(key, best);
+    return best;
+  }
+  const optimum = solve(0, 0n, 0n);
+  const usedC = new Set(), usedI = new Set(), usedE = new Set(), goldSets = [];
+  for (const pick of optimum.picks) {
+    const container = containers[pick.containerIndex], interior = interiors[pick.i], exterior = exteriors[pick.e];
+    usedC.add(container.sourceRow); usedI.add(interior.sourceRow); usedE.add(exterior.sourceRow);
+    goldSets.push({ level, container, interior, exterior, total: pick.total, gold: true });
+  }
+  // Complete as many additional non-Gold titling scores as possible after the
+  // maximum Gold solution; no component already used by a Gold set is reused.
+  const remainingC = ranked.Container.filter((row) => !usedC.has(row.sourceRow));
+  const remainingI = ranked.Interior.filter((row) => !usedI.has(row.sourceRow));
+  const remainingE = ranked.Exterior.filter((row) => !usedE.has(row.sourceRow));
+  const remainingCount = Math.min(count - goldSets.length, remainingC.length, remainingI.length, remainingE.length);
+  const rest = Array.from({ length: remainingCount }, (_, index) => {
+    const container = remainingC[index], interior = remainingI[index], exterior = remainingE[index];
+    const total = container.score + interior.score + exterior.score;
+    return { level, container, interior, exterior, total, gold: total >= 192 };
+  });
+  return [...locked, ...[...goldSets, ...rest].sort((a, b) => b.total - a.total).map((set, index) => ({ ...set, rank: index + 1 }))];
+}
 
 function eliteSets(list = scores) {
   const trials = new Map();
@@ -298,15 +358,30 @@ function machTitleStage(title) {
 function machCutoffRowForTitle(title) {
   const stage = machTitleStage(title);
   if (!stage) return null;
-  const ordered = scores.filter((score) => score.level === "Advanced" || score.level === "Excellent")
-    .sort((a, b) => Number(a.sourceRow) - Number(b.sourceRow));
-  let cutoffRow = 0;
+  const relevant = scores.filter((score) => score.level === "Advanced" || score.level === "Excellent");
+  if (relevant.some((score) => !score.trial || !Number.isFinite(Number(score.trial)) || !Number.isFinite(Number(score.sourceRow)))) return null;
+  const ordered = relevant.sort((a, b) => Number(a.sourceRow) - Number(b.sourceRow));
+  // Build complete trial batches. Separate trial numbers on the same date remain
+  // separate cutoffs; all rows from the title-completing trial are excluded.
+  const byTrial = new Map();
+  for (const score of ordered) {
+    const key = String(score.trial);
+    if (!byTrial.has(key)) byTrial.set(key, { trial: Number(score.trial), firstRow: Number(score.sourceRow), rows: [] });
+    const group = byTrial.get(key);
+    group.firstRow = Math.min(group.firstRow, Number(score.sourceRow));
+    group.rows.push(score);
+  }
+  const trialGroups = [...byTrial.values()].sort((a, b) => a.firstRow - b.firstRow);
+  // A trial number must increase with the chronological score export. If the
+  // file cannot establish that ordering, do not guess at a repeat-title cutoff.
+  if (trialGroups.some((group, index) => index > 0 && group.trial <= trialGroups[index - 1].trial)) return null;
+  let cutoffTrial = 0;
   for (let currentStage = 1; currentStage <= stage; currentStage++) {
     const prefix = [];
     let foundCutoff = false;
-    for (const score of ordered) {
-      if (Number(score.sourceRow) <= cutoffRow) continue;
-      prefix.push(score);
+    for (const group of trialGroups) {
+      if (group.trial <= cutoffTrial) continue;
+      prefix.push(...group.rows);
       const advanced = maximizeGoldCombinations("Advanced", prefix);
       const excellent = maximizeGoldCombinations("Excellent", prefix);
       const combined = [...advanced, ...excellent];
@@ -318,41 +393,39 @@ function machCutoffRowForTitle(title) {
       else if (currentStage === 3) met = excellent.length >= 10 && excellentGold >= 3;
       else if (currentStage === 4) met = excellent.length >= 10 && excellentGold >= 4;
       if (met) {
-        cutoffRow = Number(score.sourceRow);
+        cutoffTrial = group.trial;
         foundCutoff = true;
         break;
       }
     }
     if (!foundCutoff) return null;
   }
-  return cutoffRow;
+  return cutoffTrial;
 }
 
 function machExtensionProgress(rule, priorTitleOrStage) {
-  const cutoffRow = machCutoffRowForTitle(priorTitleOrStage);
+  const cutoffTrial = machCutoffRowForTitle(priorTitleOrStage);
   const relevantScores = scores.filter((score) => score.level === "Advanced" || score.level === "Excellent");
-  if (cutoffRow == null || relevantScores.some((score) => !Number.isFinite(Number(score.sourceRow)))) {
-    return { verified: false, cutoffRow, advanced: 0, excellent: 0, gold: 0 };
+  if (cutoffTrial == null || relevantScores.some((score) => !score.trial || !Number.isFinite(Number(score.trial)))) {
+    return { verified: false, cutoffTrial, advanced: 0, excellent: 0, gold: 0 };
   }
-  // The uploaded score rows are treated as chronological, as confirmed by the user.
-  const eligible = relevantScores.filter((score) => Number(score.sourceRow) > cutoffRow);
+  const eligible = relevantScores.filter((score) => Number(score.trial) > cutoffTrial);
   const advanced = maximizeGoldCombinations("Advanced", eligible);
   const excellent = maximizeGoldCombinations("Excellent", eligible);
   return {
     verified: true,
-    cutoffRow,
+    cutoffTrial,
     advanced: advanced.length,
     excellent: excellent.length,
     gold: excellent.filter((set) => set.gold).length
   };
 }
-function scoreRowsAfterTitle(priorTitle){
+function scoreRowsAfterTitle(priorTitle) {
   const cutoffTrial = trialCutoffForTitle(priorTitle);
   const eliteScores = scores.filter((score) => score.level === "Elite");
   if (cutoffTrial == null || eliteScores.some((score) => !score.trial || !Number.isFinite(Number(score.trial)))) return null;
   return eliteScores.filter((score) => Number(score.trial) > cutoffTrial);
 }
-
 
 function render() {
   if (!scores.length) { $("report").hidden = true; return; }
@@ -445,18 +518,18 @@ function render() {
   for (const extension of extensions) {
     const achieved = championshipTitle(extension.key), previousMet = !!extension.prior || !!legacyMachStageMet.get(extension.previous);
     if (!previousMet && !achieved) continue;
-    const progress = machExtensionProgress(extension, extension.prior);
+    const progress = machExtensionProgress(extension, extension.prior || extension.previous);
     const countedAdvanced = extension.maxAdvanced ? Math.min(progress.advanced, extension.maxAdvanced) : 0;
     const met = previousMet && progress.verified && progress.excellent >= extension.excellent && progress.gold >= extension.gold;
     const requirements = [
-      { done: !!extension.prior && progress.verified, text: extension.prior ? `${extension.previous.toUpperCase()} recorded · chronological score row ${progress.cutoffRow ?? "unavailable"}` : `${extension.previous.toUpperCase()} title record required to establish the cutoff` },
+      { done: !!extension.prior && progress.verified, text: extension.prior ? `${extension.previous.toUpperCase()} recorded · trial ${progress.cutoffTrial ?? "unavailable"}` : `${extension.previous.toUpperCase()} title record required to establish the cutoff` },
       { done: progress.verified && progress.excellent >= extension.excellent, text: `${progress.verified ? progress.excellent : "—"}/${extension.excellent} additional Excellent combinations` },
       { done: progress.verified && progress.gold >= extension.gold, text: `${progress.verified ? progress.gold : "—"}/${extension.gold} additional Excellent Gold combinations` }
     ];
     if (extension.maxAdvanced) requirements.push({ done: progress.verified, text: progress.verified ? `${countedAdvanced} of up to ${extension.maxAdvanced} Advanced combinations may be included (optional)` : "Advanced allowance cannot be checked until the previous title cutoff is known" });
-    requirements.push({ done: progress.verified, text: progress.verified ? `Only scores listed after score row ${progress.cutoffRow} count` : "Previous title score sequence could not be established from the uploaded chronological score list" });
+    requirements.push({ done: progress.verified, text: progress.verified ? `Only Qs from trials after Trial ${progress.cutoffTrial} count` : "Previous title score sequence could not be established from the uploaded chronological score list" });
     cards.push(progressCard(extension.title, achieved ? "Achieved" : !progress.verified ? "Cannot verify cutoff" : met ? "Score requirements met" : "In progress", requirements,
-      `${achieved ? `Recorded ${dateLabel(achieved.date)}. ` : ""}${progress.verified ? "Repeat MACH requirements use only Advanced/Excellent score rows listed after the previous title requirements were first met in the chronological export." : "The previous title cutoff is calculated from the chronological order of the uploaded score rows."}`));
+      `${achieved ? `Recorded ${dateLabel(achieved.date)}. ` : ""}${progress.verified ? "Repeat MACH requirements use only Qs from trials after the trial that completed the previous title." : "The cutoff is reconstructed from the trial that completed the previous title requirements."}`));
     legacyMachStageMet.set(extension.key, !!achieved || met);
   }
   $("progress").innerHTML = cards.join("");
@@ -525,12 +598,12 @@ function renderMobileDashboard() {
     const countedTotal = progress.excellent + countedAdvanced;
     const met = previousMet && progress.verified && progress.excellent >= rule.excellent && progress.gold >= rule.gold;
     const items = [
-      { done: progress.verified, text: progress.verified ? `${rule.previous.toUpperCase()} requirements reached · chronological score row ${progress.cutoffRow}` : `${rule.previous.toUpperCase()} score requirements could not be located in the chronological export` },
+      { done: progress.verified, text: progress.verified ? `${rule.previous.toUpperCase()} requirements reached · chronological Trial ${progress.cutoffTrial}` : `${rule.previous.toUpperCase()} score requirements could not be located in the chronological export` },
       { done: progress.verified && progress.excellent >= rule.excellent, text: `${progress.verified ? progress.excellent : "—"}/${rule.excellent} additional Excellent combinations` },
       { done: progress.verified && progress.gold >= rule.gold, text: `${progress.verified ? progress.gold : "—"}/${rule.gold} additional Excellent Gold combinations` }
     ];
     if (rule.maxAdvanced) items.push({ done: progress.verified, text: progress.verified ? `${countedAdvanced} of up to ${rule.maxAdvanced} Advanced combinations may be included (optional)` : "Advanced score allowance cannot be checked until the previous title cutoff is known" });
-    items.push({ done: progress.verified, text: progress.verified ? `Only scores listed after score row ${progress.cutoffRow} count` : "Previous title score sequence could not be established from the uploaded chronological score list" });
+    items.push({ done: progress.verified, text: progress.verified ? `Only Qs from trials after Trial ${progress.cutoffTrial} count` : "Previous title score sequence could not be established from the uploaded chronological score list" });
     championCards.push({ name: rule.name, found, met: !!found || met, items });
     machStageMet.set(rule.key, !!found || met);
   });
