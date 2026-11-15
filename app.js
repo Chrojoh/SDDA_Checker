@@ -4,7 +4,8 @@ const COMPONENTS = ["Container", "Exterior", "Interior"];
 const LEVELS = ["Started", "Advanced", "Excellent", "Elite"];
 const GAME_NAMES = ["Aerial", "Distance", "Speed", "Team"];
 let titles = [], scores = [], games = [], trialDates = new Map(), dateMatches = 0, unmatchedTrials = [];
-let currentPdfUrl = "";\nwindow.sddaJudgeVerification = window.sddaJudgeVerification || { elch: false, gmch: false };
+let currentPdfUrl = "";
+window.sddaJudgeVerification = window.sddaJudgeVerification || { elch: false, gmch: false };
 
 const $ = (id) => document.getElementById(id);
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]));
