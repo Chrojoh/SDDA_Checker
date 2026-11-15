@@ -362,22 +362,22 @@ function machCutoffRowForTitle(title) {
   const stage = machTitleStage(title);
   if (!stage) return null;
   const relevant = scores.filter((score) => score.level === "Advanced" || score.level === "Excellent");
-  if (relevant.some((score) => !score.trial || !Number.isFinite(Number(score.trial)) || !Number.isFinite(Number(score.sourceRow)))) return null;
-  const ordered = relevant.sort((a, b) => Number(a.sourceRow) - Number(b.sourceRow));
-  // Build complete trial batches. Separate trial numbers on the same date remain
-  // separate cutoffs; all rows from the title-completing trial are excluded.
+  // Trial Number is the chronological event identifier. Do not rely on export
+  // row order: the SDDA score export can place older trial rows after newer ones.
+  // Normalize numeric keys so values such as "00169" and "169" form one trial.
+  if (relevant.some((score) => {
+    const trial = Number(score.trial);
+    return !score.trial || !Number.isSafeInteger(trial) || trial <= 0;
+  })) return null;
   const byTrial = new Map();
-  for (const score of ordered) {
-    const key = String(score.trial);
-    if (!byTrial.has(key)) byTrial.set(key, { trial: Number(score.trial), firstRow: Number(score.sourceRow), rows: [] });
-    const group = byTrial.get(key);
-    group.firstRow = Math.min(group.firstRow, Number(score.sourceRow));
-    group.rows.push(score);
+  for (const score of relevant) {
+    const trial = Number(score.trial);
+    if (!byTrial.has(trial)) byTrial.set(trial, { trial, rows: [] });
+    byTrial.get(trial).rows.push(score);
   }
-  const trialGroups = [...byTrial.values()].sort((a, b) => a.firstRow - b.firstRow);
-  // A trial number must increase with the chronological score export. If the
-  // file cannot establish that ordering, do not guess at a repeat-title cutoff.
-  if (trialGroups.some((group, index) => index > 0 && group.trial <= trialGroups[index - 1].trial)) return null;
+  // Sorting by trial number preserves separate trials even when they share a
+  // calendar date, and excludes every Q from the title-completing trial.
+  const trialGroups = [...byTrial.values()].sort((a, b) => a.trial - b.trial);
   let cutoffTrial = 0;
   for (let currentStage = 1; currentStage <= stage; currentStage++) {
     const prefix = [];
