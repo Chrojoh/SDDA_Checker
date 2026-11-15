@@ -88,7 +88,7 @@ async function saveCurrent(){
  const profile=currentProfile();if(!profile)return;
  profile.judgeVerification=window.sddaJudgeVerification||{elch:false,gmch:false};
  await putProfile(profile);await refreshProfiles(profile.id);
- const msg=document.getElementById("message");if(msg)msg.textContent="Saved "+(profile.dog||("SDDA dog #"+profile.dogNumber))+" on this device. Your score and title files remain available here.";
+ const msg=document.getElementById("message");if(msg)msg.textContent="Saved "+(profile.dog||("SDDA dog #"+profile.dogNumber))+" on this device. Your imported records are saved here; the original downloads can be deleted after both imports succeed.";
 }
 async function loadSelected(){
  const select=document.getElementById("sdda-saved-dogs"),id=select&&select.value;if(!id)return;
