@@ -1,9 +1,9 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>SDDA Achievement Ledger</title><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="games.css"><link rel="stylesheet" href="mobile-dashboard.css?v=20261027-3"><style>.sp-definition{margin:0 0 9px;padding:11px 13px;border-radius:8px;background:#eee9f5;color:#493c60;font-size:13px;line-height:1.4}.pdf-ready{display:block;margin:-14px 0 24px;padding:14px;border:2px solid #5d477b;border-radius:8px;background:#fff;color:#5d477b;text-align:center;font-weight:800;text-decoration:none}.pdf-ready[hidden]{display:none}.mobile-hero{background:linear-gradient(145deg,#faf8f2,#ebe5d9);color:#14231d;border-bottom:1px solid #cec5b5}.mobile-hero a{color:#176044}.mobile-upload-stack{display:grid;gap:12px}.score-upload{border:1px solid #9b9181;border-radius:8px;background:linear-gradient(145deg,#fff,#f4f0e8);box-shadow:inset 1px 1px 0 #fff,inset -1px -1px 0 #d2c9ba,0 8px 18px #25352d26}.title-accordion,.next-card,.mobile-dog-head{border-radius:8px;background:linear-gradient(145deg,#fff,#f8f6f0);box-shadow:inset 1px 1px 0 #fff,inset -1px -1px 0 #d8d1c5,0 5px 13px #25352d1c}.tracker-tabs{background:#f6f2e9}.tracker-tab.active{background:#5d477b}</style></head><body>
-<header class="mobile-hero"><div class="mobile-shell"><h1>SDDA Achievement Ledger</h1><p>Download your dog’s <strong>Scores</strong> and <strong>Titles</strong> files from <a href="https://www.sdda.ca/login/" target="_blank" rel="noopener">your SDDA account</a>, then upload both here. The Titles file supplies official awards and title dates.</p></div></header>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>SDDA Achievement Ledger</title><link rel="manifest" href="./manifest.webmanifest"><meta name="theme-color" content="#315b49"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="SDDA Ledger"><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="games.css"><link rel="stylesheet" href="mobile-dashboard.css?v=20261027-3"><style>.sp-definition{margin:0 0 9px;padding:11px 13px;border-radius:8px;background:#eee9f5;color:#493c60;font-size:13px;line-height:1.4}.pdf-ready{display:block;margin:-14px 0 24px;padding:14px;border:2px solid #5d477b;border-radius:8px;background:#fff;color:#5d477b;text-align:center;font-weight:800;text-decoration:none}.pdf-ready[hidden]{display:none}.mobile-hero{background:linear-gradient(145deg,#faf8f2,#ebe5d9);color:#14231d;border-bottom:1px solid #cec5b5}.mobile-hero a{color:#176044}.mobile-upload-stack{display:grid;gap:12px}.score-upload{border:1px solid #9b9181;border-radius:8px;background:linear-gradient(145deg,#fff,#f4f0e8);box-shadow:inset 1px 1px 0 #fff,inset -1px -1px 0 #d2c9ba,0 8px 18px #25352d26}.title-accordion,.next-card,.mobile-dog-head{border-radius:8px;background:linear-gradient(145deg,#fff,#f8f6f0);box-shadow:inset 1px 1px 0 #fff,inset -1px -1px 0 #d8d1c5,0 5px 13px #25352d1c}.tracker-tabs{background:#f6f2e9}.tracker-tab.active{background:#5d477b}.install-app{margin:8px 0;padding:9px 14px;border:1px solid #315b49;border-radius:8px;background:#315b49;color:#fff;font:inherit;font-weight:700;cursor:pointer}.install-app[hidden]{display:none}</style></head><body>
+<header class="mobile-hero"><div class="mobile-shell"><h1>SDDA Achievement Ledger</h1><button id="install-app" class="install-app" type="button" hidden>Install app</button><p>Download your dog’s <strong>Scores</strong> and <strong>Titles</strong> files from <a href="https://www.sdda.ca/login/" target="_blank" rel="noopener">your SDDA account</a>, then upload both here. The Score File supplies trial dates; the Titles file adds SDDA-recorded awards.</p></div></header>
 <main class="mobile-shell"><div class="mobile-upload-stack"><label class="score-upload"><span class="upload-icon">↑</span><span><strong>Upload Dog Scores</strong><small>XLSX or CSV · one dog at a time</small></span><input id="scores-file" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label><p id="scores-name" class="file-name">Choose the Scores file downloaded for your registered dog.</p><label class="score-upload"><span class="upload-icon">↑</span><span><strong>Upload Dog Titles</strong><small>XLSX or CSV · provides awards and title dates</small></span><input id="titles-file" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label><p id="titles-name" class="file-name">Choose the Titles file for the same dog.</p></div>
 <section class="sdda-device-records" aria-label="Saved dog records">
  <div class="sdda-device-heading"><strong>Saved dogs on this device</strong><span>Choose a dog already imported, or save the dog you just uploaded.</span></div>
- <div class="sdda-device-controls"><select id="sdda-saved-dogs" aria-label="Select saved dog"><option value="">Select a saved dog…</option></select><button type="button" id="sdda-load-dog">Load dog</button><button type="button" id="sdda-save-dog">Save current dog</button><button type="button" id="sdda-delete-dog">Delete saved dog</button></div>
+ <div class="sdda-device-controls"><select id="sdda-saved-dogs" aria-label="Select saved dog"><option value="">Select a saved dog…</option></select><button type="button" id="sdda-load-dog">Load dog</button><button type="button" id="sdda-save-dog">Save now</button><button type="button" id="sdda-delete-dog">Delete saved dog</button></div>
  <div class="sdda-device-controls"><button type="button" id="sdda-backup">Export backup</button><label class="sdda-restore">Restore backup<input id="sdda-restore-file" type="file" accept=".json,application/json"></label></div>
  <p class="sdda-device-note">Records are stored privately in this browser on this device. Export a backup before clearing browser data or changing devices.</p>
 </section>
@@ -29,8 +29,8 @@
 <section class="tracker-panel" data-panel="next" hidden><div class="panel-intro"><h2>Closest titles</h2><p>Fewest remaining items first.</p></div><div id="mobile-next-list" class="next-list"></div></section>
 <button id="print-button" class="print-button" type="button">Create PDF report</button><a id="pdf-ready" class="pdf-ready" hidden>PDF created — tap here to open or download it</a>
 <div class="legacy-output" aria-hidden="true"><div id="achieved"></div><div id="progress"></div><div id="games-summary"></div><div id="games-grid"></div><div id="games-championships"></div><div id="advanced-gold-summary"></div><table><tbody id="advanced-gold-rows"></tbody></table><div id="excellent-gold-summary"></div><table><tbody id="excellent-gold-rows"></tbody></table><div id="elite-gold-summary"></div><table><tbody id="elite-gold-rows"></tbody></table><div id="limits"></div></div></section>
-<div hidden><input id="workbook-file" type="file"><span id="workbook-name"></span></div></main>
-<footer class="mobile-footer">Planning aid only. SDDA remains the authority for official title approval.</footer><script src="vendor/xlsx.full.min.js"></script><script src="vendor/pdf-lib.min.js"></script><script src="app.js?v=20261115-saved-dogs1"></script>
+</main>
+<footer class="mobile-footer">Planning aid only. SDDA remains the authority for official title approval.</footer><script src="vendor/xlsx.full.min.js"></script><script src="vendor/pdf-lib.min.js"></script><script src="app.js?v=20261115-score-dates-pwa1"></script>
 <script>
 (function(){
 "use strict";
@@ -58,7 +58,7 @@ function dogId(){const first=scores[0]||games[0]||{};const number=String(first.d
 function currentProfile(){
  const first=scores[0]||games[0]||{};
  if(!first.dogNumber&&!first.dog)return null;
- return {id:dogId(),dogNumber:String(first.dogNumber||""),dog:String(first.dog||""),scores,games,titles,trialDates:[...trialDates.entries()],dateMatches,judgeVerification:window.sddaJudgeVerification||{elch:false,gmch:false},updatedAt:new Date().toISOString()};
+ return {id:dogId(),dogNumber:String(first.dogNumber||""),dog:String(first.dog||""),scores,games,titles,judgeVerification:window.sddaJudgeVerification||{elch:false,gmch:false},updatedAt:new Date().toISOString()};
 }
 async function putProfile(profile){
  const db=await openDb();
@@ -93,7 +93,7 @@ async function saveCurrent(){
 async function loadSelected(){
  const select=document.getElementById("sdda-saved-dogs"),id=select&&select.value;if(!id)return;
  const p=await getProfile(id);if(!p)return;
- scores=p.scores||[];games=p.games||[];titles=p.titles||[];trialDates=new Map(p.trialDates||[]);dateMatches=p.dateMatches||0;
+ scores=p.scores||[];games=p.games||[];titles=p.titles||[];
  window.sddaJudgeVerification=p.judgeVerification||{elch:false,gmch:false};
  const elch=document.getElementById("judge-elch"),gmch=document.getElementById("judge-gmch");
  if(elch)elch.checked=!!window.sddaJudgeVerification.elch;if(gmch)gmch.checked=!!window.sddaJudgeVerification.gmch;
@@ -115,10 +115,9 @@ async function restoreBackup(file){
  await refreshProfiles();const msg=document.getElementById("message");if(msg)msg.textContent="Backup restored. Select a saved dog to open its records.";
 }
 window.sddaJudgeVerification={elch:false,gmch:false};
-const originalLoadScores=loadScores,originalLoadTitles=loadTitles,originalLoadTrialWorkbook=loadTrialWorkbook;
+const originalLoadScores=loadScores,originalLoadTitles=loadTitles;
 loadScores=async function(file){const previousId=scores.length?dogId():null;await originalLoadScores(file);const nextId=scores.length?dogId():null;if(previousId&&nextId&&previousId!==nextId){titles=[];window.sddaJudgeVerification={elch:false,gmch:false};const e=document.getElementById("judge-elch"),g=document.getElementById("judge-gmch");if(e)e.checked=false;if(g)g.checked=false;const t=document.getElementById("titles-name");if(t)t.textContent="Choose the Titles file for this dog, if available.";render();}await saveCurrent();};
 loadTitles=async function(file){await originalLoadTitles(file);await saveCurrent();};
-loadTrialWorkbook=async function(file){await originalLoadTrialWorkbook(file);await saveCurrent();};
 document.addEventListener("DOMContentLoaded",()=>{});
 const select=document.getElementById("sdda-saved-dogs");
 if(select)refreshProfiles();
@@ -135,4 +134,4 @@ function updateJudgeAttestation(){
 }
 elchBox?.addEventListener("change",updateJudgeAttestation);gmchBox?.addEventListener("change",updateJudgeAttestation);
 })();
-</script></body></html>
+</script><script>(function(){let installPrompt=null;const button=document.getElementById("install-app");window.addEventListener("beforeinstallprompt",event=>{event.preventDefault();installPrompt=event;if(button)button.hidden=false;});button?.addEventListener("click",async()=>{if(!installPrompt)return;installPrompt.prompt();await installPrompt.userChoice;installPrompt=null;button.hidden=true;});window.addEventListener("appinstalled",()=>{if(button)button.hidden=true;});if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(error=>console.warn("Offline install support unavailable",error)));}})();</script></body></html>
