@@ -525,7 +525,7 @@ function render() {
     const countedAdvanced = extension.maxAdvanced ? Math.min(progress.advanced, extension.maxAdvanced) : 0;
     const met = previousMet && progress.verified && progress.excellent >= extension.excellent && progress.gold >= extension.gold;
     const requirements = [
-      { done: !!extension.prior && progress.verified, text: extension.prior ? `${extension.previous.toUpperCase()} recorded · trial ${progress.cutoffTrial ?? "unavailable"}` : `${extension.previous.toUpperCase()} title record required to establish the cutoff` },
+      { done: previousMet && progress.verified, text: progress.verified ? `${extension.previous.toUpperCase()} progression requirement met${extension.prior ? " · SDDA title recorded" : " by calculated score requirements"} · cutoff Trial ${progress.cutoffTrial}` : `${extension.previous.toUpperCase()} progression is recognized, but its completion trial cannot be established from the score-file trial sequence` },
       { done: progress.verified && progress.excellent >= extension.excellent, text: `${progress.verified ? progress.excellent : "—"}/${extension.excellent} additional Excellent combinations` },
       { done: progress.verified && progress.gold >= extension.gold, text: `${progress.verified ? progress.gold : "—"}/${extension.gold} additional Excellent Gold combinations` }
     ];
