@@ -335,7 +335,7 @@ function displayedTitles() { return titles.length ? titles.map((title) => ({ ...
 function progressCard(title, status, requirements, note = "") {
   const met = status === "Achieved" || status === "Requirements shown as met";
   const statusClass = met ? "met" : status.includes("cannot") || status.includes("verification") ? "unknown" : "partial";
-  return `<article class="progress-card"><h3>${esc(title)}</h3><span class="status ${statusClass}">${esc(status)}</span><ul class="requirements">${requirements.map((requirement) => `<li class="${requirement.pending ? "pending" : requirement.done ? "done" : ""}${requirement.info ? " info" : ""}">${requirement.pending ? "✓ " : requirement.done ? "✅ " : ""}${esc(requirement.text)}</li>`).join("")}</ul>${requirements.some((requirement) => requirement.pending) ? `<p class="verification-legend" style="color:#b42318;font-size:.88em">Red ✓ = handler-reported judge minimum; awaiting SDDA confirmation.</p>` : ""}${note ? `<p>${esc(note)}</p>` : ""}</article>`;
+  return `<article class="progress-card"><h3>${esc(title)}</h3><span class="status ${statusClass}">${esc(status)}</span><ul class="requirements">${requirements.map((requirement) => `<li class="${requirement.pending ? "pending" : requirement.done ? "done" : ""}${requirement.info ? " info" : ""}">${requirement.pending ? "Pending — " : requirement.done ? "Met — " : ""}${esc(requirement.text)}</li>`).join("")}</ul>${requirements.some((requirement) => requirement.pending) ? `<p class="verification-legend" style="color:#9b433d;font-size:.88em">Handler-reported judge minimum is awaiting SDDA confirmation.</p>` : ""}${note ? `<p>${esc(note)}</p>` : ""}</article>`;
 }
 
 function titlePattern(level) { return new RegExp(`^${level}(?:\s|$)`, "i"); }
@@ -824,7 +824,7 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
   // Closest Titles should only list titles with actual outstanding work.
   const actionableTargets = targets.filter((target) => Number(target.needed) > 0 || target.verificationPending);
   actionableTargets.sort((a, b) => a.needed - b.needed || a.name.localeCompare(b.name));
-  $("mobile-next-list").innerHTML = actionableTargets.map((target) => `<article class="next-card"><header><div><h3>${esc(target.name)}</h3><p class="next-kind">${esc(target.kind)}</p></div><span class="remaining-badge">${target.needed} needed</span></header><ol>${target.items.filter((item) => !/^0 more/i.test(item)).map((item) => typeof item === "string" ? `<li>${esc(item)}</li>` : `<li class="${item.pending ? "pending" : item.done ? "done" : ""}">${item.pending ? "✓ " : item.done ? "✓ " : ""}${esc(item.text)}</li>`).join("")}</ol></article>`).join("") || `<article class="next-card"><h3>Everything shown is complete</h3><p>Check with SDDA for the next eligible extension.</p></article>`;
+  $("mobile-next-list").innerHTML = actionableTargets.map((target) => `<article class="next-card"><header><div><h3>${esc(target.name)}</h3><p class="next-kind">${esc(target.kind)}</p></div><span class="remaining-badge">${target.needed} needed</span></header><ol>${target.items.filter((item) => !/^0 more/i.test(item)).map((item) => typeof item === "string" ? `<li>${esc(item)}</li>` : `<li class="${item.pending ? "pending" : item.done ? "done" : ""}">${item.pending ? "Pending — " : item.done ? "Met — " : ""}${esc(item.text)}</li>`).join("")}</ol></article>`).join("") || `<article class="next-card"><h3>Everything shown is complete</h3><p>Check with SDDA for the next eligible extension.</p></article>`;
 }
 
 async function loadTitles(file) {
