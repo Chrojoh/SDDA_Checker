@@ -954,6 +954,14 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
   });
   $("mobile-game-runs").innerHTML = "";
 
+  const gchProgress = gameChampionships.map(({ rule, found, progress, stageProgress, stageSize, stageMet }) => ({
+    rule,
+    found,
+    remaining: rule.type === "base" ? progress.remaining : Math.max(0, stageSize - stageProgress),
+    met: stageMet,
+    progressText: progress.progressText
+  }));
+
   const targets = [];
   for (const level of ["Started", "Advanced", "Excellent"]) { if (titleFor(new RegExp(`^${level}(?:\s|$)`, "i"))) continue; const counts = componentCounts(level), missing = COMPONENTS.filter((component) => !counts[component]); targets.push({ name: level, kind: "Scent", needed: missing.length, items: missing.map((component) => `${component} qualifying score`) }); }
   if (!titleFor(/^Elite(?:\s|$)/i)) targets.push({ name: "Elite", kind: "Scent", needed: titleFor(/^Excellent(?:\s|$)/i) ? 1 : 2, items: [titleFor(/^Excellent(?:\s|$)/i) ? "One complete same-trial Elite score" : "Complete Excellent prerequisite", "One complete same-trial Elite score"] });
