@@ -1095,9 +1095,9 @@ async function downloadPdfReport() {
     const name = card.querySelector("h3")?.textContent || "Title";
     const status = card.querySelector(".status")?.textContent || "";
     const requirements = [...card.querySelectorAll("li:not(.info)")];
-    const complete = status === "Achieved" || (requirements.length > 0 && requirements.every((item) => item.classList.contains("done")));
-    if (complete) continue;
     text(`${name} - ${status}`, { size: 11, bold: true });
+    // Keep every requirement in the PDF, including completed have / need
+    // fractions, so the report shows the full component requirement at a glance.
     for (const item of card.querySelectorAll("li")) text(`${item.classList.contains("info") ? "[rule]" : item.classList.contains("done") ? "[met]" : "[needed]"} ${item.textContent}`, { indent: 12, size: 9 });
     const note = card.querySelector("p")?.textContent; if (note) text(note, { indent: 12, size: 8, color: rgb(.38, .43, .4), after: 5 });
   }
