@@ -754,7 +754,8 @@ function render() {
     qualifying.forEach((set) => { counts[classification(set.total)] += 1; });
     return `<span>${qualifying.length} qualifying ${label}${qualifying.length === 1 ? "" : "s"}</span><span class="gold">${counts.Gold} Gold</span><span>${counts.Silver} Silver</span><span>${counts.Bronze} Bronze</span><span>${counts.Satisfactory} Satisfactory</span>`;
   };
-  const scoreWithTrial = (component) => component ? `${component.score} (${esc(component.trial || "-")})` : "-";\n  const combinationRows = (sets) => sets.filter((set) => set.total >= 100).map((set, index) => `<tr class="${set.gold ? "gold" : classification(set.total).toLowerCase()}"><td>${set.special ? `SP locked · Trial ${esc(set.trial || "—")}` : index + 1}</td><td>${scoreWithTrial(set.container)}</td><td>${scoreWithTrial(set.exterior)}</td><td>${scoreWithTrial(set.interior)}</td><td>${set.total}</td><td>${classification(set.total)}</td></tr>`).join("") || `<tr><td colspan="6">No qualifying combinations are available.</td></tr>`;
+  const scoreWithTrial = (component) => component ? `${component.score} (${esc(component.trial || "-")})` : "-";
+  const combinationRows = (sets) => sets.filter((set) => set.total >= 100).map((set, index) => `<tr class="${set.gold ? "gold" : classification(set.total).toLowerCase()}"><td>${set.special ? `SP locked · Trial ${esc(set.trial || "—")}` : index + 1}</td><td>${scoreWithTrial(set.container)}</td><td>${scoreWithTrial(set.exterior)}</td><td>${scoreWithTrial(set.interior)}</td><td>${set.total}</td><td>${classification(set.total)}</td></tr>`).join("") || `<tr><td colspan="6">No qualifying combinations are available.</td></tr>`;
   $("advanced-gold-summary").innerHTML = summary(advancedSets, "combination");
   $("advanced-gold-rows").innerHTML = combinationRows(advancedSets);
   $("excellent-gold-summary").innerHTML = summary(excellentSetsList, "combination");
