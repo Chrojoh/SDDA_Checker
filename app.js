@@ -274,7 +274,7 @@ function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
     const total = container.score + interior.score + exterior.score;
     return { level, container, interior, exterior, total, gold: total >= 192 };
   });
-  return [...locked, ...[...goldSets, ...rest].sort((a, b) => b.total - a.total).map((set, index) => ({ ...set, rank: index + 1 }))];
+  return [...locked, ...[...goldSets, ...rest].filter((set) => set.total >= 100).sort((a, b) => b.total - a.total).map((set, index) => ({ ...set, rank: index + 1 }))];
 }
 
 function eliteSets(list = scores) {
@@ -677,10 +677,15 @@ function renderMobileDashboard() {
   championCards.forEach((entry) => { const pending = !entry.found && !!entry.met && !!entry.verificationRequired; const achieved = !!entry.found || !!entry.met; const subtitle = entry.found ? "Recorded title" : pending ? "Title requirements met · awaiting judge verification" : entry.met ? "Title requirements met · not yet recorded" : "In progress"; scentCards.push(accordion({ name: entry.name, subtitle, achieved, pending, date: entry.found?.date, body: reqList(entry.items), accent: entry.name.includes("EL") || entry.name.includes("GMCH") ? "level-accent-elite" : entry.name.includes("MACH") ? "level-accent-gold" : "" })); });
   scentTarget.innerHTML = scentCards.join("");
 
-  const runRows = (sets, isElite = false) => sets.length ? `<div class="run-grid">${sets.map((set) => { const c = isElite ? set.parts.Container.score : set.container.score, e = isElite ? set.parts.Exterior.score : set.exterior.score, i = isElite ? set.parts.Interior.score : set.interior.score; return `<div class="run-row ${set.gold ? "gold" : ""}"><b>${isElite ? `Trial ${esc(set.trial || "—")}` : set.special ? "SP" : `#${set.rank}`}</b><span>C ${c}</span><span>E ${e}</span><span>I ${i}</span><strong>${set.total}</strong></div>`; }).join("")}</div>` : `<p class="run-empty">No complete combinations yet.</p>`;
+  const runClass = (total) => total >= 192 ? "Gold" : total >= 172 ? "Silver" : total >= 142 ? "Bronze" : total >= 100 ? "Satisfactory" : "Insufficient";
+  const runRows = (sets, isElite = false) => {
+    const qualifying = sets.filter((set) => set.total >= 100);
+    if (!qualifying.length) return `<p class="run-empty">No qualifying combinations yet.</p>`;
+    return `<div class="run-grid">${qualifying.map((set, index) => { const c = isElite ? set.parts.Container.score : set.container.score, e = isElite ? set.parts.Exterior.score : set.exterior.score, i = isElite ? set.parts.Interior.score : set.interior.score; return `<div class="run-row ${set.gold ? "gold" : runClass(set.total).toLowerCase()}"><b>${isElite ? `Trial ${esc(set.trial || "—")}` : set.special ? `SP` : `#${index + 1}`}</b><span>C ${c}</span><span>E ${e}</span><span>I ${i}</span><strong>${set.total} · ${runClass(set.total)}</strong></div>`; }).join("")}</div>`;
+  };
   $("mobile-scent-runs").innerHTML = `<p class="sp-definition"><strong>SP = Special.</strong> Its three title-earning components stay together as one locked combination.</p>` + [
-    accordion({ name: "Advanced runs", subtitle: `${advanced.length} combinations · ${advanced.filter((set) => set.gold).length} Gold`, body: `<p class="run-legend"><strong>SP = Special.</strong> Its three title-earning Advanced components stay together as one locked combination.</p>${runRows(advanced)}`, accent: "level-accent-silver" }),
-    accordion({ name: "Excellent runs", subtitle: `${excellent.length} combinations · ${excellent.filter((set) => set.gold).length} Gold`, body: `<p class="run-legend"><strong>SP = Special.</strong> Its three title-earning Excellent components stay together as one locked combination.</p>${runRows(excellent)}`, accent: "level-accent-gold" }),
+    accordion({ name: "Advanced combinations", subtitle: `${advanced.filter((set) => set.total >= 100).length} qualifying · ${advanced.filter((set) => set.gold && set.total >= 100).length} Gold · ${advanced.filter((set) => set.total >= 172 && set.total < 192).length} Silver · ${advanced.filter((set) => set.total >= 142 && set.total < 172).length} Bronze · ${advanced.filter((set) => set.total >= 100 && set.total < 142).length} Satisfactory`, body: `<p class="run-legend"><strong>SP = Special.</strong> Its three title-earning Advanced components stay together as one locked combination.</p>${runRows(advanced)}`, accent: "level-accent-silver" }),
+    accordion({ name: "Excellent combinations", subtitle: `${excellent.filter((set) => set.total >= 100).length} qualifying · ${excellent.filter((set) => set.gold && set.total >= 100).length} Gold · ${excellent.filter((set) => set.total >= 172 && set.total < 192).length} Silver · ${excellent.filter((set) => set.total >= 142 && set.total < 172).length} Bronze · ${excellent.filter((set) => set.total >= 100 && set.total < 142).length} Satisfactory`, body: `<p class="run-legend"><strong>SP = Special.</strong> Its three title-earning Excellent components stay together as one locked combination.</p>${runRows(excellent)}`, accent: "level-accent-gold" }),
     accordion({ name: "Elite runs", subtitle: `${elite.length} same-trial scores · ${elite.filter((set) => set.gold).length} Gold`, body: runRows(elite, true), accent: "level-accent-elite" })
   ].join("");
 
