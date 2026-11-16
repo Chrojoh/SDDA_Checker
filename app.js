@@ -668,7 +668,7 @@ function render() {
   };
   for (const level of LEVELS) {
     const earned = findTitle(titlePattern(level)); const counts = componentCounts(level); const missing = COMPONENTS.filter((component) => counts[component] === 0);
-    let requirements = COMPONENTS.map((component) => ({ done: counts[component] > 0, text: `${component}: ${counts[component] ? `${counts[component]} qualifying score${counts[component] === 1 ? "" : "s"}` : "needed"}` }));
+    let requirements = COMPONENTS.map((component) => ({ done: counts[component] > 0, text: `${component}: ${counts[component]} / 1 qualifying score${counts[component] === 1 ? "" : "s"} (have / need)` }));
     let status, note;
     if (level === "Elite") {
       const completeEliteScores = eliteSets().length;
@@ -1102,15 +1102,15 @@ async function downloadPdfReport() {
     const note = card.querySelector("p")?.textContent; if (note) text(note, { indent: 12, size: 8, color: rgb(.38, .43, .4), after: 5 });
   }
 
-  heading("Gold calculations by level");
+  heading("Score classifications by level");
   text("Score columns: the number in brackets after each component score is its trial number. Advanced and Excellent components are calculated separately; Elite components are grouped by trial.", { size: 9, color: rgb(.35, .42, .38), after: 5 });
   const componentWithTrial = (component) => component ? `${component.score} (${component.trial || "-"})` : "-";
   for (const level of ["Advanced", "Excellent"]) {
     const combinations = maximizeGoldCombinations(level);
-    scoreTable(level, combinations.map((set) => [set.special ? "SP" : set.titleLocked ? "Title" : `Combination ${set.rank}`, componentWithTrial(set.container), componentWithTrial(set.exterior), componentWithTrial(set.interior), set.total, set.gold ? "Gold" : "Not Gold"]));
+    scoreTable(level, combinations.map((set) => [set.special ? "SP" : set.titleLocked ? "Title" : `Combination ${set.rank}`, componentWithTrial(set.container), componentWithTrial(set.exterior), componentWithTrial(set.interior), set.total, classification(set.total)]));
   }
   const eliteCombinations = eliteSets();
-  scoreTable("Elite - same-trial sets", eliteCombinations.map((set, index) => [`Elite ${index + 1}`, componentWithTrial(set.parts.Container), componentWithTrial(set.parts.Exterior), componentWithTrial(set.parts.Interior), set.total, set.gold ? "Gold" : "Not Gold"]));
+  scoreTable("Elite - same-trial sets", eliteCombinations.map((set, index) => [`Elite ${index + 1}`, componentWithTrial(set.parts.Container), componentWithTrial(set.parts.Exterior), componentWithTrial(set.parts.Interior), set.total, classification(set.total)]));
 
   y -= 8;
   text("Limitations", { size: 11, bold: true, color: rgb(.61, .26, .24) });
