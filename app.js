@@ -580,13 +580,14 @@ function render() {
   }
   $("progress").innerHTML = cards.join("");
 
-  const classification = (total) => total >= 192 ? "Gold" : total >= 172 ? "Silver" : total >= 142 ? "Bronze" : "Satisfactory";
+  const classification = (total) => total >= 192 ? "Gold" : total >= 172 ? "Silver" : total >= 142 ? "Bronze" : total >= 100 ? "Satisfactory" : "Insufficient";
   const summary = (sets, label) => {
+    const qualifying = sets.filter((set) => set.total >= 100);
     const counts = { Gold: 0, Silver: 0, Bronze: 0, Satisfactory: 0 };
-    sets.forEach((set) => { counts[classification(set.total)] += 1; });
-    return `<span>${sets.length} ${label}${sets.length === 1 ? "" : "s"}</span><span class="gold">${counts.Gold} Gold</span><span>${counts.Silver} Silver</span><span>${counts.Bronze} Bronze</span><span>${counts.Satisfactory} Satisfactory</span>`;
+    qualifying.forEach((set) => { counts[classification(set.total)] += 1; });
+    return `<span>${qualifying.length} qualifying ${label}${qualifying.length === 1 ? "" : "s"}</span><span class="gold">${counts.Gold} Gold</span><span>${counts.Silver} Silver</span><span>${counts.Bronze} Bronze</span><span>${counts.Satisfactory} Satisfactory</span>`;
   };
-  const combinationRows = (sets) => sets.map((set) => `<tr class="${set.gold ? "gold" : ""}"><td>${set.special ? `SP locked · Trial ${esc(set.trial || "—")}` : set.rank}</td><td>${set.container.score}</td><td>${set.exterior.score}</td><td>${set.interior.score}</td><td>${set.total}</td><td>${classification(set.total)}</td></tr>`).join("") || `<tr><td colspan="6">No complete combinations are available.</td></tr>`;
+  const combinationRows = (sets) => sets.filter((set) => set.total >= 100).map((set, index) => `<tr class="${set.gold ? "gold" : classification(set.total).toLowerCase()}"><td>${set.special ? `SP locked · Trial ${esc(set.trial || "—")}` : index + 1}</td><td>${set.container.score}</td><td>${set.exterior.score}</td><td>${set.interior.score}</td><td>${set.total}</td><td>${classification(set.total)}</td></tr>`).join("") || `<tr><td colspan="6">No qualifying combinations are available.</td></tr>`;
   $("advanced-gold-summary").innerHTML = summary(advancedSets, "combination");
   $("advanced-gold-rows").innerHTML = combinationRows(advancedSets);
   $("excellent-gold-summary").innerHTML = summary(excellentSetsList, "combination");
