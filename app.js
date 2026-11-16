@@ -709,7 +709,7 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
   $("mobile-game-titles").innerHTML += gchProgress.map(({ rule, found, remaining, met, progressText }) =>
     accordion({
       name: rule.name,
-      subtitle: found ? "Recorded by SDDA" : met ? "Current-rule pass requirements met" : String(remaining) + " more pass(es) needed",
+      subtitle: found ? "Recorded by SDDA" : met ? "Current-rule pass requirements met" : rule.type === "base" ? qualifiedGames + "/3 Games qualifying" : String(remaining) + " more pass(es) needed",
       achieved: met || !!found,
       date: found?.date,
       body: reqList([
