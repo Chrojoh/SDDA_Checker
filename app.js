@@ -443,7 +443,7 @@ function render() {
   const summaryCombined = [...summaryAdvanced, ...summaryExcellent], summaryGolds = summaryCombined.filter((set) => set.gold).length;
   const scentAchieved = [
     !!summaryTitle(/^Started(?:\s|$)/i), !!summaryTitle(/^Advanced(?:\s|$)/i), !!summaryTitle(/^Excellent(?:\s|$)/i),
-    !!summaryTitle(/^Elite(?:\s|$)/i) || summaryElite.length > 0,
+    !!summaryTitle(/^Elite(?:\s|$)/i) || ((!!summaryTitle(/^Excellent(?:\s|$)/i) || COMPONENTS.every((component) => componentCounts("Excellent")[component] > 0)) && summaryElite.length > 0),
     !!championshipTitle("ch") || (summaryCombined.length >= 5 && summaryExcellent.length >= 2),
     !!championshipTitle("mach") || (summaryCombined.length >= 10 && summaryExcellent.length >= 3 && summaryGolds >= 3),
     !!championshipTitle("elch") || (summaryElite.length >= 5 && summaryElite.filter((set) => set.gold).length >= 2),
@@ -462,7 +462,7 @@ function render() {
     Started: ["Wintergreen; one hide in each component", "Container: 3 min · Exterior: 5 min · Interior: 5 min", "Components may be passed at different trials; no formal alert required"],
     Advanced: ["Wintergreen and Pine; two hides in each component", "Container: 3 min · Exterior: 5 min · Interior: 5 min", "Pass the corresponding Started component first; formal alert is scored"],
     Excellent: ["Wintergreen, Pine and Thyme; three hides in each component", "Container: 3 min · Exterior: 5 min · Interior: 15 min/3 rooms", "Pass the corresponding Advanced component first; call the clear Interior room"],
-    Elite: ["All three components must qualify at the same trial; call every find and clear area"]
+    Elite: ["Container, Exterior and Interior must all be passed at the Elite level in the same trial", "Call every find and clear area as required by the Elite rules"]
   };
   for (const level of LEVELS) {
     const earned = findTitle(titlePattern(level)); const counts = componentCounts(level); const missing = COMPONENTS.filter((component) => counts[component] === 0);
@@ -470,13 +470,15 @@ function render() {
     let status, note;
     if (level === "Elite") {
       const completeEliteScores = eliteSets().length;
+      const excellentPrerequisite = !!findTitle(titlePattern("Excellent"))
+        || !!inferredTitles().find((title) => /^Excellent\b/i.test(title.description));
       requirements = [
-        { done: !!findTitle(titlePattern("Excellent")) || !!inferredTitles().find((title) => /^Excellent\b/i.test(title.description)), text: "Excellent title prerequisite" },
-        { done: completeEliteScores > 0, text: completeEliteScores > 0 ? `${completeEliteScores} complete same-trial Elite score${completeEliteScores === 1 ? "" : "s"}` : "One complete same-trial Elite score needed" }
+        { done: excellentPrerequisite, text: "Excellent title prerequisite" },
+        { done: completeEliteScores > 0, text: completeEliteScores > 0 ? `${completeEliteScores} complete Elite score${completeEliteScores === 1 ? "" : "s"} (Container, Exterior and Interior all passed in the same trial)` : "One complete same-trial Elite score needed: Container, Exterior and Interior" }
       ];
-      status = earned ? "Achieved" : completeEliteScores > 0 ? "Requirements shown as met" : "In progress";
+      status = earned ? "Achieved" : excellentPrerequisite && completeEliteScores > 0 ? "Requirements shown as met · not yet recorded" : "In progress";
       note = earned ? `Recorded ${dateLabel(earned.date)}${earned.score == null ? "" : ` with title score ${earned.score}`}.` : "";
-    } else {
+        } else {
       status = earned ? "Achieved" : missing.length ? "In progress" : "Requirements shown as met";
       note = earned ? `Recorded ${dateLabel(earned.date)}${earned.score == null ? "" : ` with title score ${earned.score}`}.` : missing.length ? `Needs ${missing.join(" and ")}.` : "The account shows at least one qualifying score in every component.";
     }
@@ -561,8 +563,7 @@ function renderMobileDashboard() {
   const titleFor = (pattern) => shown.find((title) => pattern.test(titleText(title))) || inferred.find((title) => pattern.test(titleText(title)));
   const reqList = (items) => `<ul class="requirement-list">${items.map((item) => `<li class="${item.pending ? "pending" : item.done ? "done" : ""}">${item.pending ? "✓ " : item.done ? "✅ " : ""}${esc(item.text)}</li>`).join("")}</ul>${items.some((item) => item.pending) ? `<p class="verification-legend" style="color:#b42318;font-size:.88em">Red ✓ = handler-reported judge minimum; awaiting SDDA confirmation.</p>` : ""}`;
   const accordion = ({ name, subtitle, achieved, pending = false, date, body, accent = "" }) => `<details class="title-accordion ${accent}"><summary><span class="summary-copy"><strong>${esc(name)}</strong><small>${esc(subtitle)}</small></span>${achieved ? (date ? `<span class="achievement-date">${esc(dateLabel(date))}</span>` : `<span class="achievement-check${pending ? " pending" : ""}" aria-label="${pending ? "Title requirements met; awaiting judge verification" : "Achieved"}">✓</span>`) : ""}<span class="chevron" aria-hidden="true">⌄</span></summary><div class="accordion-body">${body}</div></details>`;
-  const excellentTitleMet = !!titles.find((title) => /^Excellent(?:\s|$)/i.test(titleText(title)))
-    || !!inferred.find((title) => /^Excellent(?:\s|$)/i.test(titleText(title)))
+  const excellentTitleMet = !!titleFor(/^Excellent(?:\s|$)/i)
     || COMPONENTS.every((component) => componentCounts("Excellent")[component] > 0);
   const levelTitles = [
     { name: "Started", pattern: /^Started(?:\s|$)/i }, { name: "Advanced", pattern: /^Advanced(?:\s|$)/i },
@@ -571,9 +572,12 @@ function renderMobileDashboard() {
   const scentCards = levelTitles.map((entry) => {
     const recorded = titles.find((title) => entry.pattern.test(titleText(title))), calculated = inferred.find((title) => entry.pattern.test(titleText(title)));
     const counts = componentCounts(entry.name), sameTrial = entry.elite ? eliteSets().length : 0;
-    const met = !!recorded || !!calculated || (entry.elite ? sameTrial > 0 : COMPONENTS.every((component) => counts[component] > 0));
+    const met = !!recorded || !!calculated || (entry.elite ? excellentTitleMet && sameTrial > 0 : COMPONENTS.every((component) => counts[component] > 0));
     const requirements = entry.elite
-      ? [{ done: !!titleFor(/^Excellent(?:\s|$)/i), text: "Excellent prerequisite" }, { done: sameTrial > 0, text: `${sameTrial} complete same-trial Elite score${sameTrial === 1 ? "" : "s"}` }]
+      ? [
+          { done: excellentTitleMet, text: "Excellent title prerequisite" },
+          { done: sameTrial > 0, text: `${sameTrial} complete Elite score${sameTrial === 1 ? "" : "s"} (Container, Exterior and Interior all passed in the same trial)` }
+        ]
       : COMPONENTS.map((component) => ({ done: counts[component] > 0, text: `${component}: ${counts[component]} qualifying score${counts[component] === 1 ? "" : "s"}` }));
     return accordion({ name: entry.name, subtitle: recorded ? "Recorded title" : met ? "Requirements met · not yet recorded" : "In progress", achieved: met, date: recorded?.date, body: reqList(requirements), accent: entry.elite ? "level-accent-elite" : "" });
   });
