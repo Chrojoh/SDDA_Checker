@@ -583,8 +583,7 @@ function render() {
   renderMobileDashboard();
   document.querySelectorAll(".level-score-block table thead tr").forEach((row) => { const cells = row.querySelectorAll("th"); if (cells.length >= 4) { cells[1].textContent = "Container"; cells[2].textContent = "Exterior"; cells[3].textContent = "Interior"; } });
 
-  const blanks = scores.filter((score) => !score.date).length;
-  $("limits").innerHTML = `<h3>Verification limits in these downloads</h3><ul><li>The Score File supplies Event Date values used directly for title cutoffs and chronological calculations.</li><li>The Score File does not include judge names, so two-judge and three-judge championship requirements require handler confirmation.</li>${blanks ? `<li>${blanks} score row${blanks === 1 ? " has" : "s have"} no Event Date. Date-based repeat-title cutoffs cannot be fully verified for those records.</li>` : ""}<li>This report treats rows in the Dog Scores download as qualifying scores, consistent with the supplied Gold-score instructions.</li><li>SDDA remains the authority for official title approval.</li></ul>`;
+  $("limits").innerHTML = `<h3>Verification limits in these downloads</h3><ul><li>The Score File supplies Event Date values used for title cutoffs and chronological calculations.</li><li>The Score File does not include judge names, so two-judge and three-judge championship requirements require handler confirmation.</li><li>This report treats rows in the Dog Scores download as qualifying scores, consistent with the supplied Gold-score instructions.</li><li>SDDA remains the authority for official title approval.</li></ul>`;
 }
 
 function renderMobileDashboard() {
@@ -903,7 +902,7 @@ async function downloadPdfReport() {
 
   y -= 8;
   text("Limitations", { size: 11, bold: true, color: rgb(.61, .26, .24) });
-  text("The supplied Dog Scores download has no judge column. Judge-diversity requirements cannot be verified. Blank Event Date values prevent reliable score cutoffs for higher championship extensions. Titles calculated without the optional Dog Titles file are not official confirmation. Confirm eligibility with SDDA.", { size: 8, color: rgb(.35, .36, .34) });
+  text("The supplied Dog Scores download has no judge column. Judge-diversity requirements cannot be verified from this file and require handler confirmation. Event Date values are used for chronological calculations and title cutoffs. Titles calculated without the optional Dog Titles file are not official confirmation. Confirm eligibility with SDDA.", { size: 8, color: rgb(.35, .36, .34) });
   const bytes = await pdf.save();
   const blob = new Blob([bytes], { type: "application/pdf" });
   const safeDog = dogDisplayName().replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
