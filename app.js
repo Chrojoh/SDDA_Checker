@@ -217,8 +217,11 @@ function titleLockForLevel(level, list = scores) {
   }
 
   const matchingTitles = titles
-    .filter((title) => new RegExp("^" + level + "(?:\\\\s|$)", "i").test(String(title.description || "").trim()))
-    .filter((title) => !/\\\\bSpecial\\\\b/i.test(String(title.description || "")))
+    .filter((title) => {
+      const description = String(title.description || "").trim().toLowerCase();
+      return description === level.toLowerCase() || description.startsWith(level.toLowerCase() + " ");
+    })
+    .filter((title) => !String(title.description || "").toLowerCase().includes("special"))
     .sort((a, b) => String(a.date || "9999-99-99").localeCompare(String(b.date || "9999-99-99")));
   const recordedTitle = matchingTitles[0] || null;
   let eligibleRows = rows;
