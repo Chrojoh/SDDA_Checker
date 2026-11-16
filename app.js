@@ -443,7 +443,7 @@ function render() {
   const summaryCombined = [...summaryAdvanced, ...summaryExcellent], summaryGolds = summaryCombined.filter((set) => set.gold).length;
   const scentAchieved = [
     !!summaryTitle(/^Started(?:\s|$)/i), !!summaryTitle(/^Advanced(?:\s|$)/i), !!summaryTitle(/^Excellent(?:\s|$)/i),
-    !!summaryTitle(/^Elite(?:\s|$)/i) || ((!!summaryTitle(/^Excellent(?:\s|$)/i) || COMPONENTS.every((component) => componentCounts("Excellent")[component] > 0)) && summaryElite.length > 0),
+    !!titles.find((title) => /^Elite(?:\s|$)/i.test(titleText(title))) || ((!!summaryTitle(/^Excellent(?:\s|$)/i) || COMPONENTS.every((component) => componentCounts("Excellent")[component] > 0)) && summaryElite.length > 0),
     !!championshipTitle("ch") || (summaryCombined.length >= 5 && summaryExcellent.length >= 2),
     !!championshipTitle("mach") || (summaryCombined.length >= 10 && summaryExcellent.length >= 3 && summaryGolds >= 3),
     !!championshipTitle("elch") || (summaryElite.length >= 5 && summaryElite.filter((set) => set.gold).length >= 2),
@@ -478,7 +478,7 @@ function render() {
       ];
       status = earned ? "Achieved" : excellentPrerequisite && completeEliteScores > 0 ? "Requirements shown as met · not yet recorded" : "In progress";
       note = earned ? `Recorded ${dateLabel(earned.date)}${earned.score == null ? "" : ` with title score ${earned.score}`}.` : "";
-        } else {
+    } else {
       status = earned ? "Achieved" : missing.length ? "In progress" : "Requirements shown as met";
       note = earned ? `Recorded ${dateLabel(earned.date)}${earned.score == null ? "" : ` with title score ${earned.score}`}.` : missing.length ? `Needs ${missing.join(" and ")}.` : "The account shows at least one qualifying score in every component.";
     }
@@ -572,7 +572,7 @@ function renderMobileDashboard() {
   const scentCards = levelTitles.map((entry) => {
     const recorded = titles.find((title) => entry.pattern.test(titleText(title))), calculated = inferred.find((title) => entry.pattern.test(titleText(title)));
     const counts = componentCounts(entry.name), sameTrial = entry.elite ? eliteSets().length : 0;
-    const met = !!recorded || !!calculated || (entry.elite ? excellentTitleMet && sameTrial > 0 : COMPONENTS.every((component) => counts[component] > 0));
+    const met = !!recorded || (entry.elite ? excellentTitleMet && sameTrial > 0 : !!calculated || COMPONENTS.every((component) => counts[component] > 0));
     const requirements = entry.elite
       ? [
           { done: excellentTitleMet, text: "Excellent title prerequisite" },
