@@ -408,13 +408,27 @@ function reportAchievedTitles() {
     if (!championshipTitle(rule.key) && eligible && sets.length >= 5 && goldCount >= rule.gold) add(rule.name, "", "5 additional Elite scores · " + goldCount + " Gold");
   }
 
+  // Normalize Special variants and Games title suffixes before ordering.
+  // The source export may label these as "Started Special" or "Distance (SD-GD)".
+  const normalizeReportTitle = (description) => String(description || "")
+    .replace(/\s+Special$/i, "")
+    .replace(/\s*\(SD-G[ADST]\)\s*$/i, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "");
   const order = ["Started","Advanced","Excellent","Elite","SD-CH","SD-MACH","SD-MACH2","SD-MACH3","SD-MACH4","SD-ELCH","SD-ELCH2","SD-ELCH3","SD-ELCH4","SD-GMCH","Aerial","Distance","Speed","Team","SD-GCH","SD-GCH2","SD-GCH3","SD-GCH4","SD-GCH5"];
+  const groupRank = (title) => {
+    const value = normalizeReportTitle(title.description);
+    if (/^(aerial|distance|speed|team)$/.test(value) || /^sd-gch(?:2|3|4|5)?$/.test(value)) return 2;
+    if (/^sd-(?:ch|mach(?:2|3|4)?|elch(?:2|3|4)?|gmch)$/.test(value)) return 1;
+    return 0;
+  };
   const rank = (title) => {
-    const text = title.description.toLowerCase().replace(/\s+/g,"");
-    const index = order.findIndex((name) => name.toLowerCase().replace(/\s+/g,"") === text);
+    const value = normalizeReportTitle(title.description);
+    const index = order.findIndex((name) => normalizeReportTitle(name) === value);
     return index < 0 ? 999 : index;
   };
-  return result.sort((a,b) => rank(a)-rank(b) || String(a.description).localeCompare(String(b.description)));
+  return result.sort((a,b) => groupRank(a)-groupRank(b) || rank(a)-rank(b) || String(a.description).localeCompare(String(b.description)));
 }
 
 function progressCard(title, status, requirements, note = "") {
@@ -994,11 +1008,11 @@ async function downloadPdfReport() {
   const achievedTitles = reportAchievedTitles();
   let activeTitleGroup = "";
   const titleGroup = (description) => {
-    const value = description.toUpperCase();
-    if (/^SD-MACH(?:2|3|4)?$/.test(value)) return "MACH Championships";
-    if (/^SD-ELCH(?:2|3|4)?$/.test(value)) return "ELCH Championships";
+    const value = String(description || "").trim().toUpperCase()
+      .replace(/\\s+SPECIAL$/, "")
+      .replace(/\\s*\\(SD-G[ADST]\\)\\s*$/, "");
     if (/^(AERIAL|DISTANCE|SPEED|TEAM)\\b/.test(value) || /^SD-GCH(?:2|3|4|5)?$/.test(value)) return "Games Titles and Championships";
-    if (/^SD-(?:CH|GMCH)$/.test(value)) return "Other Scent Championships";
+    if (/^SD-(?:CH|MACH(?:2|3|4)?|ELCH(?:2|3|4)?|GMCH)$/.test(value)) return "Scent Championships";
     return "Scent Titles";
   };
   for (const title of achievedTitles) {
