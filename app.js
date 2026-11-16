@@ -1038,13 +1038,14 @@ async function downloadPdfReport() {
   }
 
   heading("Gold calculations by level");
-  text("Advanced and Excellent components are calculated separately. Initial Special titles remain locked, each component is used once, and Elite components remain grouped by trial.", { size: 9, color: rgb(.35, .42, .38), after: 5 });
+  text("Advanced and Excellent components are calculated separately. Each component shows its score followed by its source trial number in brackets. Initial Special titles remain locked, each component is used once, and Elite components remain grouped by trial.", { size: 9, color: rgb(.35, .42, .38), after: 5 });
+  const componentWithTrial = (component) => component ? `${component.score} (T${component.trial || "-"})` : "-";
   for (const level of ["Advanced", "Excellent"]) {
     const combinations = maximizeGoldCombinations(level);
-    scoreTable(level, combinations.map((set) => [set.special ? `SP - Trial ${set.trial || "-"}` : `Combination ${set.rank}`, set.container.score, set.exterior.score, set.interior.score, set.total, set.gold ? "Gold" : "Not Gold"]));
+    scoreTable(level, combinations.map((set) => [set.special ? `SP - Trial ${set.trial || "-"}` : `Combination ${set.rank}`, componentWithTrial(set.container), componentWithTrial(set.exterior), componentWithTrial(set.interior), set.total, set.gold ? "Gold" : "Not Gold"]));
   }
   const eliteCombinations = eliteSets();
-  scoreTable("Elite - same-trial sets", eliteCombinations.map((set) => [`Trial ${set.trial || "-"}`, set.parts.Container.score, set.parts.Exterior.score, set.parts.Interior.score, set.total, set.gold ? "Gold" : "Not Gold"]));
+  scoreTable("Elite - same-trial sets", eliteCombinations.map((set) => [`Trial ${set.trial || "-"}`, componentWithTrial(set.parts.Container), componentWithTrial(set.parts.Exterior), componentWithTrial(set.parts.Interior), set.total, set.gold ? "Gold" : "Not Gold"]));
 
   y -= 8;
   text("Limitations", { size: 11, bold: true, color: rgb(.61, .26, .24) });
