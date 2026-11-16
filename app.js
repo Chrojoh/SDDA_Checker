@@ -429,7 +429,7 @@ function machCutoffRowForTitle(title) {
       const excellentGold = excellent.filter((set) => set.gold).length;
       let met = false;
       if (currentStage === 1) met = combined.length >= 10 && excellent.length >= 3 && gold >= 3;
-      else if (currentStage === 2) met = excellent.length >= 7 && excellentGold >= 3;
+      else if (currentStage === 2) met = excellent.length >= 7 && excellentGold >= 3 && excellent.length + Math.min(advanced.length, 3) >= 10;
       else if (currentStage === 3) met = excellent.length >= 10 && excellentGold >= 3;
       else if (currentStage === 4) met = excellent.length >= 10 && excellentGold >= 4;
       if (met) {
@@ -565,7 +565,7 @@ function render() {
     const achieved = championshipTitle(extension.key), previousMet = !!extension.prior || !!legacyMachStageMet.get(extension.previous);
     if (!previousMet && !achieved) continue;
     const progress = machExtensionProgress(extension, extension.prior || extension.previous);
-    const countedAdvanced = extension.maxAdvanced ? Math.min(progress.advanced, extension.maxAdvanced) : 0;
+    const countedAdvanced = extension.maxAdvanced ? Math.min(progress.advanced, extension.maxAdvanced, Math.max(0, 10 - progress.excellent)) : 0;
     const met = previousMet && progress.verified && progress.excellent >= extension.excellent && progress.gold >= extension.gold;
     const requirements = [
       { done: previousMet && progress.verified, text: progress.verified ? `${extension.previous.toUpperCase()} progression requirement met${extension.prior ? " · SDDA title recorded" : " by calculated score requirements"} · cutoff Trial ${progress.cutoffTrial}` : `${extension.previous.toUpperCase()} progression is recognized, but its completion trial cannot be established from the score-file trial sequence` },
@@ -641,9 +641,9 @@ function renderMobileDashboard() {
   repeatMachRules.forEach((rule) => {
     const found = championshipTitle(rule.key), previous = championshipTitle(rule.previous), progress = machExtensionProgress(rule, rule.previous);
     const previousMet = progress.verified || !!previous || !!machStageMet.get(rule.previous);
-    const countedAdvanced = rule.maxAdvanced ? Math.min(progress.advanced, rule.maxAdvanced) : 0;
+    const countedAdvanced = rule.maxAdvanced ? Math.min(progress.advanced, rule.maxAdvanced, Math.max(0, 10 - progress.excellent)) : 0;
     const countedTotal = progress.excellent + countedAdvanced;
-    const met = previousMet && progress.verified && progress.excellent >= rule.excellent && progress.gold >= rule.gold;
+    const met = previousMet && progress.verified && countedTotal >= 10 && progress.excellent >= rule.excellent && progress.gold >= rule.gold;
     const items = [
       { done: progress.verified, text: progress.verified ? `${rule.previous.toUpperCase()} requirements reached · chronological Trial ${progress.cutoffTrial}` : `${rule.previous.toUpperCase()} score requirements could not be located in the chronological export` },
       { done: progress.verified && progress.excellent >= rule.excellent, text: `${progress.verified ? progress.excellent : "—"}/${rule.excellent} additional Excellent combinations` },
@@ -786,7 +786,7 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
   repeatMachRules.forEach((rule) => {
     if (championshipTitle(rule.key) || !machStageMet.get(rule.previous)) return;
     const previous = championshipTitle(rule.previous), progress = machExtensionProgress(rule, previous);
-    const countedAdvanced = rule.maxAdvanced ? Math.min(progress.advanced, rule.maxAdvanced) : 0;
+    const countedAdvanced = rule.maxAdvanced ? Math.min(progress.advanced, rule.maxAdvanced, Math.max(0, 10 - progress.excellent)) : 0;
     const countedTotal = progress.excellent + countedAdvanced;
     const items = progress.verified ? [
       `${rule.previous.toUpperCase()} requirements reached · inferred chronological Trial ${progress.cutoffTrial}`,
