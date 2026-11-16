@@ -9,7 +9,7 @@ window.sddaJudgeVerification = window.sddaJudgeVerification || { elch: false, gm
 
 const $ = (id) => document.getElementById(id);
 const pendingCheckStyle = document.createElement("style");
-pendingCheckStyle.textContent = ".requirements li.pending,.requirement-list li.pending,.next-card li.pending{color:#b42318!important;font-weight:600}";
+pendingCheckStyle.textContent = ".requirements li.pending,.requirement-list li.pending,.next-card li.pending{color:#b42318!important;font-weight:600}.achievement-check.pending{color:#b42318!important}";
 document.head.appendChild(pendingCheckStyle);
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]));
 function localDateStamp(date = new Date()) {
@@ -560,7 +560,7 @@ function renderMobileDashboard() {
   const inferred = inferredTitles(), shown = displayedTitles();
   const titleFor = (pattern) => shown.find((title) => pattern.test(titleText(title))) || inferred.find((title) => pattern.test(titleText(title)));
   const reqList = (items) => `<ul class="requirement-list">${items.map((item) => `<li class="${item.pending ? "pending" : item.done ? "done" : ""}">${item.pending ? "✓ " : item.done ? "✅ " : ""}${esc(item.text)}</li>`).join("")}</ul>${items.some((item) => item.pending) ? `<p class="verification-legend" style="color:#b42318;font-size:.88em">Red ✓ = handler-reported judge minimum; awaiting SDDA confirmation.</p>` : ""}`;
-  const accordion = ({ name, subtitle, achieved, date, body, accent = "" }) => `<details class="title-accordion ${accent}"><summary><span class="summary-copy"><strong>${esc(name)}</strong><small>${esc(subtitle)}</small></span>${achieved ? (date ? `<span class="achievement-date">${esc(dateLabel(date))}</span>` : `<span class="achievement-check" aria-label="Achieved">✓</span>`) : ""}<span class="chevron" aria-hidden="true">⌄</span></summary><div class="accordion-body">${body}</div></details>`;
+  const accordion = ({ name, subtitle, achieved, pending = false, date, body, accent = "" }) => `<details class="title-accordion ${accent}"><summary><span class="summary-copy"><strong>${esc(name)}</strong><small>${esc(subtitle)}</small></span>${achieved ? (date ? `<span class="achievement-date">${esc(dateLabel(date))}</span>` : `<span class="achievement-check${pending ? " pending" : ""}" aria-label="${pending ? "Title requirements met; awaiting judge verification" : "Achieved"}">✓</span>`) : ""}<span class="chevron" aria-hidden="true">⌄</span></summary><div class="accordion-body">${body}</div></details>`;
   const excellentTitleMet = !!titles.find((title) => /^Excellent(?:\s|$)/i.test(titleText(title)))
     || !!inferred.find((title) => /^Excellent(?:\s|$)/i.test(titleText(title)))
     || COMPONENTS.every((component) => componentCounts("Excellent")[component] > 0);
@@ -617,14 +617,14 @@ function renderMobileDashboard() {
   ];
   repeatEliteRules.forEach((rule) => {
     const found = championshipTitle(rule.key), previous = championshipTitle(rule.previous), eligible = scoreRowsAfterTitle(previous), sets = eligible ? eliteSets(eligible) : [], eliteGold = sets.filter((set) => set.gold).length;
-    championCards.push({ name: rule.name, found, met: !!eligible && sets.length >= 5 && eliteGold >= rule.gold, verificationRequired: true, items: [
+    championCards.push({ name: rule.name, found, met: !!eligible && sets.length >= 5 && eliteGold >= rule.gold, items: [
       { done: !!previous, text: `${rule.previous.toUpperCase()} must be recorded first` },
       { done: !!eligible && sets.length >= 5, text: eligible ? `${sets.length}/5 new Elite scores` : "Previous-title date and complete score dates required" },
       { done: !!eligible && eliteGold >= rule.gold, text: `${eliteGold}/${rule.gold} new Elite Gold scores` },
       { done: true, text: "No additional judge-count requirement is listed for this repeat title" }
     ] });
   });
-  championCards.forEach((entry) => { const achieved = !!entry.found || (entry.met && !entry.verificationRequired); const subtitle = entry.found ? "Recorded title" : entry.met && entry.verificationRequired ? "Score requirements met · verification needed" : entry.met ? "Score requirements met · not yet recorded" : "In progress"; scentCards.push(accordion({ name: entry.name, subtitle, achieved, date: entry.found?.date, body: reqList(entry.items), accent: entry.name.includes("EL") || entry.name.includes("GMCH") ? "level-accent-elite" : entry.name.includes("MACH") ? "level-accent-gold" : "" })); });
+  championCards.forEach((entry) => { const pending = !entry.found && !!entry.met && !!entry.verificationRequired; const achieved = !!entry.found || !!entry.met; const subtitle = entry.found ? "Recorded title" : pending ? "Title requirements met · awaiting judge verification" : entry.met ? "Title requirements met · not yet recorded" : "In progress"; scentCards.push(accordion({ name: entry.name, subtitle, achieved, pending, date: entry.found?.date, body: reqList(entry.items), accent: entry.name.includes("EL") || entry.name.includes("GMCH") ? "level-accent-elite" : entry.name.includes("MACH") ? "level-accent-gold" : "" })); });
   scentTarget.innerHTML = scentCards.join("");
 
   const runRows = (sets, isElite = false) => sets.length ? `<div class="run-grid">${sets.map((set) => { const c = isElite ? set.parts.Container.score : set.container.score, e = isElite ? set.parts.Exterior.score : set.exterior.score, i = isElite ? set.parts.Interior.score : set.interior.score; return `<div class="run-row ${set.gold ? "gold" : ""}"><b>${isElite ? `Trial ${esc(set.trial || "—")}` : set.special ? "SP" : `#${set.rank}`}</b><span>C ${c}</span><span>E ${e}</span><span>I ${i}</span><strong>${set.total}</strong></div>`; }).join("")}</div>` : `<p class="run-empty">No complete combinations yet.</p>`;
