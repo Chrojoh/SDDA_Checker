@@ -45,3 +45,21 @@ body,.mobile-ledger,.desktop-ledger{background:#f1f0eb!important;color:#202a25}
 .message,.privacy,.limits{border-radius:2px!important}
 .game-meter,.game-meter i{border-radius:0!important}
 @media(max-width:780px){.upload-card{grid-template-columns:1fr!important}}
+
+
+/* Light-green completion treatment: highlight only criteria that are satisfied. */
+.progress-card.criteria-met .card-title-bar{
+  display:block;
+  margin:-17px -17px 12px;
+  padding:12px 17px;
+  background:#e5f0e7;
+  color:#244b3d;
+  border-bottom:1px solid #cbdccc;
+}
+.requirements li.done{
+  background:#e5f0e7;
+  color:#244b3d;
+  padding:8px 10px;
+  margin:3px 0;
+  border:1px solid #d2e2d4;
+}

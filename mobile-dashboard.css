@@ -45,3 +45,22 @@ body,.mobile-ledger,.desktop-ledger{background:#f1f0eb!important;color:#202a25}
 .message,.privacy,.limits{border-radius:2px!important}
 .game-meter,.game-meter i{border-radius:0!important}
 @media(max-width:780px){.upload-card{grid-template-columns:1fr!important}}
+
+
+/* Light-green completion treatment for achieved title bars and successful criteria. */
+.title-accordion.is-met > summary{
+  background:#e5f0e7;
+  color:#244b3d;
+}
+.title-accordion.is-met > summary .summary-copy small,
+.title-accordion.is-met > summary .summary-action,
+.title-accordion.is-met > summary .achievement-date{
+  color:#315f4d;
+}
+.requirement-list li.done{
+  background:#e5f0e7;
+  color:#244b3d;
+  padding:8px 10px;
+  margin:3px 0;
+  border:1px solid #d2e2d4;
+}
