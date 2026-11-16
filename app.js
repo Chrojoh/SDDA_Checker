@@ -498,7 +498,7 @@ function reportAchievedTitles() {
 function progressCard(title, status, requirements, note = "") {
   const met = status === "Achieved" || status === "Requirements shown as met";
   const statusClass = met ? "met" : status.includes("cannot") || status.includes("verification") ? "unknown" : "partial";
-  return `<article class="progress-card${met ? " criteria-met" : ""}"><h3 class="card-title-bar">${esc(title)}</h3><span class="status ${statusClass}">${esc(status)}</span><ul class="requirements">${requirements.map((requirement) => `<li class="${requirement.pending ? "pending" : requirement.done ? "done" : ""}${requirement.info ? " info" : ""}">${requirement.pending ? "Pending — " : requirement.done ? "Met — " : ""}${esc(requirement.text)}</li>`).join("")}</ul>${requirements.some((requirement) => requirement.pending) ? `<p class="verification-legend" style="color:#9b433d;font-size:.88em">Handler-reported judge minimum is awaiting SDDA confirmation.</p>` : ""}${note ? `<p>${esc(note)}</p>` : ""}</article>`;
+  return `<article class="progress-card${met ? " criteria-met" : ""}"><h3 class="card-title-bar">${esc(title)}</h3><span class="status ${statusClass}">${esc(status)}</span><ul class="requirements">${requirements.map((requirement) => `<li class="${requirement.pending ? "pending" : requirement.done ? "done" : ""}${requirement.info ? " info" : ""}">${requirement.pending ? "Pending — " : requirement.done ? "Met — " : requirement.info ? "Rule — " : ""}${esc(requirement.text || "Requirement details unavailable")}</li>`).join("")}</ul>${requirements.some((requirement) => requirement.pending) ? `<p class="verification-legend" style="color:#9b433d;font-size:.88em">Handler-reported judge minimum is awaiting SDDA confirmation.</p>` : ""}${note ? `<p>${esc(note)}</p>` : ""}</article>`;
 }
 
 function titlePattern(level) { return new RegExp(`^${level}(?:\s|$)`, "i"); }
@@ -774,7 +774,7 @@ function renderMobileDashboard() {
   if (!scentTarget) return;
   const inferred = inferredTitles(), shown = displayedTitles();
   const titleFor = (pattern) => shown.find((title) => pattern.test(titleText(title))) || inferred.find((title) => pattern.test(titleText(title)));
-  const reqList = (items) => `<ul class="requirement-list">${items.map((item) => `<li class="${item.pending ? "pending" : item.done ? "done" : ""}">${item.pending ? "Pending — " : item.done ? "Met — " : ""}${esc(item.text)}</li>`).join("")}</ul>`;
+  const reqList = (items) => `<ul class="requirement-list">${(items || []).map((item, index) => `<li class="${item.pending ? "pending" : item.done ? "done" : ""}">${item.pending ? "Pending — " : item.done ? "Met — " : ""}${esc(String(item.text || "").trim() || `Requirement ${index + 1} details unavailable`)}</li>`).join("") || "<li>Requirement details unavailable.</li>"}</ul>`;
   const accordion = ({ name, subtitle, achieved, pending = false, date, body, accent = "" }) => `<details class="title-accordion ${accent}${achieved ? " is-met" : ""}"><summary><span class="summary-copy"><strong>${esc(name)}</strong><small>${esc(subtitle)}</small></span>${date ? `<span class="achievement-date">${esc(dateLabel(date))}</span>` : ""}<span class="summary-action">Details</span></summary><div class="accordion-body">${body}</div></details>`;
   const excellentTitleMet = !!titleFor(/^Excellent(?:\s|$)/i)
     || COMPONENTS.every((component) => componentCounts("Excellent")[component] > 0);
@@ -791,7 +791,7 @@ function renderMobileDashboard() {
           { done: excellentTitleMet, text: "Excellent title prerequisite" },
           { done: sameTrial > 0, text: `${sameTrial} complete Elite score${sameTrial === 1 ? "" : "s"} (Container, Exterior and Interior all passed in the same trial)` }
         ]
-      : COMPONENTS.map((component) => ({ done: counts[component] > 0, text: `${component}: ${counts[component]} qualifying score${counts[component] === 1 ? "" : "s"}` }));
+      : COMPONENTS.map((component) => ({ done: counts[component] >= 1, text: `${component}: ${counts[component]} / 1 qualifying score${counts[component] === 1 ? "" : "s"} (have / need)` }));
     return accordion({ name: entry.name, subtitle: recorded ? "Recorded title" : met ? "Requirements met · not yet recorded" : "In progress", achieved: met, date: recorded?.date, body: reqList(requirements), accent: entry.elite ? "level-accent-elite" : "" });
   });
   const advanced = maximizeGoldCombinations("Advanced"), excellent = maximizeGoldCombinations("Excellent"), elite = eliteSets();
@@ -852,7 +852,7 @@ function renderMobileDashboard() {
   const runRows = (sets, isElite = false) => {
     const qualifying = sets.filter((set) => set.total >= 100);
     if (!qualifying.length) return `<p class="run-empty">No qualifying combinations yet.</p>`;
-    return `<div class="run-grid">${qualifying.map((set, index) => { const c = isElite ? set.parts.Container.score : set.container.score, e = isElite ? set.parts.Exterior.score : set.exterior.score, i = isElite ? set.parts.Interior.score : set.interior.score; return `<div class="run-row ${set.gold ? "gold" : runClass(set.total).toLowerCase()}"><b>${isElite ? `Trial ${esc(set.trial || "—")}` : set.special ? `SP` : set.titleLocked ? `Title` : `#${index + 1}`}</b><span>C ${c} (${esc((isElite ? set.parts.Container : set.container).trial || "-")})</span><span>E ${e} (${esc((isElite ? set.parts.Exterior : set.exterior).trial || "-")})</span><span>I ${i} (${esc((isElite ? set.parts.Interior : set.interior).trial || "-")})</span><strong>${set.total} · ${runClass(set.total)}</strong></div>`; }).join("")}</div>`;
+    return `<div class="run-grid">${qualifying.map((set, index) => { const container = isElite ? set.parts?.Container : set.container, exterior = isElite ? set.parts?.Exterior : set.exterior, interior = isElite ? set.parts?.Interior : set.interior; const show = (part) => part ? `${esc(part.score)} (${esc(part.trial || "-")})` : "—"; return `<div class="run-row ${set.gold ? "gold" : runClass(set.total).toLowerCase()}"><b>${isElite ? `Trial ${esc(set.trial || "—")}` : set.special ? "SP" : set.titleLocked ? "Title" : `#${index + 1}`}</b><span>Container: ${show(container)}</span><span>Exterior: ${show(exterior)}</span><span>Interior: ${show(interior)}</span><strong>Total: ${esc(set.total)} · ${runClass(set.total)}</strong></div>`; }).join("")}</div>`;
   };
   $("mobile-scent-runs").innerHTML = `<p class="sp-definition"><strong>SP = Special.</strong> Its three title-earning components stay together as one locked combination.</p>` + [
     accordion({ name: "Advanced combinations", subtitle: `${advanced.filter((set) => set.total >= 100).length} qualifying · ${advanced.filter((set) => set.gold && set.total >= 100).length} Gold · ${advanced.filter((set) => set.total >= 172 && set.total < 192).length} Silver · ${advanced.filter((set) => set.total >= 142 && set.total < 172).length} Bronze · ${advanced.filter((set) => set.total >= 100 && set.total < 142).length} Satisfactory`, body: `<p class="run-legend"><strong>SP = Special.</strong> Its three title-earning Advanced components stay together as one locked combination.</p>${runRows(advanced)}`, accent: "level-accent-silver" }),
