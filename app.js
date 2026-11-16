@@ -332,6 +332,93 @@ function inferredTitles() {
 
 function displayedTitles() { return titles.length ? titles.map((title) => ({ ...title, calculated: false })) : inferredTitles(); }
 
+
+function reportAchievedTitles() {
+  // Keep every SDDA-recorded award, then add score-derived achievements that
+  // are not already represented in the Dog Titles export.
+  const result = titles.map((title) => ({ ...title, calculated: false }));
+  const add = (description, date = "", honours = "", score = null, note = "") => {
+    const pattern = new RegExp(description.replace(/[.*+?^${}()|[\]\\]/g, "\\function displayedTitles() { return titles.length ? titles.map((title) => ({ ...title, calculated: false })) : inferredTitles(); }
+").replace(/\\s+/g, "\\s*"), "i");
+    if (result.some((title) => pattern.test(titleText(title)))) return;
+    result.push({ description, date, honours: [honours, note].filter(Boolean).join(" · "), score, calculated: true });
+  };
+  for (const title of inferredTitles()) {
+    if (!result.some((item) => new RegExp(title.description.replace(/ Special$/i, "") + "(?:\\s|$)", "i").test(titleText(item)))) {
+      result.push(title);
+    }
+  }
+
+  const advanced = maximizeGoldCombinations("Advanced");
+  const excellent = maximizeGoldCombinations("Excellent");
+  const combined = [...advanced, ...excellent];
+  const gold = combined.filter((set) => set.gold).length;
+  const elite = eliteSets();
+  const eliteGold = elite.filter((set) => set.gold).length;
+  const chMet = combined.length >= 5 && excellent.length >= 2;
+  const machMet = combined.length >= 10 && excellent.length >= 3 && gold >= 3;
+  const elchMet = elite.length >= 5 && eliteGold >= 2;
+  if (chMet) add("SD-CH", "", "5 titling combinations · at least 2 Excellent");
+  if (machMet) add("SD-MACH", "", "10 combinations · " + Math.min(10, excellent.length) + " Excellent + " + Math.min(advanced.length, Math.max(0, 10 - excellent.length)) + " Advanced");
+  if (elchMet) add("SD-ELCH", "", "5 same-trial Elite scores · " + eliteGold + " Gold", null, window.sddaJudgeVerification.elch ? "Judge minimum handler-confirmed; SDDA confirmation pending" : "Judge minimum requires confirmation");
+  if ((machMet || championshipTitle("mach")) && (elchMet || championshipTitle("elch"))) {
+    add("SD-GMCH", "", "MACH and ELCH score requirements met", null, window.sddaJudgeVerification.gmch ? "Three-judge minimum handler-confirmed; SDDA confirmation pending" : "Three-judge minimum requires confirmation");
+  }
+
+  const counts = gamePassCounts();
+  for (const game of GAME_NAMES) {
+    if (counts[game] >= 3) add(game + " (SD-G" + game[0] + ")", "", counts[game] + " qualifying passes");
+  }
+  const gameStages = GAME_CHAMPIONSHIP_RULES.map((rule) => {
+    const progress = gameChampionshipProgress(counts, rule);
+    const start = ({ gch2: 0, gch3: 4, gch4: 9, gch5: 16 })[rule.key] ?? 0;
+    const size = ({ gch2: 4, gch3: 5, gch4: 7, gch5: 10 })[rule.key] ?? 0;
+    const stageProgress = Math.min(size, Math.max(0, progress.extras - start));
+    const met = rule.type === "base" ? progress.met : stageProgress >= size && progress.baseMet && (rule.type !== "four" || GAME_NAMES.every((game) => counts[game] > 0));
+    return { rule, progress, met };
+  });
+  for (const { rule, progress, met } of gameStages) {
+    if (met) add(rule.name, "", progress.progressText);
+  }
+
+  const machRules = [
+    { key: "mach2", previous: "mach", name: "SD-MACH2", excellent: 7, gold: 3, maxAdvanced: 3 },
+    { key: "mach3", previous: "mach2", name: "SD-MACH3", excellent: 10, gold: 3 },
+    { key: "mach4", previous: "mach3", name: "SD-MACH4", excellent: 10, gold: 4 }
+  ];
+  let previousMachMet = !!championshipTitle("mach") || machMet;
+  for (const rule of machRules) {
+    const recorded = championshipTitle(rule.key);
+    const progress = machExtensionProgress(rule, rule.previous);
+    const countedAdvanced = rule.maxAdvanced ? Math.min(progress.advanced, rule.maxAdvanced, Math.max(0, 10 - progress.excellent)) : 0;
+    const countedTotal = Math.min(10, Math.min(10, progress.excellent) + countedAdvanced);
+    const met = progress.verified && previousMachMet && countedTotal >= 10 && progress.excellent >= rule.excellent && progress.gold >= rule.gold;
+    if (met) add(rule.name, "", "10 additional combinations · " + Math.min(10, progress.excellent) + " Excellent + " + countedAdvanced + " Advanced");
+    previousMachMet = !!recorded || met;
+  }
+
+  const eliteRules = [
+    { key: "elch2", previous: "elch", name: "SD-ELCH2", gold: 3 },
+    { key: "elch3", previous: "elch2", name: "SD-ELCH3", gold: 4 },
+    { key: "elch4", previous: "elch3", name: "SD-ELCH4", gold: 5 }
+  ];
+  for (const rule of eliteRules) {
+    const previous = championshipTitle(rule.previous);
+    const eligible = scoreRowsAfterTitle(previous);
+    const sets = eligible ? eliteSets(eligible) : [];
+    const goldCount = sets.filter((set) => set.gold).length;
+    if (eligible && sets.length >= 5 && goldCount >= rule.gold) add(rule.name, "", "5 additional Elite scores · " + goldCount + " Gold");
+  }
+
+  const order = ["Started","Advanced","Excellent","Elite","SD-CH","SD-MACH","SD-MACH2","SD-MACH3","SD-MACH4","SD-ELCH","SD-ELCH2","SD-ELCH3","SD-ELCH4","SD-GMCH","Aerial","Distance","Speed","Team","SD-GCH","SD-GCH2","SD-GCH3","SD-GCH4","SD-GCH5"];
+  const rank = (title) => {
+    const text = title.description.toLowerCase().replace(/\s+/g,"");
+    const index = order.findIndex((name) => name.toLowerCase().replace(/\s+/g,"") === text);
+    return index < 0 ? 999 : index;
+  };
+  return result.sort((a,b) => rank(a)-rank(b) || String(a.description).localeCompare(String(b.description)));
+}
+
 function progressCard(title, status, requirements, note = "") {
   const met = status === "Achieved" || status === "Requirements shown as met";
   const statusClass = met ? "met" : status.includes("cannot") || status.includes("verification") ? "unknown" : "partial";
@@ -902,11 +989,11 @@ async function downloadPdfReport() {
   newPage();
   y -= 10;
   text(dogDisplayName(), { size: 24, bold: true, leading: 27, after: 2 });
-  text(`SDDA #${scores[0]?.dogNumber || "not supplied"} | ${scores.length} qualifying component scores | ${titles.length ? `${titles.length} titles recorded by SDDA` : `${inferredTitles().length} titles calculated from scores`}`, { size: 10, color: rgb(.35, .42, .38), after: 8 });
+  text(`SDDA #${scores[0]?.dogNumber || "not supplied"} | ${scores.length} qualifying component scores | ${reportAchievedTitles().length} titles achieved or score requirements met`, { size: 10, color: rgb(.35, .42, .38), after: 8 });
   text(`Generated ${new Date().toLocaleDateString()} from the member's SDDA account downloads.`, { size: 8, color: rgb(.4, .45, .42), after: 8 });
 
   heading("Titles achieved");
-  for (const title of displayedTitles()) {
+  for (const title of reportAchievedTitles()) {
     text(`${title.description} - ${title.calculated ? "Calculated from scores" : "Recorded by SDDA"}`, { size: 11, bold: true });
     text(`${dateLabel(title.date)}${title.score == null || Number.isNaN(title.score) ? "" : ` | Title score ${title.score}`}${title.honours ? ` | ${title.honours}` : ""}`, { indent: 12, color: rgb(.28, .36, .31), after: 4 });
   }
