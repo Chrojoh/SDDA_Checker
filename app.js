@@ -992,8 +992,8 @@ async function downloadPdfReport() {
 
   heading("Titles achieved");
   for (const title of reportAchievedTitles()) {
-    text(`${title.description} - ${title.calculated ? "Calculated from scores" : "Recorded by SDDA"}`, { size: 11, bold: true });
-    text(`${dateLabel(title.date)}${title.score == null || Number.isNaN(title.score) ? "" : ` | Title score ${title.score}`}${title.honours ? ` | ${title.honours}` : ""}`, { indent: 12, color: rgb(.28, .36, .31), after: 4 });
+    const details = [dateLabel(title.date), title.score == null || Number.isNaN(title.score) ? "" : `Score ${title.score}`, title.honours || ""].filter(Boolean).join(" | ");
+    text(`${title.description} — ${title.calculated ? "Calculated" : "SDDA recorded"}${details ? " | " + details : ""}`, { size: 9, bold: true, color: title.calculated ? rgb(.28, .36, .31) : rgb(.10, .14, .12), after: 2 });
   }
 
   heading("What is needed next");
