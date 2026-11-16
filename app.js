@@ -158,20 +158,26 @@ function workbookDate(value) {
   if (!text) return "";
   const parsed = new Date(text); return Number.isNaN(parsed.valueOf()) ? "" : parsed.toISOString().slice(0, 10);
 }
+function chronologicalTrialGroups(level, list = scores) {
+  const byTrial = new Map();
+  const ordered = list.filter((score) => score.level === level).sort((a, b) => a.sourceRow - b.sourceRow);
+  for (const row of ordered) {
+    const trialNumber = Number(row.trial);
+    const key = row.trial && Number.isSafeInteger(trialNumber) && trialNumber > 0
+      ? `trial:${trialNumber}`
+      : `row:${row.sourceRow}`;
+    if (!byTrial.has(key)) byTrial.set(key, { key, trial: row.trial, rows: [] });
+    byTrial.get(key).rows.push(row);
+  }
+  return [...byTrial.values()];
+}
+
 function initialSpecialSet(level, list = scores) {
   if (level !== "Advanced" && level !== "Excellent") return null;
-  const ordered = list.filter((score) => score.level === level).sort((a, b) => {
-    if (a.date && b.date && a.date !== b.date) return a.date.localeCompare(b.date);
-    const aTrial = Number(a.trial), bTrial = Number(b.trial);
-    if (Number.isFinite(aTrial) && Number.isFinite(bTrial) && aTrial !== bTrial) return aTrial - bTrial;
-    return a.sourceRow - b.sourceRow;
-  });
-  const groups = [];
-  for (const row of ordered) {
-    const key = row.trial ? `trial:${row.trial}` : `row:${row.sourceRow}`;
-    const previous = groups[groups.length - 1];
-    if (previous?.key === key) previous.rows.push(row); else groups.push({ key, rows: [row] });
-  }
+  // Special status depends on which trial first completed all three components.
+  // Use the uploaded sheet's chronological row order and group all rows for a
+  // trial together, even when that trial's rows are not adjacent.
+  const groups = chronologicalTrialGroups(level, list);
   const passed = new Set();
   for (const group of groups) {
     const titledBefore = COMPONENTS.every((component) => passed.has(component));
@@ -291,18 +297,10 @@ function inferredTitles() {
   for (const level of ["Started", "Advanced", "Excellent"]) {
     const rows = byLevel(level);
     if (!COMPONENTS.every((component) => rows.some((row) => row.component === component))) continue;
-    const ordered = [...rows].sort((a, b) => {
-      if (a.date && b.date && a.date !== b.date) return a.date.localeCompare(b.date);
-      const aTrial = Number(a.trial), bTrial = Number(b.trial);
-      if (Number.isFinite(aTrial) && Number.isFinite(bTrial) && aTrial !== bTrial) return aTrial - bTrial;
-      return a.sourceRow - b.sourceRow;
-    });
-    const groups = [];
-    for (const row of ordered) {
-      const key = row.trial ? `trial:${row.trial}` : `row:${row.sourceRow}`;
-      const previous = groups[groups.length - 1];
-      if (previous?.key === key) previous.rows.push(row); else groups.push({ key, rows: [row] });
-    }
+    // Use the score export's top-to-bottom chronological order. Trial Number
+    // values are identifiers, not sortable timestamps; group repeated rows
+    // even when the same trial appears in non-adjacent rows.
+    const groups = chronologicalTrialGroups(level, rows);
     const seen = [], passed = new Set();
     let completionGroup = null, special = false;
     for (const group of groups) {
@@ -389,32 +387,38 @@ function machTitleStage(title) {
   return /master champion|\bmach\b/.test(value) ? 1 : 0;
 }
 
-function machCutoffRowForTitle(title) {
-  const stage = machTitleStage(title);
-  if (!stage) return null;
-  const relevant = scores.filter((score) => score.level === "Advanced" || score.level === "Excellent");
-  // Trial Number is the chronological event identifier. Do not rely on export
-  // row order: the SDDA score export can place older trial rows after newer ones.
-  // Normalize numeric keys so values such as "00169" and "169" form one trial.
+function machTrialGroups() {
+  const relevant = scores.filter((score) => score.level === "Advanced" || score.level === "Excellent").sort((a, b) => a.sourceRow - b.sourceRow);
   if (relevant.some((score) => {
     const trial = Number(score.trial);
     return !score.trial || !Number.isSafeInteger(trial) || trial <= 0;
   })) return null;
+
+  // The uploaded score sheet is chronological from top to bottom. Preserve
+  // the first appearance of each Trial Number; never sort Trial Numbers
+  // numerically. A trial may have rows separated by other trial rows, so Map
+  // groups all rows for the same normalized trial while retaining first-seen order.
   const byTrial = new Map();
   for (const score of relevant) {
     const trial = Number(score.trial);
     if (!byTrial.has(trial)) byTrial.set(trial, { trial, rows: [] });
     byTrial.get(trial).rows.push(score);
   }
-  // Sorting by trial number preserves separate trials even when they share a
-  // calendar date, and excludes every Q from the title-completing trial.
-  const trialGroups = [...byTrial.values()].sort((a, b) => a.trial - b.trial);
-  let cutoffTrial = 0;
+  return [...byTrial.values()];
+}
+
+function machCutoffRowForTitle(title) {
+  const stage = machTitleStage(title);
+  if (!stage) return null;
+  const trialGroups = machTrialGroups();
+  if (!trialGroups) return null;
+
+  let cutoffIndex = -1;
   for (let currentStage = 1; currentStage <= stage; currentStage++) {
     const prefix = [];
     let foundCutoff = false;
-    for (const group of trialGroups) {
-      if (group.trial <= cutoffTrial) continue;
+    for (let groupIndex = cutoffIndex + 1; groupIndex < trialGroups.length; groupIndex++) {
+      const group = trialGroups[groupIndex];
       prefix.push(...group.rows);
       const advanced = maximizeGoldCombinations("Advanced", prefix);
       const excellent = maximizeGoldCombinations("Excellent", prefix);
@@ -423,32 +427,36 @@ function machCutoffRowForTitle(title) {
       const excellentGold = excellent.filter((set) => set.gold).length;
       let met = false;
       if (currentStage === 1) met = combined.length >= 10 && excellent.length >= 3 && gold >= 3;
-      else if (currentStage === 2) met = excellent.length >= 7 && excellentGold >= 3;
+      else if (currentStage === 2) met = excellent.length >= 7 && excellentGold >= 3 && excellent.length + Math.min(advanced.length, 3) >= 10;
       else if (currentStage === 3) met = excellent.length >= 10 && excellentGold >= 3;
       else if (currentStage === 4) met = excellent.length >= 10 && excellentGold >= 4;
       if (met) {
-        cutoffTrial = group.trial;
+        cutoffIndex = groupIndex;
         foundCutoff = true;
         break;
       }
     }
     if (!foundCutoff) return null;
   }
-  return cutoffTrial;
+  return { trial: trialGroups[cutoffIndex].trial, index: cutoffIndex };
 }
 
 function machExtensionProgress(rule, priorTitleOrStage) {
-  const cutoffTrial = machCutoffRowForTitle(priorTitleOrStage);
-  const relevantScores = scores.filter((score) => score.level === "Advanced" || score.level === "Excellent");
-  if (cutoffTrial == null || relevantScores.some((score) => !score.trial || !Number.isFinite(Number(score.trial)))) {
-    return { verified: false, cutoffTrial, advanced: 0, excellent: 0, gold: 0 };
+  const cutoff = machCutoffRowForTitle(priorTitleOrStage);
+  const trialGroups = machTrialGroups();
+  if (!cutoff || !trialGroups) {
+    return { verified: false, cutoffTrial: cutoff?.trial ?? null, advanced: 0, excellent: 0, gold: 0 };
   }
-  const eligible = relevantScores.filter((score) => Number(score.trial) > cutoffTrial);
+  const eligibleTrials = new Set(trialGroups.slice(cutoff.index + 1).map((group) => group.trial));
+  const eligible = scores.filter((score) =>
+    (score.level === "Advanced" || score.level === "Excellent") &&
+    eligibleTrials.has(Number(score.trial))
+  );
   const advanced = maximizeGoldCombinations("Advanced", eligible);
   const excellent = maximizeGoldCombinations("Excellent", eligible);
   return {
     verified: true,
-    cutoffTrial,
+    cutoffTrial: cutoff.trial,
     advanced: advanced.length,
     excellent: excellent.length,
     gold: excellent.filter((set) => set.gold).length
@@ -555,13 +563,15 @@ function render() {
     const achieved = championshipTitle(extension.key), previousMet = !!extension.prior || !!legacyMachStageMet.get(extension.previous);
     if (!previousMet && !achieved) continue;
     const progress = machExtensionProgress(extension, extension.prior || extension.previous);
-    const countedAdvanced = extension.maxAdvanced ? Math.min(progress.advanced, extension.maxAdvanced) : 0;
-    const met = previousMet && progress.verified && progress.excellent >= extension.excellent && progress.gold >= extension.gold;
+    const countedAdvanced = extension.maxAdvanced ? Math.min(progress.advanced, extension.maxAdvanced, Math.max(0, 10 - progress.excellent)) : 0;
+    const countedTotal = progress.excellent + countedAdvanced;
+    const met = previousMet && progress.verified && countedTotal >= 10 && progress.excellent >= extension.excellent && progress.gold >= extension.gold;
     const requirements = [
       { done: previousMet && progress.verified, text: progress.verified ? `${extension.previous.toUpperCase()} progression requirement met${extension.prior ? " · SDDA title recorded" : " by calculated score requirements"} · cutoff Trial ${progress.cutoffTrial}` : `${extension.previous.toUpperCase()} progression is recognized, but its completion trial cannot be established from the score-file trial sequence` },
       { done: progress.verified && progress.excellent >= extension.excellent, text: `${progress.verified ? progress.excellent : "—"}/${extension.excellent} additional Excellent combinations` },
       { done: progress.verified && progress.gold >= extension.gold, text: `${progress.verified ? progress.gold : "—"}/${extension.gold} additional Excellent Gold combinations` }
     ];
+    if (extension.maxAdvanced) requirements.push({ done: progress.verified && countedTotal >= 10, text: progress.verified ? `${Math.min(10, countedTotal)}/10 additional combinations counted (${progress.excellent} Excellent + ${countedAdvanced} Advanced)` : "—/10 additional combinations counted until the cutoff is established" });
     if (extension.maxAdvanced) requirements.push({ done: progress.verified, text: progress.verified ? `${countedAdvanced} of up to ${extension.maxAdvanced} Advanced combinations may be included (optional)` : "Advanced allowance cannot be checked until the previous title cutoff is known" });
     requirements.push({ done: progress.verified, text: progress.verified ? `Only Qs from trials after Trial ${progress.cutoffTrial} count` : "Previous title score sequence could not be established from the uploaded chronological score list" });
     cards.push(progressCard(extension.title, achieved ? "Achieved" : !progress.verified ? "Cannot verify cutoff" : met ? "Score requirements met" : "In progress", requirements,
@@ -631,14 +641,15 @@ function renderMobileDashboard() {
   repeatMachRules.forEach((rule) => {
     const found = championshipTitle(rule.key), previous = championshipTitle(rule.previous), progress = machExtensionProgress(rule, rule.previous);
     const previousMet = progress.verified || !!previous || !!machStageMet.get(rule.previous);
-    const countedAdvanced = rule.maxAdvanced ? Math.min(progress.advanced, rule.maxAdvanced) : 0;
+    const countedAdvanced = rule.maxAdvanced ? Math.min(progress.advanced, rule.maxAdvanced, Math.max(0, 10 - progress.excellent)) : 0;
     const countedTotal = progress.excellent + countedAdvanced;
-    const met = previousMet && progress.verified && progress.excellent >= rule.excellent && progress.gold >= rule.gold;
+    const met = previousMet && progress.verified && countedTotal >= 10 && progress.excellent >= rule.excellent && progress.gold >= rule.gold;
     const items = [
       { done: progress.verified, text: progress.verified ? `${rule.previous.toUpperCase()} requirements reached · chronological Trial ${progress.cutoffTrial}` : `${rule.previous.toUpperCase()} score requirements could not be located in the chronological export` },
       { done: progress.verified && progress.excellent >= rule.excellent, text: `${progress.verified ? progress.excellent : "—"}/${rule.excellent} additional Excellent combinations` },
       { done: progress.verified && progress.gold >= rule.gold, text: `${progress.verified ? progress.gold : "—"}/${rule.gold} additional Excellent Gold combinations` }
     ];
+    if (rule.maxAdvanced) items.push({ done: progress.verified && countedTotal >= 10, text: `${progress.verified ? Math.min(10, countedTotal) : "—"}/10 additional combinations counted (${progress.verified ? progress.excellent : 0} Excellent + ${progress.verified ? countedAdvanced : 0} Advanced)` });
     if (rule.maxAdvanced) items.push({ done: progress.verified, text: progress.verified ? `${countedAdvanced} of up to ${rule.maxAdvanced} Advanced combinations may be included (optional)` : "Advanced score allowance cannot be checked until the previous title cutoff is known" });
     items.push({ done: progress.verified, text: progress.verified ? `Only Qs from trials after Trial ${progress.cutoffTrial} count` : "Previous title score sequence could not be established from the uploaded chronological score list" });
     championCards.push({ name: rule.name, found, met: !!found || met, items });
@@ -775,14 +786,17 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
   repeatMachRules.forEach((rule) => {
     if (championshipTitle(rule.key) || !machStageMet.get(rule.previous)) return;
     const previous = championshipTitle(rule.previous), progress = machExtensionProgress(rule, previous);
-    const countedAdvanced = rule.maxAdvanced ? Math.min(progress.advanced, rule.maxAdvanced) : 0;
+    const countedAdvanced = rule.maxAdvanced ? Math.min(progress.advanced, rule.maxAdvanced, Math.max(0, 10 - progress.excellent)) : 0;
     const countedTotal = progress.excellent + countedAdvanced;
     const items = progress.verified ? [
+      previous ? `${rule.previous.toUpperCase()} recorded · cutoff Trial ${progress.cutoffTrial}` : `${rule.previous.toUpperCase()} requirements reached · inferred chronological Trial ${progress.cutoffTrial}`,
       `${progress.excellent}/${rule.excellent} additional Excellent combinations`,
       `${progress.gold}/${rule.gold} additional Excellent Gold combinations`,
-      ...(rule.maxAdvanced ? [`${countedAdvanced} Advanced combinations counted · ${countedTotal}/10 total`] : [])
-    ] : ["Previous title trial cutoff and complete trial numbers required; only later scores may count."];
-    targets.push({ name: rule.name, kind: "Scent", needed: progress.verified ? Math.max(Math.max(0,rule.excellent-progress.excellent),Math.max(0,rule.gold-progress.gold),0) : 1, items });
+      ...(rule.maxAdvanced ? [`${Math.min(10, countedTotal)}/10 additional combinations counted (${progress.excellent} Excellent + ${countedAdvanced} Advanced)`] : []),
+      ...(rule.maxAdvanced ? [`${countedAdvanced} of up to ${rule.maxAdvanced} Advanced combinations may be included (optional)`] : []),
+      `Only Qs from trials after Trial ${progress.cutoffTrial} count`
+    ] : ["Previous title cutoff could not be established from the chronological score rows; only later scores may count."];
+    targets.push({ name: rule.name, kind: "Scent", needed: progress.verified ? Math.max(Math.max(0, 10 - Math.min(10, countedTotal)), Math.max(0,rule.excellent-progress.excellent), Math.max(0,rule.gold-progress.gold)) : 1, items });
   });
   repeatEliteRules.forEach((rule) => { if (championshipTitle(rule.key)) return; const previous = championshipTitle(rule.previous); if (!previous) return; const eligible = scoreRowsAfterTitle(previous), sets = eligible ? eliteSets(eligible) : [], eliteGold = sets.filter((set) => set.gold).length; const needed = eligible ? Math.max(Math.max(0, 5 - sets.length), Math.max(0, rule.gold - eliteGold)) : 1; targets.push({ name: rule.name, kind: "Scent", needed, items: eligible ? [`${Math.max(0, 5 - sets.length)} more new Elite scores`, `${Math.max(0, rule.gold - eliteGold)} more new Elite Gold scores`] : [`Recorded ${rule.previous.toUpperCase()} title date and complete score dates required`] }); });
   gameTargets.filter((target) => target.needed > 0).forEach((target) => targets.push(target));
