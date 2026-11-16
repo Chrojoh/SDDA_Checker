@@ -158,20 +158,26 @@ function workbookDate(value) {
   if (!text) return "";
   const parsed = new Date(text); return Number.isNaN(parsed.valueOf()) ? "" : parsed.toISOString().slice(0, 10);
 }
+function chronologicalTrialGroups(level, list = scores) {
+  const byTrial = new Map();
+  const ordered = list.filter((score) => score.level === level).sort((a, b) => a.sourceRow - b.sourceRow);
+  for (const row of ordered) {
+    const trialNumber = Number(row.trial);
+    const key = row.trial && Number.isSafeInteger(trialNumber) && trialNumber > 0
+      ? `trial:${trialNumber}`
+      : `row:${row.sourceRow}`;
+    if (!byTrial.has(key)) byTrial.set(key, { key, trial: row.trial, rows: [] });
+    byTrial.get(key).rows.push(row);
+  }
+  return [...byTrial.values()];
+}
+
 function initialSpecialSet(level, list = scores) {
   if (level !== "Advanced" && level !== "Excellent") return null;
-  const ordered = list.filter((score) => score.level === level).sort((a, b) => {
-    if (a.date && b.date && a.date !== b.date) return a.date.localeCompare(b.date);
-    const aTrial = Number(a.trial), bTrial = Number(b.trial);
-    if (Number.isFinite(aTrial) && Number.isFinite(bTrial) && aTrial !== bTrial) return aTrial - bTrial;
-    return a.sourceRow - b.sourceRow;
-  });
-  const groups = [];
-  for (const row of ordered) {
-    const key = row.trial ? `trial:${row.trial}` : `row:${row.sourceRow}`;
-    const previous = groups[groups.length - 1];
-    if (previous?.key === key) previous.rows.push(row); else groups.push({ key, rows: [row] });
-  }
+  // Special status depends on which trial first completed all three components.
+  // Use the uploaded sheet's chronological row order and group all rows for a
+  // trial together, even when that trial's rows are not adjacent.
+  const groups = chronologicalTrialGroups(level, list);
   const passed = new Set();
   for (const group of groups) {
     const titledBefore = COMPONENTS.every((component) => passed.has(component));
@@ -291,18 +297,10 @@ function inferredTitles() {
   for (const level of ["Started", "Advanced", "Excellent"]) {
     const rows = byLevel(level);
     if (!COMPONENTS.every((component) => rows.some((row) => row.component === component))) continue;
-    const ordered = [...rows].sort((a, b) => {
-      if (a.date && b.date && a.date !== b.date) return a.date.localeCompare(b.date);
-      const aTrial = Number(a.trial), bTrial = Number(b.trial);
-      if (Number.isFinite(aTrial) && Number.isFinite(bTrial) && aTrial !== bTrial) return aTrial - bTrial;
-      return a.sourceRow - b.sourceRow;
-    });
-    const groups = [];
-    for (const row of ordered) {
-      const key = row.trial ? `trial:${row.trial}` : `row:${row.sourceRow}`;
-      const previous = groups[groups.length - 1];
-      if (previous?.key === key) previous.rows.push(row); else groups.push({ key, rows: [row] });
-    }
+    // Use the score export's top-to-bottom chronological order. Trial Number
+    // values are identifiers, not sortable timestamps; group repeated rows
+    // even when the same trial appears in non-adjacent rows.
+    const groups = chronologicalTrialGroups(level, rows);
     const seen = [], passed = new Set();
     let completionGroup = null, special = false;
     for (const group of groups) {
