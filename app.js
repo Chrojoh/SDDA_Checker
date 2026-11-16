@@ -566,7 +566,7 @@ function render() {
     if (!previousMet && !achieved) continue;
     const progress = machExtensionProgress(extension, extension.prior || extension.previous);
     const countedAdvanced = extension.maxAdvanced ? Math.min(progress.advanced, extension.maxAdvanced, Math.max(0, 10 - progress.excellent)) : 0;
-    const met = previousMet && progress.verified && progress.excellent >= extension.excellent && progress.gold >= extension.gold;
+    const met = previousMet && progress.verified && countedTotal >= 10 && progress.excellent >= extension.excellent && progress.gold >= extension.gold;
     const requirements = [
       { done: previousMet && progress.verified, text: progress.verified ? `${extension.previous.toUpperCase()} progression requirement met${extension.prior ? " · SDDA title recorded" : " by calculated score requirements"} · cutoff Trial ${progress.cutoffTrial}` : `${extension.previous.toUpperCase()} progression is recognized, but its completion trial cannot be established from the score-file trial sequence` },
       { done: progress.verified && progress.excellent >= extension.excellent, text: `${progress.verified ? progress.excellent : "—"}/${extension.excellent} additional Excellent combinations` },
@@ -789,7 +789,7 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
     const countedAdvanced = rule.maxAdvanced ? Math.min(progress.advanced, rule.maxAdvanced, Math.max(0, 10 - progress.excellent)) : 0;
     const countedTotal = progress.excellent + countedAdvanced;
     const items = progress.verified ? [
-      `${rule.previous.toUpperCase()} requirements reached · inferred chronological Trial ${progress.cutoffTrial}`,
+      previous ? `${rule.previous.toUpperCase()} recorded · cutoff Trial ${progress.cutoffTrial}` : `${rule.previous.toUpperCase()} requirements reached · inferred chronological Trial ${progress.cutoffTrial}`,
       `${progress.excellent}/${rule.excellent} additional Excellent combinations`,
       `${progress.gold}/${rule.gold} additional Excellent Gold combinations`,
       ...(rule.maxAdvanced ? [`${Math.min(10, countedTotal)}/10 additional combinations counted (${progress.excellent} Excellent + ${countedAdvanced} Advanced)`] : []),
