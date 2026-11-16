@@ -206,15 +206,78 @@ function highToLow(level, list = scores) {
   return combinations;
 }
 
+
+function titleLockForLevel(level, list = scores) {
+  const rows = list.filter((row) => row.level === level).sort((a, b) => a.sourceRow - b.sourceRow);
+  if (!rows.length) return null;
+  const includedRows = new Set(rows.map((row) => row.sourceRow));
+  const special = initialSpecialSet(level, rows);
+  if (special && COMPONENTS.every((component) => includedRows.has(special.parts[component].sourceRow))) {
+    return { ...special, special: true, recorded: false };
+  }
+
+  const matchingTitles = titles
+    .filter((title) => new RegExp("^" + level + "(?:\\\\s|$)", "i").test(String(title.description || "").trim()))
+    .filter((title) => !/\\\\bSpecial\\\\b/i.test(String(title.description || "")))
+    .sort((a, b) => String(a.date || "9999-99-99").localeCompare(String(b.date || "9999-99-99")));
+  const recordedTitle = matchingTitles[0] || null;
+  let eligibleRows = rows;
+  let recorded = false;
+  let titleDate = "";
+  if (recordedTitle?.date) {
+    titleDate = recordedTitle.date;
+    eligibleRows = rows.filter((row) => row.date && row.date <= titleDate);
+    recorded = true;
+  } else {
+    const groups = chronologicalTrialGroups(level, rows);
+    const seen = [];
+    const passed = new Set();
+    let completed = false;
+    for (const group of groups) {
+      seen.push(...group.rows);
+      group.rows.forEach((row) => passed.add(row.component));
+      if (COMPONENTS.every((component) => passed.has(component))) {
+        eligibleRows = seen;
+        completed = true;
+        break;
+      }
+    }
+    if (!completed) return null;
+  }
+  const parts = Object.fromEntries(COMPONENTS.map((component) => [
+    component,
+    eligibleRows.filter((row) => row.component === component)
+      .sort((a, b) => b.score - a.score || a.sourceRow - b.sourceRow)[0]
+  ]));
+  if (!COMPONENTS.every((component) => parts[component])) return null;
+  return {
+    level, parts,
+    total: COMPONENTS.reduce((sum, component) => sum + parts[component].score, 0),
+    gold: COMPONENTS.reduce((sum, component) => sum + parts[component].score, 0) >= 192,
+    special: false, recorded, date: titleDate || parts.Container.date || ""
+  };
+}
+
 function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
-  const originalSpecial = initialSpecialSet(level, scores);
-  const includedRows = new Set(list.map((score) => score.sourceRow));
-  const special = originalSpecial && COMPONENTS.every((component) => includedRows.has(originalSpecial.parts[component].sourceRow)) ? originalSpecial : null;
-  const lockedRows = new Set(special ? COMPONENTS.map((component) => special.parts[component].sourceRow) : []);
+  const titleLock = titleLockForLevel(level, list);
+  const lockedRows = new Set(titleLock ? COMPONENTS.map((component) => titleLock.parts[component].sourceRow) : []);
   const eligible = list.filter((score) => score.level === level && !lockedRows.has(score.sourceRow));
   const ranked = Object.fromEntries(COMPONENTS.map((component) => [component, eligible.filter((score) => score.component === component).sort((a, b) => b.score - a.score || a.sourceRow - b.sourceRow)]));
-  const count = Math.min(Math.max(0, maximum - (special ? 1 : 0)), ...COMPONENTS.map((component) => ranked[component].length));
-  const locked = special ? [{ rank: "SP", container: special.parts.Container, interior: special.parts.Interior, exterior: special.parts.Exterior, total: special.total, gold: special.gold, special: true, level, trial: special.trial }] : [];
+  const locked = titleLock ? [{
+    rank: titleLock.special ? "SP" : 1,
+    container: titleLock.parts.Container,
+    interior: titleLock.parts.Interior,
+    exterior: titleLock.parts.Exterior,
+    total: titleLock.total,
+    gold: titleLock.gold,
+    special: !!titleLock.special,
+    titleLocked: !titleLock.special,
+    titleRecorded: !!titleLock.recorded,
+    titleDate: titleLock.date || "",
+    level,
+    trial: titleLock.trial || titleLock.parts.Container.trial || ""
+  }] : [];
+  const count = Math.min(Math.max(0, maximum - locked.length), ...COMPONENTS.map((component) => ranked[component].length));
   if (!count) return locked;
 
   // Exact maximum-cardinality 3-partite matching for Gold (>=192). Each score row
@@ -248,9 +311,9 @@ function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
       if (tail.gold + 1 > best.gold) {
         best = { gold: tail.gold + 1, picks: [{ containerIndex: index, ...pair }, ...tail.picks] };
         const usedICount = usedI.toString(2).replace(/0/g, "").length;
-      const usedECount = usedE.toString(2).replace(/0/g, "").length;
-      const remainingUpperBound = Math.min(containers.length - index, interiors.length - usedICount, exteriors.length - usedECount);
-      if (best.gold === remainingUpperBound) break;
+        const usedECount = usedE.toString(2).replace(/0/g, "").length;
+        const remainingUpperBound = Math.min(containers.length - index, interiors.length - usedICount, exteriors.length - usedECount);
+        if (best.gold === remainingUpperBound) break;
       }
     }
     memo.set(key, best);
@@ -263,8 +326,7 @@ function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
     usedC.add(container.sourceRow); usedI.add(interior.sourceRow); usedE.add(exterior.sourceRow);
     goldSets.push({ level, container, interior, exterior, total: pick.total, gold: true });
   }
-  // Complete as many additional non-Gold titling scores as possible after the
-  // maximum Gold solution; no component already used by a Gold set is reused.
+  // Complete additional non-Gold combinations without reusing component rows.
   const remainingC = ranked.Container.filter((row) => !usedC.has(row.sourceRow));
   const remainingI = ranked.Interior.filter((row) => !usedI.has(row.sourceRow));
   const remainingE = ranked.Exterior.filter((row) => !usedE.has(row.sourceRow));
@@ -276,7 +338,6 @@ function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
   });
   return [...locked, ...[...goldSets, ...rest].filter((set) => set.total >= 100).sort((a, b) => b.total - a.total).map((set, index) => ({ ...set, rank: index + 1 }))];
 }
-
 function eliteSets(list = scores) {
   const trials = new Map();
   list.filter((score) => score.level === "Elite").forEach((score) => {
