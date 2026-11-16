@@ -1009,9 +1009,9 @@ async function downloadPdfReport() {
   let activeTitleGroup = "";
   const titleGroup = (description) => {
     const value = String(description || "").trim().toUpperCase()
-      .replace(/\\s+SPECIAL$/, "")
-      .replace(/\\s*\\(SD-G[ADST]\\)\\s*$/, "");
-    if (/^(AERIAL|DISTANCE|SPEED|TEAM)\\b/.test(value) || /^SD-GCH(?:2|3|4|5)?$/.test(value)) return "Games Titles and Championships";
+      .replace(/\s+SPECIAL$/, "")
+      .replace(/\s*\(SD-G[ADST]\)\s*$/, "");
+    if (/^(AERIAL|DISTANCE|SPEED|TEAM)\b/.test(value) || /^SD-GCH(?:2|3|4|5)?$/.test(value)) return "Games Titles and Championships";
     if (/^SD-(?:CH|MACH(?:2|3|4)?|ELCH(?:2|3|4)?|GMCH)$/.test(value)) return "Scent Championships";
     return "Scent Titles";
   };
