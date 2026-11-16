@@ -388,7 +388,7 @@ function machTitleStage(title) {
 }
 
 function machTrialGroups() {
-  const relevant = scores.filter((score) => score.level === "Advanced" || score.level === "Excellent");
+  const relevant = scores.filter((score) => score.level === "Advanced" || score.level === "Excellent").sort((a, b) => a.sourceRow - b.sourceRow);
   if (relevant.some((score) => {
     const trial = Number(score.trial);
     return !score.trial || !Number.isSafeInteger(trial) || trial <= 0;
