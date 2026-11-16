@@ -98,7 +98,37 @@ function byLevel(level, list = scores) { return list.filter((score) => score.lev
 function componentCounts(level, list = scores) { return Object.fromEntries(COMPONENTS.map((component) => [component, list.filter((score) => score.level === level && score.component === component).length])); }
 function gamePassCounts(){return Object.fromEntries(GAME_NAMES.map(g=>[g,Math.max(games.filter(r=>r.game===g&&r.pass!==false).length,gamesTitleRecorded(g)?3:0)]));}
 const GAME_CHAMPIONSHIP_RULES=[{key:"gch",name:"SD-GCH",type:"base",target:0,text:"3 passes in each of any 3 Games"},{key:"gch2",name:"SD-GCH2",type:"three",target:4,text:"4 additional passes across any 3 Games (13 cumulative)"},{key:"gch3",name:"SD-GCH3",type:"three",target:9,text:"5 additional passes after GCH2 (18 cumulative)"},{key:"gch4",name:"SD-GCH4",type:"three",target:16,text:"7 additional passes after GCH3 (25 cumulative)"},{key:"gch5",name:"SD-GCH5",type:"four",target:26,text:"10 additional passes after GCH4 across all 4 Games (35 cumulative)"}];
-function gameChampionshipProgress(counts,rule){let best=null;for(let a=0;a<4;a++)for(let b=a+1;b<4;b++)for(let c=b+1;c<4;c++){const trio=[GAME_NAMES[a],GAME_NAMES[b],GAME_NAMES[c]],fourth=GAME_NAMES.find(g=>!trio.includes(g)),qualifiedGames=trio.filter(g=>counts[g]>=3).length,baseMissing=trio.reduce((sum,g)=>sum+Math.max(0,3-counts[g]),0),extras3=trio.reduce((sum,g)=>sum+Math.max(0,counts[g]-3),0),extras=rule.type==="four"?extras3+counts[fourth]:extras3,missingAdditionalGames=rule.type==="four"?GAME_NAMES.filter(g=>counts[g]<=0).length:0,remaining=rule.type==="base"?3-qualifiedGames:baseMissing+Math.max(Math.max(0,rule.target-extras),missingAdditionalGames),met=rule.type==="base"?qualifiedGames===3:baseMissing===0&&extras>=rule.target&&missingAdditionalGames===0;if(!best||remaining<best.remaining||(remaining===best.remaining&&(qualifiedGames>best.qualifiedGames||qualifiedGames===best.qualifiedGames&&extras>best.extras)))best={met,remaining,extras,baseMissing,qualifiedGames,trio,fourth};}return {...best,progressText:rule.type==="base"?best.qualifiedGames+"/3 Games have at least 3 passes ("+best.trio.join(", ")+")":best.qualifiedGames+"/3 Games meet the initial 3-pass minimum · "+best.extras+"/"+rule.target+" additional passes in "+best.trio.join(", ")+(rule.type==="four"?" + "+best.fourth:"")};}
+function gameChampionshipProgress(counts, rule) {
+  let best = null;
+  for (let a = 0; a < 4; a++) for (let b = a + 1; b < 4; b++) for (let c = b + 1; c < 4; c++) {
+    const trio = [GAME_NAMES[a], GAME_NAMES[b], GAME_NAMES[c]];
+    const fourth = GAME_NAMES.find((game) => !trio.includes(game));
+    const qualifiedGames = trio.filter((game) => counts[game] >= 3).length;
+    const baseMissing = trio.reduce((sum, game) => sum + Math.max(0, 3 - counts[game]), 0);
+    const extras3 = trio.reduce((sum, game) => sum + Math.max(0, counts[game] - 3), 0);
+    const extras = rule.type === "four" ? extras3 + counts[fourth] : extras3;
+    const missingAdditionalGames = rule.type === "four" ? GAME_NAMES.filter((game) => counts[game] <= 0).length : 0;
+    const topThreeTotal = trio.reduce((sum, game) => sum + counts[game], 0);
+    const allFourTotal = GAME_NAMES.reduce((sum, game) => sum + counts[game], 0);
+    const baseMet = qualifiedGames === 3;
+    const remaining = rule.type === "base"
+      ? baseMissing
+      : baseMissing + Math.max(Math.max(0, rule.target - extras), missingAdditionalGames);
+    const met = rule.type === "base"
+      ? baseMet
+      : baseMet && extras >= rule.target && missingAdditionalGames === 0;
+    const candidate = { met, remaining, extras, baseMissing, baseMet, qualifiedGames, trio, fourth, topThreeTotal, allFourTotal };
+    if (!best || candidate.remaining < best.remaining ||
+      (candidate.remaining === best.remaining && candidate.qualifiedGames > best.qualifiedGames) ||
+      (candidate.remaining === best.remaining && candidate.qualifiedGames === best.qualifiedGames && candidate.extras > best.extras)) {
+      best = candidate;
+    }
+  }
+  const progressText = rule.type === "base"
+    ? `${best.qualifiedGames}/3 Games have at least 3 passes (${best.trio.join(", ")}) · ${best.topThreeTotal} total passes across those Games`
+    : `${best.qualifiedGames}/3 Games meet the initial 3-pass minimum · ${best.extras}/${rule.target} additional passes in ${best.trio.join(", ")}${rule.type === "four" ? " + " + best.fourth : ""}`;
+  return { ...best, progressText };
+}
 
 
 function validComponentScore(level, component, value) {
@@ -706,10 +736,10 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
 }).join("");
   const gchProgress = GAME_CHAMPIONSHIP_RULES.map(rule => ({ rule, found: championshipTitle(rule.key), ...gameChampionshipProgress(gameCounts, rule) }));
   // Keep all four individual Games titles and GCH through GCH5 in one visible list.
-  $("mobile-game-titles").innerHTML += gchProgress.map(({ rule, found, remaining, met, progressText }) =>
+  $("mobile-game-titles").innerHTML += gchProgress.map(({ rule, found, remaining, met, progressText, qualifiedGames }) =>
     accordion({
       name: rule.name,
-      subtitle: found ? "Recorded by SDDA" : met ? "Current-rule pass requirements met" : rule.type === "base" ? qualifiedGames + "/3 Games qualifying" : String(remaining) + " more pass(es) needed",
+      subtitle: found ? "Recorded by SDDA" : met ? "Current-rule pass requirements met" : rule.type === "base" ? qualifiedGames + "/3 Games qualifying" : String(remaining) + " more qualifying passes needed",
       achieved: met || !!found,
       date: found?.date,
       body: reqList([
