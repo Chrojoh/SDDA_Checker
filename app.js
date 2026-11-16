@@ -991,7 +991,22 @@ async function downloadPdfReport() {
   text(`Generated ${new Date().toLocaleDateString()} from the member's SDDA account downloads.`, { size: 8, color: rgb(.4, .45, .42), after: 8 });
 
   heading("Titles achieved");
-  for (const title of reportAchievedTitles()) {
+  const achievedTitles = reportAchievedTitles();
+  let activeTitleGroup = "";
+  const titleGroup = (description) => {
+    const value = description.toUpperCase();
+    if (/^SD-MACH(?:2|3|4)?$/.test(value)) return "MACH Championships";
+    if (/^SD-ELCH(?:2|3|4)?$/.test(value)) return "ELCH Championships";
+    if (/^(AERIAL|DISTANCE|SPEED|TEAM)\\b/.test(value) || /^SD-GCH(?:2|3|4|5)?$/.test(value)) return "Games Titles and Championships";
+    if (/^SD-(?:CH|GMCH)$/.test(value)) return "Other Scent Championships";
+    return "Scent Titles";
+  };
+  for (const title of achievedTitles) {
+    const group = titleGroup(title.description);
+    if (group !== activeTitleGroup) {
+      text(group, { size: 10, bold: true, color: rgb(.14, .29, .23), before: 5, after: 3 });
+      activeTitleGroup = group;
+    }
     const details = [dateLabel(title.date), title.score == null || Number.isNaN(title.score) ? "" : `Score ${title.score}`, title.honours || ""].filter(Boolean).join(" | ");
     text(`${title.description} — ${title.calculated ? "Calculated" : "SDDA recorded"}${details ? " | " + details : ""}`, { size: 9, bold: true, color: title.calculated ? rgb(.28, .36, .31) : rgb(.10, .14, .12), after: 2 });
   }
