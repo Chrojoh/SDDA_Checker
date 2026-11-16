@@ -1102,6 +1102,8 @@ async function downloadPdfReport() {
     const note = card.querySelector("p")?.textContent; if (note) text(note, { indent: 12, size: 8, color: rgb(.38, .43, .4), after: 5 });
   }
 
+  const classification = (total) => total >= 192 ? "Gold" : total >= 172 ? "Silver" : total >= 142 ? "Bronze" : total >= 100 ? "Satisfactory" : "Insufficient";
+
   heading("Score classifications by level");
   text("Score columns: the number in brackets after each component score is its trial number. Advanced and Excellent components are calculated separately; Elite components are grouped by trial.", { size: 9, color: rgb(.35, .42, .38), after: 5 });
   const componentWithTrial = (component) => component ? `${component.score} (${component.trial || "-"})` : "-";
