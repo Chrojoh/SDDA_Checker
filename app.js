@@ -287,10 +287,22 @@ function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
 
   const titleLock = titleLockForLevel(level, list);
   const lockedRows = new Set(titleLock ? COMPONENTS.map((component) => titleLock.parts[component].sourceRow) : []);
-  const eligible = list.filter((score) => score.level === level && !lockedRows.has(score.sourceRow));
+  // Keep every unlocked score for the later Silver/Bronze pass, but
+  // exclude component scores that cannot possibly reach 192 from Gold search.
+  const allEligible = list.filter((score) => score.level === level && !lockedRows.has(score.sourceRow));
+  const allRanked = Object.fromEntries(COMPONENTS.map((component) => [
+    component,
+    allEligible.filter((score) => score.component === component)
+      .sort((a, b) => b.score - a.score || a.sourceRow - b.sourceRow)
+  ]));
+  const goldEligible = allEligible.filter((score) =>
+    (score.component === "Container" && score.score > 51) ||
+    (score.component === "Exterior" && score.score > 51) ||
+    (score.component === "Interior" && score.score > 71)
+  );
   const ranked = Object.fromEntries(COMPONENTS.map((component) => [
     component,
-    eligible.filter((score) => score.component === component)
+    goldEligible.filter((score) => score.component === component)
       .sort((a, b) => b.score - a.score || a.sourceRow - b.sourceRow)
   ]));
   const locked = titleLock ? [{
@@ -307,8 +319,9 @@ function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
     level,
     trial: titleLock.trial || titleLock.parts.Container.trial || ""
   }] : [];
-  const count = Math.min(Math.max(0, maximum - locked.length), ...COMPONENTS.map((component) => ranked[component].length));
-  if (!count) return cacheGoldResult(cacheKey, [...locked], true, 0);
+  const remainingLimit = Math.max(0, maximum - locked.length);
+  const count = Math.min(remainingLimit, ...COMPONENTS.map((component) => ranked[component].length));
+  if (!remainingLimit) return cacheGoldResult(cacheKey, [...locked], true, 0);
 
   const minimumComponentTotal =
     Math.min(...ranked.Container.map((row) => row.score)) +
@@ -430,10 +443,12 @@ function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
       gold: true
     });
   }
-  const remainingC = ranked.Container.filter((row) => !usedC.has(row.sourceRow));
-  const remainingI = ranked.Interior.filter((row) => !usedI.has(row.sourceRow));
-  const remainingE = ranked.Exterior.filter((row) => !usedE.has(row.sourceRow));
-  const remainingCount = Math.min(count - goldSets.length, remainingC.length, remainingI.length, remainingE.length);
+  // Rebuild the remainder from ALL unlocked records, including low scores
+  // deliberately held out of Gold search (C/E <= 51; I <= 71).
+  const remainingC = allRanked.Container.filter((row) => !usedC.has(row.sourceRow));
+  const remainingI = allRanked.Interior.filter((row) => !usedI.has(row.sourceRow));
+  const remainingE = allRanked.Exterior.filter((row) => !usedE.has(row.sourceRow));
+  const remainingCount = Math.min(remainingLimit - goldSets.length, remainingC.length, remainingI.length, remainingE.length);
   const rest = Array.from({ length: remainingCount }, (_, index) => {
     const container = remainingC[index], interior = remainingI[index], exterior = remainingE[index];
     const total = container.score + interior.score + exterior.score;
