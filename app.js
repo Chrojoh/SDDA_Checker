@@ -773,7 +773,7 @@ function machCutoffRowForTitle(title) {
       else if (currentStage === 3) met = excellent.length >= 10 && excellentGold >= 3;
       else if (currentStage === 4) met = excellent.length >= 10 && excellentGold >= 4;
       const searchComplete =
-        advanced.every((set) => set.optimizationComplete !== false) &&
+        advanced.optimizationComplete !== false &&
         excellent.optimizationComplete !== false;
       // If the bounded search stopped early and did not find enough valid
       // combinations, do not move the title cutoff forward on a false negative.
