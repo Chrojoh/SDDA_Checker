@@ -264,7 +264,8 @@ function maximizeGoldCombinations(level, list = scores, maximum = 10, includeTit
     const total = container.score + interior.score + exterior.score;
     return { level, container, interior, exterior, total, gold: total >= 192 };
   });
-  const result = [...locked, ...combinations.sort((a, b) => b.total - a.total)
+  const result = [...locked, ...combinations.filter((set) => set.total >= 100)
+    .sort((a, b) => b.total - a.total)
     .map((set, index) => ({ ...set, rank: index + 1 }))];
   result.optimizationComplete = true;
   result.searchNodes = 0;
