@@ -327,7 +327,7 @@ function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
     Math.min(...ranked.Container.map((row) => row.score)) +
     Math.min(...ranked.Interior.map((row) => row.score)) +
     Math.min(...ranked.Exterior.map((row) => row.score));
-  if (minimumComponentTotal >= 192) {
+  if (count > 0 && minimumComponentTotal >= 192) {
     const lowC = [...ranked.Container].sort((a, b) => a.score - b.score || a.sourceRow - b.sourceRow).slice(0, count);
     const lowI = [...ranked.Interior].sort((a, b) => a.score - b.score || a.sourceRow - b.sourceRow).slice(0, count);
     const lowE = [...ranked.Exterior].sort((a, b) => a.score - b.score || a.sourceRow - b.sourceRow).slice(0, count);
