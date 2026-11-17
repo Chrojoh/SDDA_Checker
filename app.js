@@ -261,10 +261,15 @@ function titleLockForLevel(level, list = scores) {
   };
 }
 
+const GOLD_SEARCH_NODE_LIMIT = 30000;
+const goldCombinationCache = new Map();
+
 function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
-  // A regular title (including one earned across different trials) locks only
-  // its three component source rows. An initial same-trial SP uses its own
-  // existing lock. No other score from those trials is removed.
+  const titleFingerprint = JSON.stringify((titles || []).map((title) => [title.description, title.date, title.score]));
+  const rowFingerprint = list.map((row) => [row.sourceRow, row.level, row.component, row.score, row.trial, row.date].join(":")).join("|");
+  const cacheKey = [level, maximum, titleFingerprint, rowFingerprint].join("||");
+  if (goldCombinationCache.has(cacheKey)) return goldCombinationCache.get(cacheKey);
+
   const titleLock = titleLockForLevel(level, list);
   const lockedRows = new Set(titleLock ? COMPONENTS.map((component) => titleLock.parts[component].sourceRow) : []);
   const eligible = list.filter((score) => score.level === level && !lockedRows.has(score.sourceRow));
@@ -288,11 +293,8 @@ function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
     trial: titleLock.trial || titleLock.parts.Container.trial || ""
   }] : [];
   const count = Math.min(Math.max(0, maximum - locked.length), ...COMPONENTS.map((component) => ranked[component].length));
-  if (!count) return locked;
+  if (!count) return cacheGoldResult(cacheKey, [...locked], true, 0);
 
-  // If even the lowest score in each component clears 192, every possible
-  // triple is Gold. The exact minimum-surplus answer is then simply the
-  // lowest 'count' scores from each component; no combinatorial search needed.
   const minimumComponentTotal =
     Math.min(...ranked.Container.map((row) => row.score)) +
     Math.min(...ranked.Interior.map((row) => row.score)) +
@@ -305,15 +307,10 @@ function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
       level, container: lowC[index], interior: lowI[index], exterior: lowE[index],
       total: lowC[index].score + lowI[index].score + lowE[index].score, gold: true
     }));
-    return [...locked, ...goldSets.sort((a, b) => a.total - b.total)
-      .map((set, index) => ({ ...set, rank: index + 1 }))];
+    return cacheGoldResult(cacheKey, [...locked, ...goldSets.sort((a, b) => a.total - b.total)
+      .map((set, index) => ({ ...set, rank: index + 1 }))], true, 0);
   }
 
-  // Exact maximum-cardinality Gold matching. First maximize the number of
-  // distinct C/I/E triples >=192; among equal-count solutions, minimize the
-  // total (therefore minimizing surplus above 192). Every source row is used
-  // at most once. Pair ordering and the theoretical lower-bound exit make
-  // exact-192 solutions much cheaper to discover and prove.
   const interiors = ranked.Interior;
   const exteriors = ranked.Exterior;
   const candidates = ranked.Container.map((container) => {
@@ -332,14 +329,36 @@ function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
       a.container.sourceRow - b.container.sourceRow);
 
   const memo = new Map();
+  let visited = 0;
+  let exhausted = false;
   const bitCount = (mask) => {
     let n = 0;
     while (mask) { mask &= mask - 1n; n++; }
     return n;
   };
+  const better = (a, b) => a.gold > b.gold || (a.gold === b.gold && a.total < b.total);
+
+  // Seed a valid lower-bound solution before the bounded exact search begins.
+  const seedUsedI = new Set(), seedUsedE = new Set(), seedPicks = [];
+  for (const candidate of candidates) {
+    if (seedPicks.length >= count) break;
+    const pair = candidate.pairs.find((item) => !seedUsedI.has(item.i) && !seedUsedE.has(item.e));
+    if (!pair) continue;
+    seedUsedI.add(pair.i); seedUsedE.add(pair.e);
+    seedPicks.push({ container: candidate.container, ...pair });
+  }
+  const seed = {
+    gold: seedPicks.length,
+    total: seedPicks.reduce((sum, pick) => sum + pick.total, 0),
+    picks: seedPicks
+  };
 
   function solve(index, usedI, usedE) {
-    if (index >= candidates.length) return { gold: 0, total: 0, picks: [] };
+    if (index >= candidates.length || exhausted) return { gold: 0, total: 0, picks: [] };
+    if (++visited > GOLD_SEARCH_NODE_LIMIT) {
+      exhausted = true;
+      return { gold: 0, total: 0, picks: [] };
+    }
     const key = index + "|" + usedI.toString(36) + "|" + usedE.toString(36);
     const cached = memo.get(key);
     if (cached) return cached;
@@ -352,9 +371,12 @@ function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
       interiors.length - usedICount,
       exteriors.length - usedECount
     );
-    let best = solve(index + 1, usedI, usedE);
+    if (upperBound <= 0) return { gold: 0, total: 0, picks: [] };
 
+    let best = { gold: 0, total: 0, picks: [] };
     const candidate = candidates[index];
+
+    // Explore valid triples first so a strong solution is found early.
     for (const pair of candidate.pairs) {
       const bitI = 1n << BigInt(pair.i);
       const bitE = 1n << BigInt(pair.e);
@@ -365,17 +387,20 @@ function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
         total: tail.total + pair.total,
         picks: [{ container: candidate.container, ...pair }, ...tail.picks]
       };
-      if (proposed.gold > best.gold ||
-        (proposed.gold === best.gold && proposed.total < best.total)) {
-        best = proposed;
-      }
-      if (best.gold === upperBound && best.total === 192 * best.gold) break;
+      if (better(proposed, best)) best = proposed;
+      if (exhausted || (best.gold === upperBound && best.total === 192 * best.gold)) break;
     }
-    memo.set(key, best);
+
+    if (!exhausted && best.gold < upperBound) {
+      const skipped = solve(index + 1, usedI, usedE);
+      if (better(skipped, best)) best = skipped;
+    }
+    if (!exhausted) memo.set(key, best);
     return best;
   }
 
-  const optimum = solve(0, 0n, 0n);
+  const searched = solve(0, 0n, 0n);
+  const optimum = better(searched, seed) ? searched : seed;
   const usedC = new Set(), usedI = new Set(), usedE = new Set(), goldSets = [];
   for (const pick of optimum.picks) {
     usedC.add(pick.container.sourceRow);
@@ -399,11 +424,19 @@ function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
     const total = container.score + interior.score + exterior.score;
     return { level, container, interior, exterior, total, gold: total >= 192 };
   });
-  return [...locked, ...[...goldSets, ...rest].filter((set) => set.total >= 100)
+  const result = [...locked, ...[...goldSets, ...rest].filter((set) => set.total >= 100)
     .sort((a, b) => b.total - a.total)
     .map((set, index) => ({ ...set, rank: index + 1 }))];
+  return cacheGoldResult(cacheKey, result, !exhausted, visited);
 }
 
+function cacheGoldResult(key, result, complete, nodes) {
+  result.optimizationComplete = complete;
+  result.searchNodes = nodes;
+  goldCombinationCache.set(key, result);
+  if (goldCombinationCache.size > 12) goldCombinationCache.delete(goldCombinationCache.keys().next().value);
+  return result;
+}
 function eliteSets(list = scores) {
   const trials = new Map();
   list.filter((score) => score.level === "Elite").forEach((score) => {
@@ -718,6 +751,10 @@ function render() {
   $("message").textContent = titles.length
     ? "Scores and recorded titles loaded. Results are saved on this device."
     : "Scores loaded. Achievements are calculated from score history and are not official SDDA confirmation.";
+  window.sddaGoldOptimizationWarning = [summaryAdvanced, summaryExcellent].some((sets) => sets.optimizationComplete === false)
+    ? "The Gold search reached its safety limit. Displayed combinations are the best found so far, not a proven maximum."
+    : "";
+  if (window.sddaGoldOptimizationWarning) $("message").textContent += " " + window.sddaGoldOptimizationWarning;
 
   const shownTitles = displayedTitles();
   $("achieved").innerHTML = shownTitles.map((title) => `<article class="title-card"><h3>${esc(title.description)}</h3><span class="status met">${title.calculated ? "Calculated from scores" : "Recorded by SDDA"}</span><div class="score">${title.score == null || Number.isNaN(title.score) ? "—" : esc(title.score)}</div><p>${title.score == null || Number.isNaN(title.score) ? "No title score supplied" : title.calculated ? "Calculated component total" : "Recorded title score"}</p><p><strong>${esc(dateLabel(title.date))}</strong>${title.honours ? ` · ${esc(title.honours)}` : ""}</p></article>`).join("") || `<article class="title-card"><h3>No complete title found</h3><p>The score history does not yet contain a qualifying score in every required component.</p></article>`;
