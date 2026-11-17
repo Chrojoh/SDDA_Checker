@@ -172,25 +172,44 @@ function chronologicalTrialGroups(level, list = scores) {
   return [...byTrial.values()];
 }
 
-function initialSpecialSet(level, list = scores) {
+function firstCompletedTitleSet(level, list = scores) {
   if (level !== "Advanced" && level !== "Excellent") return null;
-  // Special status depends on which trial first completed all three components.
-  // Use the uploaded sheet's chronological row order and group all rows for a
-  // trial together, even when that trial's rows are not adjacent.
   const groups = chronologicalTrialGroups(level, list);
+  const seen = [];
   const passed = new Set();
+
   for (const group of groups) {
-    const titledBefore = COMPONENTS.every((component) => passed.has(component));
     const componentsHere = new Set(group.rows.map((row) => row.component));
+    seen.push(...group.rows);
     group.rows.forEach((row) => passed.add(row.component));
-    if (!titledBefore && COMPONENTS.every((component) => passed.has(component))) {
-      if (!COMPONENTS.every((component) => componentsHere.has(component))) return null;
-      const parts = Object.fromEntries(COMPONENTS.map((component) => [component, group.rows.filter((row) => row.component === component).sort((a, b) => b.score - a.score)[0]]));
-      const total = COMPONENTS.reduce((sum, component) => sum + parts[component].score, 0);
-      return { level, trial: parts.Container.trial, parts, total, gold: total >= 192, special: true };
-    }
+
+    if (!COMPONENTS.every((component) => passed.has(component))) continue;
+
+    // SP is earned only when all three components pass on this same trial.
+    // SP title scores are selected from this trial alone. A regular title may
+    // use the best successful score for each component from this and all
+    // earlier trials.
+    const special = COMPONENTS.every((component) => componentsHere.has(component));
+    const eligibleRows = special ? group.rows : seen;
+    const parts = Object.fromEntries(COMPONENTS.map((component) => [
+      component,
+      eligibleRows.filter((row) => row.component === component)
+        .sort((a, b) => b.score - a.score || a.sourceRow - b.sourceRow)[0]
+    ]));
+    if (!COMPONENTS.every((component) => parts[component])) return null;
+
+    const total = COMPONENTS.reduce((sum, component) => sum + parts[component].score, 0);
+    return {
+      level, trial: group.trial, parts, total, gold: total >= 192,
+      special, completionTrial: group.trial, eligibleRows: [...eligibleRows]
+    };
   }
   return null;
+}
+
+function initialSpecialSet(level, list = scores) {
+  const completed = firstCompletedTitleSet(level, list);
+  return completed?.special ? completed : null;
 }
 
 function highToLow(level, list = scores) {
@@ -211,9 +230,13 @@ function titleLockForLevel(level, list = scores) {
   const rows = list.filter((row) => row.level === level).sort((a, b) => a.sourceRow - b.sourceRow);
   if (!rows.length) return null;
   const includedRows = new Set(rows.map((row) => row.sourceRow));
-  const special = initialSpecialSet(level, rows);
-  if (special && COMPONENTS.every((component) => includedRows.has(special.parts[component].sourceRow))) {
-    return { ...special, special: true, recorded: false };
+  const calculated = firstCompletedTitleSet(level, rows);
+
+  // An SP title is locked using only the three qualifying scores from its
+  // completion trial. Do not replace any of them with an earlier high score.
+  if (calculated?.special &&
+      COMPONENTS.every((component) => includedRows.has(calculated.parts[component].sourceRow))) {
+    return { ...calculated, special: true, recorded: false };
   }
 
   const matchingTitles = titles
@@ -224,54 +247,63 @@ function titleLockForLevel(level, list = scores) {
     .filter((title) => !String(title.description || "").toLowerCase().includes("special"))
     .sort((a, b) => String(a.date || "9999-99-99").localeCompare(String(b.date || "9999-99-99")));
   const recordedTitle = matchingTitles[0] || null;
-  let eligibleRows = rows;
+
+  let eligibleRows = null;
   let recorded = false;
   let titleDate = "";
   if (recordedTitle?.date) {
     titleDate = recordedTitle.date;
     eligibleRows = rows.filter((row) => row.date && row.date <= titleDate);
     recorded = true;
+  } else if (calculated && !calculated.special) {
+    // Regular title: best successful component scores from all trials up to
+    // and including the first trial that completes all three components.
+    eligibleRows = calculated.eligibleRows;
   } else {
-    const groups = chronologicalTrialGroups(level, rows);
-    const seen = [];
-    const passed = new Set();
-    let completed = false;
-    for (const group of groups) {
-      seen.push(...group.rows);
-      group.rows.forEach((row) => passed.add(row.component));
-      if (COMPONENTS.every((component) => passed.has(component))) {
-        eligibleRows = seen;
-        completed = true;
-        break;
-      }
-    }
-    if (!completed) return null;
+    return null;
   }
+
   const parts = Object.fromEntries(COMPONENTS.map((component) => [
     component,
     eligibleRows.filter((row) => row.component === component)
       .sort((a, b) => b.score - a.score || a.sourceRow - b.sourceRow)[0]
   ]));
   if (!COMPONENTS.every((component) => parts[component])) return null;
+  const total = COMPONENTS.reduce((sum, component) => sum + parts[component].score, 0);
   return {
-    level, parts,
-    total: COMPONENTS.reduce((sum, component) => sum + parts[component].score, 0),
-    gold: COMPONENTS.reduce((sum, component) => sum + parts[component].score, 0) >= 192,
-    special: false, recorded, date: titleDate || parts.Container.date || ""
+    level, parts, total, gold: total >= 192,
+    special: false, recorded, date: titleDate || calculated?.completionTrial || parts.Container.date || ""
   };
 }
 
-function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
-  // A regular title (including one earned across different trials) locks only
-  // its three component source rows. An initial same-trial SP uses its own
-  // existing lock. No other score from those trials is removed.
-  const titleLock = titleLockForLevel(level, list);
+const GOLD_SEARCH_NODE_LIMIT = 30000;
+const goldCombinationCache = new Map();
+
+function maximizeGoldCombinations(level, list = scores, maximum = 10, includeTitleLock = true) {
+  const titleFingerprint = JSON.stringify((titles || []).map((title) => [title.description, title.date, title.score]));
+  const rowFingerprint = list.map((row) => [row.sourceRow, row.level, row.component, row.score, row.trial, row.date].join(":")).join("|");
+  const cacheKey = [level, maximum, includeTitleLock ? "title-lock" : "post-title-batch", titleFingerprint, rowFingerprint].join("||");
+  if (goldCombinationCache.has(cacheKey)) return goldCombinationCache.get(cacheKey);
+
+  const titleLock = includeTitleLock ? titleLockForLevel(level, list) : null;
   const lockedRows = new Set(titleLock ? COMPONENTS.map((component) => titleLock.parts[component].sourceRow) : []);
-  const eligible = list.filter((score) => score.level === level && !lockedRows.has(score.sourceRow));
+  const allEligible = list.filter((score) => score.level === level && !lockedRows.has(score.sourceRow));
+  const allRanked = Object.fromEntries(COMPONENTS.map((component) => [
+    component,
+    allEligible.filter((score) => score.component === component)
+      .sort((a, b) => b.score - a.score || a.sourceRow - b.sourceRow)
+  ]));
+  // Scores at or below these cutoffs cannot reach 192 even with maximum
+  // scores in the other two components. Preserve them for Silver/Bronze.
+  const goldEligible = allEligible.filter((score) =>
+    (score.component === "Container" && score.score > 51) ||
+    (score.component === "Exterior" && score.score > 51) ||
+    (score.component === "Interior" && score.score > 71)
+  );
   const ranked = Object.fromEntries(COMPONENTS.map((component) => [
     component,
-    eligible.filter((score) => score.component === component)
-      .sort((a, b) => b.score - a.score || a.sourceRow - b.sourceRow)
+    goldEligible.filter((score) => score.component === component)
+      .sort((a, b) => a.score - b.score || a.sourceRow - b.sourceRow)
   ]));
   const locked = titleLock ? [{
     rank: titleLock.special ? "SP" : 1,
@@ -287,59 +319,93 @@ function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
     level,
     trial: titleLock.trial || titleLock.parts.Container.trial || ""
   }] : [];
-  const count = Math.min(Math.max(0, maximum - locked.length), ...COMPONENTS.map((component) => ranked[component].length));
-  if (!count) return locked;
+  const remainingLimit = Math.max(0, maximum - locked.length);
+  const count = Math.min(remainingLimit, ...COMPONENTS.map((component) => ranked[component].length));
+  if (!remainingLimit) return cacheGoldResult(cacheKey, [...locked], true, 0);
 
-  // If even the lowest score in each component clears 192, every possible
-  // triple is Gold. The exact minimum-surplus answer is then simply the
-  // lowest 'count' scores from each component; no combinatorial search needed.
   const minimumComponentTotal =
     Math.min(...ranked.Container.map((row) => row.score)) +
     Math.min(...ranked.Interior.map((row) => row.score)) +
     Math.min(...ranked.Exterior.map((row) => row.score));
-  if (minimumComponentTotal >= 192) {
-    const lowC = [...ranked.Container].sort((a, b) => a.score - b.score || a.sourceRow - b.sourceRow).slice(0, count);
-    const lowI = [...ranked.Interior].sort((a, b) => a.score - b.score || a.sourceRow - b.sourceRow).slice(0, count);
-    const lowE = [...ranked.Exterior].sort((a, b) => a.score - b.score || a.sourceRow - b.sourceRow).slice(0, count);
+  if (count > 0 && minimumComponentTotal >= 192) {
+    const lowC = ranked.Container.slice(0, count);
+    const lowI = ranked.Interior.slice(0, count);
+    const lowE = ranked.Exterior.slice(0, count);
     const goldSets = Array.from({ length: count }, (_, index) => ({
       level, container: lowC[index], interior: lowI[index], exterior: lowE[index],
       total: lowC[index].score + lowI[index].score + lowE[index].score, gold: true
     }));
-    return [...locked, ...goldSets.sort((a, b) => a.total - b.total)
-      .map((set, index) => ({ ...set, rank: index + 1 }))];
+    return cacheGoldResult(cacheKey, [...locked, ...goldSets
+      .sort((a, b) => a.total - b.total)
+      .map((set, index) => ({ ...set, rank: index + 1 }))], true, 0);
   }
 
-  // Exact maximum-cardinality Gold matching. First maximize the number of
-  // distinct C/I/E triples >=192; among equal-count solutions, minimize the
-  // total (therefore minimizing surplus above 192). Every source row is used
-  // at most once. Pair ordering and the theoretical lower-bound exit make
-  // exact-192 solutions much cheaper to discover and prove.
+  // Do not materialize Container × Interior × Exterior candidate arrays.
+  // Candidate triples are visited lazily, with independent hard limits on
+  // search states and pair examinations to bound both memory and CPU.
   const interiors = ranked.Interior;
   const exteriors = ranked.Exterior;
-  const candidates = ranked.Container.map((container) => {
-    const pairs = [];
-    for (let i = 0; i < interiors.length; i++) {
-      for (let e = 0; e < exteriors.length; e++) {
-        const total = container.score + interiors[i].score + exteriors[e].score;
-        if (total >= 192) pairs.push({ i, e, total });
-      }
-    }
-    pairs.sort((a, b) => a.total - b.total || a.i - b.i || a.e - b.e);
-    return { container, pairs };
-  }).filter((candidate) => candidate.pairs.length)
-    .sort((a, b) => a.pairs.length - b.pairs.length ||
-      a.container.score - b.container.score ||
-      a.container.sourceRow - b.container.sourceRow);
-
+  const candidates = ranked.Container;
+  const SEARCH_NODE_LIMIT = GOLD_SEARCH_NODE_LIMIT;
+  const PAIR_CHECK_LIMIT = 1500000;
   const memo = new Map();
+  let visited = 0;
+  let pairChecks = 0;
+  let exhausted = false;
   const bitCount = (mask) => {
     let n = 0;
     while (mask) { mask &= mask - 1n; n++; }
     return n;
   };
+  const better = (a, b) => a.gold > b.gold || (a.gold === b.gold && a.total < b.total);
 
+  function forEachQualifyingPair(container, usedI, usedE, callback) {
+    // Ascending scores find low-surplus triples early. Nothing is retained
+    // between calls, so memory use is independent of the number of triples.
+    for (let i = 0; i < interiors.length; i++) {
+      const bitI = 1n << BigInt(i);
+      if ((usedI & bitI) !== 0n) continue;
+      for (let e = 0; e < exteriors.length; e++) {
+        const bitE = 1n << BigInt(e);
+        if ((usedE & bitE) !== 0n) continue;
+        if (++pairChecks > PAIR_CHECK_LIMIT) {
+          exhausted = true;
+          return false;
+        }
+        const total = container.score + interiors[i].score + exteriors[e].score;
+        if (total >= 192 && callback({ i, e, total }) === false) return false;
+        if (exhausted) return false;
+      }
+    }
+    return true;
+  }
+
+  // Build a valid greedy lower bound without storing any pair lists.
+  const seedUsedI = 0n, seedUsedE = 0n;
+  let greedyUsedI = seedUsedI, greedyUsedE = seedUsedE;
+  const seedPicks = [];
+  for (const container of candidates) {
+    if (seedPicks.length >= count || exhausted) break;
+    forEachQualifyingPair(container, greedyUsedI, greedyUsedE, (pair) => {
+      seedPicks.push({ container, ...pair });
+      greedyUsedI |= 1n << BigInt(pair.i);
+      greedyUsedE |= 1n << BigInt(pair.e);
+      return false;
+    });
+  }
+  const seed = {
+    gold: seedPicks.length,
+    total: seedPicks.reduce((sum, pick) => sum + pick.total, 0),
+    picks: seedPicks
+  };
+
+  // Search is skipped if candidate enumeration already hit its hard cap.
   function solve(index, usedI, usedE) {
-    if (index >= candidates.length) return { gold: 0, total: 0, picks: [] };
+    if (index >= candidates.length || exhausted) return { gold: 0, total: 0, picks: [] };
+    if (++visited > SEARCH_NODE_LIMIT) {
+      exhausted = true;
+      return { gold: 0, total: 0, picks: [] };
+    }
     const key = index + "|" + usedI.toString(36) + "|" + usedE.toString(36);
     const cached = memo.get(key);
     if (cached) return cached;
@@ -352,30 +418,34 @@ function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
       interiors.length - usedICount,
       exteriors.length - usedECount
     );
-    let best = solve(index + 1, usedI, usedE);
+    if (upperBound <= 0) return { gold: 0, total: 0, picks: [] };
 
-    const candidate = candidates[index];
-    for (const pair of candidate.pairs) {
+    let best = { gold: 0, total: 0, picks: [] };
+    const container = candidates[index];
+    forEachQualifyingPair(container, usedI, usedE, (pair) => {
       const bitI = 1n << BigInt(pair.i);
       const bitE = 1n << BigInt(pair.e);
-      if ((usedI & bitI) !== 0n || (usedE & bitE) !== 0n) continue;
       const tail = solve(index + 1, usedI | bitI, usedE | bitE);
       const proposed = {
         gold: tail.gold + 1,
         total: tail.total + pair.total,
-        picks: [{ container: candidate.container, ...pair }, ...tail.picks]
+        picks: [{ container, ...pair }, ...tail.picks]
       };
-      if (proposed.gold > best.gold ||
-        (proposed.gold === best.gold && proposed.total < best.total)) {
-        best = proposed;
-      }
-      if (best.gold === upperBound && best.total === 192 * best.gold) break;
+      if (better(proposed, best)) best = proposed;
+      if (exhausted || (best.gold === upperBound && best.total === 192 * best.gold)) return false;
+      return true;
+    });
+
+    if (!exhausted && !(best.gold === upperBound && best.total === 192 * best.gold)) {
+      const skipped = solve(index + 1, usedI, usedE);
+      if (better(skipped, best)) best = skipped;
     }
-    memo.set(key, best);
+    if (!exhausted && memo.size < SEARCH_NODE_LIMIT) memo.set(key, best);
     return best;
   }
 
-  const optimum = solve(0, 0n, 0n);
+  const searched = exhausted ? { gold: 0, total: 0, picks: [] } : solve(0, 0n, 0n);
+  const optimum = better(searched, seed) ? searched : seed;
   const usedC = new Set(), usedI = new Set(), usedE = new Set(), goldSets = [];
   for (const pick of optimum.picks) {
     usedC.add(pick.container.sourceRow);
@@ -390,20 +460,30 @@ function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
       gold: true
     });
   }
-  const remainingC = ranked.Container.filter((row) => !usedC.has(row.sourceRow));
-  const remainingI = ranked.Interior.filter((row) => !usedI.has(row.sourceRow));
-  const remainingE = ranked.Exterior.filter((row) => !usedE.has(row.sourceRow));
-  const remainingCount = Math.min(count - goldSets.length, remainingC.length, remainingI.length, remainingE.length);
+  // All unused rows, including Gold-ineligible low scores, remain available
+  // to form the lower medal combinations.
+  const remainingC = allRanked.Container.filter((row) => !usedC.has(row.sourceRow));
+  const remainingI = allRanked.Interior.filter((row) => !usedI.has(row.sourceRow));
+  const remainingE = allRanked.Exterior.filter((row) => !usedE.has(row.sourceRow));
+  const remainingCount = Math.min(remainingLimit - goldSets.length, remainingC.length, remainingI.length, remainingE.length);
   const rest = Array.from({ length: remainingCount }, (_, index) => {
     const container = remainingC[index], interior = remainingI[index], exterior = remainingE[index];
     const total = container.score + interior.score + exterior.score;
     return { level, container, interior, exterior, total, gold: total >= 192 };
   });
-  return [...locked, ...[...goldSets, ...rest].filter((set) => set.total >= 100)
+  const result = [...locked, ...[...goldSets, ...rest].filter((set) => set.total >= 100)
     .sort((a, b) => b.total - a.total)
     .map((set, index) => ({ ...set, rank: index + 1 }))];
+  result.pairChecks = pairChecks;
+  return cacheGoldResult(cacheKey, result, !exhausted, visited);
 }
-
+function cacheGoldResult(key, result, complete, nodes) {
+  result.optimizationComplete = complete;
+  result.searchNodes = nodes;
+  goldCombinationCache.set(key, result);
+  if (goldCombinationCache.size > 12) goldCombinationCache.delete(goldCombinationCache.keys().next().value);
+  return result;
+}
 function eliteSets(list = scores) {
   const trials = new Map();
   list.filter((score) => score.level === "Elite").forEach((score) => {
@@ -613,7 +693,27 @@ function machTitleStage(title) {
   return /master champion|\bmach\b/.test(value) ? 1 : 0;
 }
 
+let machCalculationCacheKey = "";
+let machTrialGroupsCache = null;
+let machCutoffCache = new Map();
+
+function ensureMachCalculationCache() {
+  const relevant = scores.filter((score) => score.level === "Advanced" || score.level === "Excellent")
+    .sort((a, b) => a.sourceRow - b.sourceRow);
+  const fingerprint = relevant.map((row) => [
+    row.sourceRow, row.level, row.component, row.score, row.trial, row.date
+  ].join(":")).join("|") + "||" +
+    JSON.stringify((titles || []).map((title) => [title.description, title.date, title.honours]));
+  if (fingerprint !== machCalculationCacheKey) {
+    machCalculationCacheKey = fingerprint;
+    machTrialGroupsCache = null;
+    machCutoffCache = new Map();
+  }
+}
+
 function machTrialGroups() {
+  ensureMachCalculationCache();
+  if (machTrialGroupsCache !== null) return machTrialGroupsCache;
   const relevant = scores.filter((score) => score.level === "Advanced" || score.level === "Excellent").sort((a, b) => a.sourceRow - b.sourceRow);
   if (relevant.some((score) => {
     const trial = Number(score.trial);
@@ -630,41 +730,96 @@ function machTrialGroups() {
     if (!byTrial.has(trial)) byTrial.set(trial, { trial, rows: [] });
     byTrial.get(trial).rows.push(score);
   }
-  return [...byTrial.values()];
+  machTrialGroupsCache = [...byTrial.values()];
+  return machTrialGroupsCache;
+}
+
+function machStageUpperBounds(rows, level, includeTitleLock) {
+  const levelRows = rows.filter((row) => row.level === level);
+  const titleLock = includeTitleLock ? titleLockForLevel(level, levelRows) : null;
+  const lockedRows = new Set(titleLock ? COMPONENTS.map((component) => titleLock.parts[component].sourceRow) : []);
+  const componentCount = (component) => levelRows.filter((row) => row.component === component).length;
+  const goldCount = (component) => levelRows.filter((row) =>
+    !lockedRows.has(row.sourceRow) &&
+    row.component === component &&
+    ((component === "Container" && row.score > 51) ||
+     (component === "Exterior" && row.score > 51) ||
+     (component === "Interior" && row.score > 71))
+  ).length;
+  return {
+    combinations: Math.min(10, ...COMPONENTS.map(componentCount)),
+    gold: (titleLock?.gold ? 1 : 0) + Math.min(...COMPONENTS.map(goldCount))
+  };
 }
 
 function machCutoffRowForTitle(title) {
   const stage = machTitleStage(title);
   if (!stage) return null;
+  ensureMachCalculationCache();
+  if (machCutoffCache.has(stage)) return machCutoffCache.get(stage);
   const trialGroups = machTrialGroups();
   if (!trialGroups) return null;
 
+  // Each title cutoff is calculated once per loaded score history. The main
+  // report and mobile dashboard both ask for these values; reusing completed
+  // stages avoids repeating the same combinatorial search several times.
   let cutoffIndex = -1;
   for (let currentStage = 1; currentStage <= stage; currentStage++) {
+    if (machCutoffCache.has(currentStage)) {
+      const cached = machCutoffCache.get(currentStage);
+      if (!cached) return null;
+      cutoffIndex = cached.index;
+      continue;
+    }
     const prefix = [];
     let foundCutoff = false;
     for (let groupIndex = cutoffIndex + 1; groupIndex < trialGroups.length; groupIndex++) {
-      const group = trialGroups[groupIndex];
-      prefix.push(...group.rows);
-      const advanced = maximizeGoldCombinations("Advanced", prefix);
-      const excellent = maximizeGoldCombinations("Excellent", prefix);
+      prefix.push(...trialGroups[groupIndex].rows);
+      const includeTitleLock = currentStage === 1;
+      const advancedLimit = currentStage === 1 ? 10 : currentStage === 2 ? 3 : 0;
+      const advancedUpper = advancedLimit ? machStageUpperBounds(prefix, "Advanced", includeTitleLock) : { combinations: 0, gold: 0 };
+      const excellentUpper = machStageUpperBounds(prefix, "Excellent", includeTitleLock);
+      const couldMeet = currentStage === 1
+        ? advancedUpper.combinations + excellentUpper.combinations >= 10 &&
+          excellentUpper.combinations >= 3 && advancedUpper.gold + excellentUpper.gold >= 3
+        : currentStage === 2
+          ? excellentUpper.combinations >= 7 && excellentUpper.gold >= 3 &&
+            excellentUpper.combinations + Math.min(advancedUpper.combinations, 3) >= 10
+          : excellentUpper.combinations >= 10 &&
+            excellentUpper.gold >= (currentStage === 3 ? 3 : 4);
+      if (!couldMeet) continue;
+
+      const advanced = advancedLimit
+        ? maximizeGoldCombinations("Advanced", prefix, advancedLimit, includeTitleLock)
+        : [];
+      const excellent = maximizeGoldCombinations("Excellent", prefix, 10, includeTitleLock);
       const combined = [...advanced, ...excellent];
       const gold = combined.filter((set) => set.gold).length;
       const excellentGold = excellent.filter((set) => set.gold).length;
       let met = false;
       if (currentStage === 1) met = combined.length >= 10 && excellent.length >= 3 && gold >= 3;
-      else if (currentStage === 2) met = excellent.length >= 7 && excellentGold >= 3 && excellent.length + Math.min(advanced.length, 3) >= 10;
+      else if (currentStage === 2) met = excellent.length >= 7 && excellentGold >= 3 && excellent.length + advanced.length >= 10;
       else if (currentStage === 3) met = excellent.length >= 10 && excellentGold >= 3;
       else if (currentStage === 4) met = excellent.length >= 10 && excellentGold >= 4;
+      const searchComplete =
+        advanced.optimizationComplete !== false &&
+        excellent.optimizationComplete !== false;
+      // If the bounded search stopped early and did not find enough valid
+      // combinations, do not move the title cutoff forward on a false negative.
+      if (!searchComplete && !met) return null;
       if (met) {
         cutoffIndex = groupIndex;
         foundCutoff = true;
         break;
       }
     }
-    if (!foundCutoff) return null;
+    if (!foundCutoff) {
+      machCutoffCache.set(currentStage, null);
+      return null;
+    }
+    machCutoffCache.set(currentStage, { trial: trialGroups[cutoffIndex].trial, index: cutoffIndex });
   }
-  return { trial: trialGroups[cutoffIndex].trial, index: cutoffIndex };
+  return machCutoffCache.get(stage) || null;
 }
 
 function machExtensionProgress(rule, priorTitleOrStage) {
@@ -673,13 +828,19 @@ function machExtensionProgress(rule, priorTitleOrStage) {
   if (!cutoff || !trialGroups) {
     return { verified: false, cutoffTrial: cutoff?.trial ?? null, advanced: 0, excellent: 0, gold: 0 };
   }
+
+  // Select whole trial groups after the previous title. Trial numbers are
+  // identifiers, not dates, and must never be compared numerically.
   const eligibleTrials = new Set(trialGroups.slice(cutoff.index + 1).map((group) => group.trial));
   const eligible = scores.filter((score) =>
     (score.level === "Advanced" || score.level === "Excellent") &&
     eligibleTrials.has(Number(score.trial))
   );
-  const advanced = maximizeGoldCombinations("Advanced", eligible);
-  const excellent = maximizeGoldCombinations("Excellent", eligible);
+  const advancedLimit = rule.maxAdvanced || 0;
+  const advanced = advancedLimit
+    ? maximizeGoldCombinations("Advanced", eligible, advancedLimit, false)
+    : [];
+  const excellent = maximizeGoldCombinations("Excellent", eligible, 10, false);
   return {
     verified: true,
     cutoffTrial: cutoff.trial,
@@ -689,10 +850,27 @@ function machExtensionProgress(rule, priorTitleOrStage) {
   };
 }
 function scoreRowsAfterTitle(priorTitle) {
-  const cutoffTrial = trialCutoffForTitle(priorTitle);
-  const eliteScores = scores.filter((score) => score.level === "Elite");
-  if (cutoffTrial == null || eliteScores.some((score) => !score.trial || !Number.isFinite(Number(score.trial)))) return null;
-  return eliteScores.filter((score) => Number(score.trial) > cutoffTrial);
+  if (!priorTitle) return null;
+  const eliteRows = scores.filter((score) => score.level === "Elite").sort((a, b) => a.sourceRow - b.sourceRow);
+  if (eliteRows.some((score) => !score.trial || !Number.isFinite(Number(score.trial)))) return null;
+  const groups = chronologicalTrialGroups("Elite", eliteRows);
+  if (!groups.length) return [];
+
+  // Prefer an explicit trial number in the title record. If only a title date
+  // is available, conservatively exclude every Elite trial on that date.
+  const honoursMatch = String(priorTitle.honours || "").match(/trial\s*#?\s*(\d+)/i);
+  let cutoffIndex = -1;
+  if (honoursMatch) {
+    const trialNumber = Number(honoursMatch[1]);
+    cutoffIndex = groups.findIndex((group) => Number(group.trial) === trialNumber);
+  }
+  if (cutoffIndex < 0 && priorTitle.date) {
+    groups.forEach((group, index) => {
+      if (group.rows.some((row) => row.date && row.date <= priorTitle.date)) cutoffIndex = index;
+    });
+  }
+  if (cutoffIndex < 0) return null;
+  return groups.slice(cutoffIndex + 1).flatMap((group) => group.rows);
 }
 
 function render() {
@@ -718,6 +896,10 @@ function render() {
   $("message").textContent = titles.length
     ? "Scores and recorded titles loaded. Results are saved on this device."
     : "Scores loaded. Achievements are calculated from score history and are not official SDDA confirmation.";
+  window.sddaGoldOptimizationWarning = [summaryAdvanced, summaryExcellent].some((sets) => sets.optimizationComplete === false)
+    ? "The Gold search reached its safety limit. Displayed combinations are the best found so far, not a proven maximum."
+    : "";
+  if (window.sddaGoldOptimizationWarning) $("message").textContent += " " + window.sddaGoldOptimizationWarning;
 
   const shownTitles = displayedTitles();
   $("achieved").innerHTML = shownTitles.map((title) => `<article class="title-card"><h3>${esc(title.description)}</h3><span class="status met">${title.calculated ? "Calculated from scores" : "Recorded by SDDA"}</span><div class="score">${title.score == null || Number.isNaN(title.score) ? "—" : esc(title.score)}</div><p>${title.score == null || Number.isNaN(title.score) ? "No title score supplied" : title.calculated ? "Calculated component total" : "Recorded title score"}</p><p><strong>${esc(dateLabel(title.date))}</strong>${title.honours ? ` · ${esc(title.honours)}` : ""}</p></article>`).join("") || `<article class="title-card"><h3>No complete title found</h3><p>The score history does not yet contain a qualifying score in every required component.</p></article>`;
