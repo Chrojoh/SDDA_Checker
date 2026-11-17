@@ -172,25 +172,44 @@ function chronologicalTrialGroups(level, list = scores) {
   return [...byTrial.values()];
 }
 
-function initialSpecialSet(level, list = scores) {
+function firstCompletedTitleSet(level, list = scores) {
   if (level !== "Advanced" && level !== "Excellent") return null;
-  // Special status depends on which trial first completed all three components.
-  // Use the uploaded sheet's chronological row order and group all rows for a
-  // trial together, even when that trial's rows are not adjacent.
   const groups = chronologicalTrialGroups(level, list);
+  const seen = [];
   const passed = new Set();
+
   for (const group of groups) {
-    const titledBefore = COMPONENTS.every((component) => passed.has(component));
     const componentsHere = new Set(group.rows.map((row) => row.component));
+    seen.push(...group.rows);
     group.rows.forEach((row) => passed.add(row.component));
-    if (!titledBefore && COMPONENTS.every((component) => passed.has(component))) {
-      if (!COMPONENTS.every((component) => componentsHere.has(component))) return null;
-      const parts = Object.fromEntries(COMPONENTS.map((component) => [component, group.rows.filter((row) => row.component === component).sort((a, b) => b.score - a.score)[0]]));
-      const total = COMPONENTS.reduce((sum, component) => sum + parts[component].score, 0);
-      return { level, trial: parts.Container.trial, parts, total, gold: total >= 192, special: true };
-    }
+
+    if (!COMPONENTS.every((component) => passed.has(component))) continue;
+
+    // SP is earned only when all three components pass on this same trial.
+    // SP title scores are selected from this trial alone. A regular title may
+    // use the best successful score for each component from this and all
+    // earlier trials.
+    const special = COMPONENTS.every((component) => componentsHere.has(component));
+    const eligibleRows = special ? group.rows : seen;
+    const parts = Object.fromEntries(COMPONENTS.map((component) => [
+      component,
+      eligibleRows.filter((row) => row.component === component)
+        .sort((a, b) => b.score - a.score || a.sourceRow - b.sourceRow)[0]
+    ]));
+    if (!COMPONENTS.every((component) => parts[component])) return null;
+
+    const total = COMPONENTS.reduce((sum, component) => sum + parts[component].score, 0);
+    return {
+      level, trial: group.trial, parts, total, gold: total >= 192,
+      special, completionTrial: group.trial
+    };
   }
   return null;
+}
+
+function initialSpecialSet(level, list = scores) {
+  const completed = firstCompletedTitleSet(level, list);
+  return completed?.special ? completed : null;
 }
 
 function highToLow(level, list = scores) {
@@ -211,9 +230,13 @@ function titleLockForLevel(level, list = scores) {
   const rows = list.filter((row) => row.level === level).sort((a, b) => a.sourceRow - b.sourceRow);
   if (!rows.length) return null;
   const includedRows = new Set(rows.map((row) => row.sourceRow));
-  const special = initialSpecialSet(level, rows);
-  if (special && COMPONENTS.every((component) => includedRows.has(special.parts[component].sourceRow))) {
-    return { ...special, special: true, recorded: false };
+  const calculated = firstCompletedTitleSet(level, rows);
+
+  // An SP title is locked using only the three qualifying scores from its
+  // completion trial. Do not replace any of them with an earlier high score.
+  if (calculated?.special &&
+      COMPONENTS.every((component) => includedRows.has(calculated.parts[component].sourceRow))) {
+    return { ...calculated, special: true, recorded: false };
   }
 
   const matchingTitles = titles
@@ -224,40 +247,36 @@ function titleLockForLevel(level, list = scores) {
     .filter((title) => !String(title.description || "").toLowerCase().includes("special"))
     .sort((a, b) => String(a.date || "9999-99-99").localeCompare(String(b.date || "9999-99-99")));
   const recordedTitle = matchingTitles[0] || null;
-  let eligibleRows = rows;
+
+  let eligibleRows = null;
   let recorded = false;
   let titleDate = "";
   if (recordedTitle?.date) {
     titleDate = recordedTitle.date;
     eligibleRows = rows.filter((row) => row.date && row.date <= titleDate);
     recorded = true;
+  } else if (calculated && !calculated.special) {
+    // Regular title: best successful component scores from all trials up to
+    // and including the first trial that completes all three components.
+    eligibleRows = rows.filter((row) =>
+      row.sourceRow <= Math.max(...rows.filter((candidate) =>
+        candidate.trial === calculated.completionTrial
+      ).map((candidate) => candidate.sourceRow))
+    );
   } else {
-    const groups = chronologicalTrialGroups(level, rows);
-    const seen = [];
-    const passed = new Set();
-    let completed = false;
-    for (const group of groups) {
-      seen.push(...group.rows);
-      group.rows.forEach((row) => passed.add(row.component));
-      if (COMPONENTS.every((component) => passed.has(component))) {
-        eligibleRows = seen;
-        completed = true;
-        break;
-      }
-    }
-    if (!completed) return null;
+    return null;
   }
+
   const parts = Object.fromEntries(COMPONENTS.map((component) => [
     component,
     eligibleRows.filter((row) => row.component === component)
       .sort((a, b) => b.score - a.score || a.sourceRow - b.sourceRow)[0]
   ]));
   if (!COMPONENTS.every((component) => parts[component])) return null;
+  const total = COMPONENTS.reduce((sum, component) => sum + parts[component].score, 0);
   return {
-    level, parts,
-    total: COMPONENTS.reduce((sum, component) => sum + parts[component].score, 0),
-    gold: COMPONENTS.reduce((sum, component) => sum + parts[component].score, 0) >= 192,
-    special: false, recorded, date: titleDate || parts.Container.date || ""
+    level, parts, total, gold: total >= 192,
+    special: false, recorded, date: titleDate || calculated?.completionTrial || parts.Container.date || ""
   };
 }
 
