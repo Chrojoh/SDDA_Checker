@@ -279,13 +279,13 @@ function titleLockForLevel(level, list = scores) {
 const GOLD_SEARCH_NODE_LIMIT = 30000;
 const goldCombinationCache = new Map();
 
-function maximizeGoldCombinations(level, list = scores, maximum = 10) {
+function maximizeGoldCombinations(level, list = scores, maximum = 10, includeTitleLock = true) {
   const titleFingerprint = JSON.stringify((titles || []).map((title) => [title.description, title.date, title.score]));
   const rowFingerprint = list.map((row) => [row.sourceRow, row.level, row.component, row.score, row.trial, row.date].join(":")).join("|");
-  const cacheKey = [level, maximum, titleFingerprint, rowFingerprint].join("||");
+  const cacheKey = [level, maximum, includeTitleLock ? "title-lock" : "post-title-batch", titleFingerprint, rowFingerprint].join("||");
   if (goldCombinationCache.has(cacheKey)) return goldCombinationCache.get(cacheKey);
 
-  const titleLock = titleLockForLevel(level, list);
+  const titleLock = includeTitleLock ? titleLockForLevel(level, list) : null;
   const lockedRows = new Set(titleLock ? COMPONENTS.map((component) => titleLock.parts[component].sourceRow) : []);
   const allEligible = list.filter((score) => score.level === level && !lockedRows.has(score.sourceRow));
   const allRanked = Object.fromEntries(COMPONENTS.map((component) => [
@@ -713,6 +713,24 @@ function machTrialGroups() {
   return [...byTrial.values()];
 }
 
+function machStageUpperBounds(rows, level, includeTitleLock) {
+  const levelRows = rows.filter((row) => row.level === level);
+  const titleLock = includeTitleLock ? titleLockForLevel(level, levelRows) : null;
+  const lockedRows = new Set(titleLock ? COMPONENTS.map((component) => titleLock.parts[component].sourceRow) : []);
+  const componentCount = (component) => levelRows.filter((row) => row.component === component).length;
+  const goldCount = (component) => levelRows.filter((row) =>
+    !lockedRows.has(row.sourceRow) &&
+    row.component === component &&
+    ((component === "Container" && row.score > 51) ||
+     (component === "Exterior" && row.score > 51) ||
+     (component === "Interior" && row.score > 71))
+  ).length;
+  return {
+    combinations: Math.min(10, ...COMPONENTS.map(componentCount)),
+    gold: (titleLock?.gold ? 1 : 0) + Math.min(...COMPONENTS.map(goldCount))
+  };
+}
+
 function machCutoffRowForTitle(title) {
   const stage = machTitleStage(title);
   if (!stage) return null;
@@ -728,11 +746,24 @@ function machCutoffRowForTitle(title) {
     let foundCutoff = false;
     for (let groupIndex = cutoffIndex + 1; groupIndex < trialGroups.length; groupIndex++) {
       prefix.push(...trialGroups[groupIndex].rows);
+      const includeTitleLock = currentStage === 1;
       const advancedLimit = currentStage === 1 ? 10 : currentStage === 2 ? 3 : 0;
+      const advancedUpper = advancedLimit ? machStageUpperBounds(prefix, "Advanced", includeTitleLock) : { combinations: 0, gold: 0 };
+      const excellentUpper = machStageUpperBounds(prefix, "Excellent", includeTitleLock);
+      const couldMeet = currentStage === 1
+        ? advancedUpper.combinations + excellentUpper.combinations >= 10 &&
+          excellentUpper.combinations >= 3 && advancedUpper.gold + excellentUpper.gold >= 3
+        : currentStage === 2
+          ? excellentUpper.combinations >= 7 && excellentUpper.gold >= 3 &&
+            excellentUpper.combinations + Math.min(advancedUpper.combinations, 3) >= 10
+          : excellentUpper.combinations >= 10 &&
+            excellentUpper.gold >= (currentStage === 3 ? 3 : 4);
+      if (!couldMeet) continue;
+
       const advanced = advancedLimit
-        ? maximizeGoldCombinations("Advanced", prefix, advancedLimit)
+        ? maximizeGoldCombinations("Advanced", prefix, advancedLimit, includeTitleLock)
         : [];
-      const excellent = maximizeGoldCombinations("Excellent", prefix, 10);
+      const excellent = maximizeGoldCombinations("Excellent", prefix, 10, includeTitleLock);
       const combined = [...advanced, ...excellent];
       const gold = combined.filter((set) => set.gold).length;
       const excellentGold = excellent.filter((set) => set.gold).length;
@@ -768,9 +799,9 @@ function machExtensionProgress(rule, priorTitleOrStage) {
   );
   const advancedLimit = rule.maxAdvanced || 0;
   const advanced = advancedLimit
-    ? maximizeGoldCombinations("Advanced", eligible, advancedLimit)
+    ? maximizeGoldCombinations("Advanced", eligible, advancedLimit, false)
     : [];
-  const excellent = maximizeGoldCombinations("Excellent", eligible, 10);
+  const excellent = maximizeGoldCombinations("Excellent", eligible, 10, false);
   return {
     verified: true,
     cutoffTrial: cutoff.trial,
