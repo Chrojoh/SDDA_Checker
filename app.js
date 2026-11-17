@@ -290,6 +290,25 @@ function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
   const count = Math.min(Math.max(0, maximum - locked.length), ...COMPONENTS.map((component) => ranked[component].length));
   if (!count) return locked;
 
+  // If even the lowest score in each component clears 192, every possible
+  // triple is Gold. The exact minimum-surplus answer is then simply the
+  // lowest 'count' scores from each component; no combinatorial search needed.
+  const minimumComponentTotal =
+    Math.min(...ranked.Container.map((row) => row.score)) +
+    Math.min(...ranked.Interior.map((row) => row.score)) +
+    Math.min(...ranked.Exterior.map((row) => row.score));
+  if (minimumComponentTotal >= 192) {
+    const lowC = [...ranked.Container].sort((a, b) => a.score - b.score || a.sourceRow - b.sourceRow).slice(0, count);
+    const lowI = [...ranked.Interior].sort((a, b) => a.score - b.score || a.sourceRow - b.sourceRow).slice(0, count);
+    const lowE = [...ranked.Exterior].sort((a, b) => a.score - b.score || a.sourceRow - b.sourceRow).slice(0, count);
+    const goldSets = Array.from({ length: count }, (_, index) => ({
+      level, container: lowC[index], interior: lowI[index], exterior: lowE[index],
+      total: lowC[index].score + lowI[index].score + lowE[index].score, gold: true
+    }));
+    return [...locked, ...goldSets.sort((a, b) => a.total - b.total)
+      .map((set, index) => ({ ...set, rank: index + 1 }))];
+  }
+
   // Exact maximum-cardinality Gold matching. First maximize the number of
   // distinct C/I/E triples >=192; among equal-count solutions, minimize the
   // total (therefore minimizing surplus above 192). Every source row is used
