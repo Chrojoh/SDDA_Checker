@@ -262,8 +262,9 @@ function titleLockForLevel(level, list = scores) {
 }
 
 function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
-  // Preserve the existing title/SP lock: those three source rows are not
-  // available for any additional combination.
+  // A regular title (including one earned across different trials) locks only
+  // its three component source rows. An initial same-trial SP uses its own
+  // existing lock. No other score from those trials is removed.
   const titleLock = titleLockForLevel(level, list);
   const lockedRows = new Set(titleLock ? COMPONENTS.map((component) => titleLock.parts[component].sourceRow) : []);
   const eligible = list.filter((score) => score.level === level && !lockedRows.has(score.sourceRow));
@@ -289,11 +290,30 @@ function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
   const count = Math.min(Math.max(0, maximum - locked.length), ...COMPONENTS.map((component) => ranked[component].length));
   if (!count) return locked;
 
-  // Exact maximum-cardinality matching for Gold combinations (total >= 192).
-  // IMPORTANT: every eligible Container score is considered, not just the
-  // highest "count" Containers. This allows a lower Container score to be
-  // selected when it makes room for more distinct Gold combinations overall.
-  // Each source row can be used at most once.
+  // If even the lowest score in each component clears 192, every possible
+  // triple is Gold. The exact minimum-surplus answer is then simply the
+  // lowest 'count' scores from each component; no combinatorial search needed.
+  const minimumComponentTotal =
+    Math.min(...ranked.Container.map((row) => row.score)) +
+    Math.min(...ranked.Interior.map((row) => row.score)) +
+    Math.min(...ranked.Exterior.map((row) => row.score));
+  if (minimumComponentTotal >= 192) {
+    const lowC = [...ranked.Container].sort((a, b) => a.score - b.score || a.sourceRow - b.sourceRow).slice(0, count);
+    const lowI = [...ranked.Interior].sort((a, b) => a.score - b.score || a.sourceRow - b.sourceRow).slice(0, count);
+    const lowE = [...ranked.Exterior].sort((a, b) => a.score - b.score || a.sourceRow - b.sourceRow).slice(0, count);
+    const goldSets = Array.from({ length: count }, (_, index) => ({
+      level, container: lowC[index], interior: lowI[index], exterior: lowE[index],
+      total: lowC[index].score + lowI[index].score + lowE[index].score, gold: true
+    }));
+    return [...locked, ...goldSets.sort((a, b) => a.total - b.total)
+      .map((set, index) => ({ ...set, rank: index + 1 }))];
+  }
+
+  // Exact maximum-cardinality Gold matching. First maximize the number of
+  // distinct C/I/E triples >=192; among equal-count solutions, minimize the
+  // total (therefore minimizing surplus above 192). Every source row is used
+  // at most once. Pair ordering and the theoretical lower-bound exit make
+  // exact-192 solutions much cheaper to discover and prove.
   const interiors = ranked.Interior;
   const exteriors = ranked.Exterior;
   const candidates = ranked.Container.map((container) => {
@@ -304,57 +324,58 @@ function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
         if (total >= 192) pairs.push({ i, e, total });
       }
     }
-    // For equal Gold-count solutions, prefer the greater combined score.
-    pairs.sort((a, b) => b.total - a.total || a.i - b.i || a.e - b.e);
+    pairs.sort((a, b) => a.total - b.total || a.i - b.i || a.e - b.e);
     return { container, pairs };
   }).filter((candidate) => candidate.pairs.length)
-    // Process the most constrained Container scores first to reduce search.
     .sort((a, b) => a.pairs.length - b.pairs.length ||
-      b.container.score - a.container.score ||
+      a.container.score - b.container.score ||
       a.container.sourceRow - b.container.sourceRow);
 
   const memo = new Map();
-  function solve(index, usedI, usedE, goldCount) {
-    if (goldCount >= count || index >= candidates.length) return { gold: 0, total: 0, picks: [] };
-    const key = index + "|" + usedI.toString(36) + "|" + usedE.toString(36) + "|" + goldCount;
+  const bitCount = (mask) => {
+    let n = 0;
+    while (mask) { mask &= mask - 1n; n++; }
+    return n;
+  };
+
+  function solve(index, usedI, usedE) {
+    if (index >= candidates.length) return { gold: 0, total: 0, picks: [] };
+    const key = index + "|" + usedI.toString(36) + "|" + usedE.toString(36);
     const cached = memo.get(key);
     if (cached) return cached;
 
-    // Skipping this Container is always an option.
-    let best = solve(index + 1, usedI, usedE, goldCount);
-    best = { gold: best.gold, total: best.total, picks: best.picks };
+    const usedICount = bitCount(usedI);
+    const usedECount = bitCount(usedE);
+    const upperBound = Math.min(
+      count - usedICount,
+      candidates.length - index,
+      interiors.length - usedICount,
+      exteriors.length - usedECount
+    );
+    let best = solve(index + 1, usedI, usedE);
 
     const candidate = candidates[index];
     for (const pair of candidate.pairs) {
       const bitI = 1n << BigInt(pair.i);
       const bitE = 1n << BigInt(pair.e);
       if ((usedI & bitI) !== 0n || (usedE & bitE) !== 0n) continue;
-      const tail = solve(index + 1, usedI | bitI, usedE | bitE, goldCount + 1);
+      const tail = solve(index + 1, usedI | bitI, usedE | bitE);
       const proposed = {
         gold: tail.gold + 1,
         total: tail.total + pair.total,
         picks: [{ container: candidate.container, ...pair }, ...tail.picks]
       };
       if (proposed.gold > best.gold ||
-        (proposed.gold === best.gold && proposed.total > best.total)) {
+        (proposed.gold === best.gold && proposed.total < best.total)) {
         best = proposed;
-        // No solution can use more than the remaining component resources.
-        const usedICount = usedI.toString(2).replace(/0/g, "").length;
-        const usedECount = usedE.toString(2).replace(/0/g, "").length;
-        const upperBound = Math.min(
-          count - goldCount,
-          candidates.length - index,
-          interiors.length - usedICount,
-          exteriors.length - usedECount
-        );
-        if (best.gold === upperBound && best.gold === count - goldCount) break;
       }
+      if (best.gold === upperBound && best.total === 192 * best.gold) break;
     }
     memo.set(key, best);
     return best;
   }
 
-  const optimum = solve(0, 0n, 0n, 0);
+  const optimum = solve(0, 0n, 0n);
   const usedC = new Set(), usedI = new Set(), usedE = new Set(), goldSets = [];
   for (const pick of optimum.picks) {
     usedC.add(pick.container.sourceRow);
@@ -369,9 +390,6 @@ function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
       gold: true
     });
   }
-
-  // Keep the existing non-Gold completion behaviour unchanged: after finding
-  // the maximum possible Gold count, pair remaining scores high-to-low.
   const remainingC = ranked.Container.filter((row) => !usedC.has(row.sourceRow));
   const remainingI = ranked.Interior.filter((row) => !usedI.has(row.sourceRow));
   const remainingE = ranked.Exterior.filter((row) => !usedE.has(row.sourceRow));
@@ -384,7 +402,9 @@ function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
   return [...locked, ...[...goldSets, ...rest].filter((set) => set.total >= 100)
     .sort((a, b) => b.total - a.total)
     .map((set, index) => ({ ...set, rank: index + 1 }))];
-}function eliteSets(list = scores) {
+}
+
+function eliteSets(list = scores) {
   const trials = new Map();
   list.filter((score) => score.level === "Elite").forEach((score) => {
     if (!score.trial) return;
