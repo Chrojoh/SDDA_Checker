@@ -693,7 +693,27 @@ function machTitleStage(title) {
   return /master champion|\bmach\b/.test(value) ? 1 : 0;
 }
 
+let machCalculationCacheKey = "";
+let machTrialGroupsCache = null;
+let machCutoffCache = new Map();
+
+function ensureMachCalculationCache() {
+  const relevant = scores.filter((score) => score.level === "Advanced" || score.level === "Excellent")
+    .sort((a, b) => a.sourceRow - b.sourceRow);
+  const fingerprint = relevant.map((row) => [
+    row.sourceRow, row.level, row.component, row.score, row.trial, row.date
+  ].join(":")).join("|") + "||" +
+    JSON.stringify((titles || []).map((title) => [title.description, title.date, title.honours]));
+  if (fingerprint !== machCalculationCacheKey) {
+    machCalculationCacheKey = fingerprint;
+    machTrialGroupsCache = null;
+    machCutoffCache = new Map();
+  }
+}
+
 function machTrialGroups() {
+  ensureMachCalculationCache();
+  if (machTrialGroupsCache !== null) return machTrialGroupsCache;
   const relevant = scores.filter((score) => score.level === "Advanced" || score.level === "Excellent").sort((a, b) => a.sourceRow - b.sourceRow);
   if (relevant.some((score) => {
     const trial = Number(score.trial);
@@ -710,7 +730,8 @@ function machTrialGroups() {
     if (!byTrial.has(trial)) byTrial.set(trial, { trial, rows: [] });
     byTrial.get(trial).rows.push(score);
   }
-  return [...byTrial.values()];
+  machTrialGroupsCache = [...byTrial.values()];
+  return machTrialGroupsCache;
 }
 
 function machStageUpperBounds(rows, level, includeTitleLock) {
@@ -734,14 +755,22 @@ function machStageUpperBounds(rows, level, includeTitleLock) {
 function machCutoffRowForTitle(title) {
   const stage = machTitleStage(title);
   if (!stage) return null;
+  ensureMachCalculationCache();
+  if (machCutoffCache.has(stage)) return machCutoffCache.get(stage);
   const trialGroups = machTrialGroups();
   if (!trialGroups) return null;
 
-  // Each repeat title is a new score batch. Only inspect the combinations
-  // needed for that title: MACH (10 total), MACH2 (7 Excellent + up to 3
-  // Advanced), then Excellent-only batches for MACH3 and MACH4.
+  // Each title cutoff is calculated once per loaded score history. The main
+  // report and mobile dashboard both ask for these values; reusing completed
+  // stages avoids repeating the same combinatorial search several times.
   let cutoffIndex = -1;
   for (let currentStage = 1; currentStage <= stage; currentStage++) {
+    if (machCutoffCache.has(currentStage)) {
+      const cached = machCutoffCache.get(currentStage);
+      if (!cached) return null;
+      cutoffIndex = cached.index;
+      continue;
+    }
     const prefix = [];
     let foundCutoff = false;
     for (let groupIndex = cutoffIndex + 1; groupIndex < trialGroups.length; groupIndex++) {
@@ -784,9 +813,13 @@ function machCutoffRowForTitle(title) {
         break;
       }
     }
-    if (!foundCutoff) return null;
+    if (!foundCutoff) {
+      machCutoffCache.set(currentStage, null);
+      return null;
+    }
+    machCutoffCache.set(currentStage, { trial: trialGroups[cutoffIndex].trial, index: cutoffIndex });
   }
-  return { trial: trialGroups[cutoffIndex].trial, index: cutoffIndex };
+  return machCutoffCache.get(stage) || null;
 }
 
 function machExtensionProgress(rule, priorTitleOrStage) {
