@@ -262,8 +262,7 @@ function titleLockForLevel(level, list = scores) {
 }
 
 function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
-  // Preserve the existing title/SP lock: those three source rows are not
-  // available for any additional combination.
+  // Keep the existing title/SP lock. Locked source rows cannot be reused.
   const titleLock = titleLockForLevel(level, list);
   const lockedRows = new Set(titleLock ? COMPONENTS.map((component) => titleLock.parts[component].sourceRow) : []);
   const eligible = list.filter((score) => score.level === level && !lockedRows.has(score.sourceRow));
@@ -289,89 +288,115 @@ function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
   const count = Math.min(Math.max(0, maximum - locked.length), ...COMPONENTS.map((component) => ranked[component].length));
   if (!count) return locked;
 
-  // Exact maximum-cardinality matching for Gold combinations (total >= 192).
-  // IMPORTANT: every eligible Container score is considered, not just the
-  // highest "count" Containers. This allows a lower Container score to be
-  // selected when it makes room for more distinct Gold combinations overall.
-  // Each source row can be used at most once.
-  const interiors = ranked.Interior;
-  const exteriors = ranked.Exterior;
+  // Scores with the same component and point value are interchangeable for
+  // Gold eligibility. Grouping them removes duplicate branches from the exact
+  // search; actual source rows are assigned only after the best value pattern
+  // has been found.
+  function groupScores(rows) {
+    const groups = new Map();
+    rows.forEach((row) => {
+      if (!groups.has(row.score)) groups.set(row.score, []);
+      groups.get(row.score).push(row);
+    });
+    return [...groups.entries()].map(([score, records]) => ({
+      score: Number(score),
+      rows: records.slice().sort((a, b) => a.sourceRow - b.sourceRow)
+    }));
+  }
+  const interiorGroups = groupScores(ranked.Interior);
+  const exteriorGroups = groupScores(ranked.Exterior);
+
+  // Each Container record remains distinct, but its possible Interior /
+  // Exterior choices are value-group pairs rather than every record pair.
   const candidates = ranked.Container.map((container) => {
     const pairs = [];
-    for (let i = 0; i < interiors.length; i++) {
-      for (let e = 0; e < exteriors.length; e++) {
-        const total = container.score + interiors[i].score + exteriors[e].score;
-        if (total >= 192) pairs.push({ i, e, total });
+    for (let i = 0; i < interiorGroups.length; i++) {
+      for (let e = 0; e < exteriorGroups.length; e++) {
+        const total = container.score + interiorGroups[i].score + exteriorGroups[e].score;
+        if (total >= 192) pairs.push({ iGroup: i, eGroup: e, total, surplus: total - 192 });
       }
     }
-    // For equal Gold-count solutions, prefer the greater combined score.
-    pairs.sort((a, b) => b.total - a.total || a.i - b.i || a.e - b.e);
+    // Search low-surplus choices first. The exact objective is maximum Gold
+    // count, then minimum total surplus above 192.
+    pairs.sort((a, b) => a.surplus - b.surplus ||
+      a.iGroup - b.iGroup || a.eGroup - b.eGroup);
     return { container, pairs };
   }).filter((candidate) => candidate.pairs.length)
-    // Process the most constrained Container scores first to reduce search.
     .sort((a, b) => a.pairs.length - b.pairs.length ||
       b.container.score - a.container.score ||
       a.container.sourceRow - b.container.sourceRow);
 
   const memo = new Map();
-  function solve(index, usedI, usedE, goldCount) {
-    if (goldCount >= count || index >= candidates.length) return { gold: 0, total: 0, picks: [] };
-    const key = index + "|" + usedI.toString(36) + "|" + usedE.toString(36) + "|" + goldCount;
+  const empty = () => ({ gold: 0, surplus: 0, picks: [] });
+  function solve(index, usedI, usedE, pickedCount) {
+    if (pickedCount >= count || index >= candidates.length) return empty();
+    const key = index + "|" + pickedCount + "|" + usedI.join(",") + "|" + usedE.join(",");
     const cached = memo.get(key);
     if (cached) return cached;
 
-    // Skipping this Container is always an option.
-    let best = solve(index + 1, usedI, usedE, goldCount);
-    best = { gold: best.gold, total: best.total, picks: best.picks };
+    const remainingI = interiorGroups.reduce((sum, group, i) => sum + group.rows.length - usedI[i], 0);
+    const remainingE = exteriorGroups.reduce((sum, group, i) => sum + group.rows.length - usedE[i], 0);
+    if (Math.min(count - pickedCount, candidates.length - index, remainingI, remainingE) <= 0) {
+      const result = empty();
+      memo.set(key, result);
+      return result;
+    }
 
+    // Skipping a Container remains an option; it may be more useful in a
+    // different combination.
+    let best = solve(index + 1, usedI, usedE, pickedCount);
     const candidate = candidates[index];
     for (const pair of candidate.pairs) {
-      const bitI = 1n << BigInt(pair.i);
-      const bitE = 1n << BigInt(pair.e);
-      if ((usedI & bitI) !== 0n || (usedE & bitE) !== 0n) continue;
-      const tail = solve(index + 1, usedI | bitI, usedE | bitE, goldCount + 1);
+      if (usedI[pair.iGroup] >= interiorGroups[pair.iGroup].rows.length ||
+          usedE[pair.eGroup] >= exteriorGroups[pair.eGroup].rows.length) continue;
+      const nextI = usedI.slice(), nextE = usedE.slice();
+      nextI[pair.iGroup]++;
+      nextE[pair.eGroup]++;
+      const tail = solve(index + 1, nextI, nextE, pickedCount + 1);
       const proposed = {
         gold: tail.gold + 1,
-        total: tail.total + pair.total,
+        surplus: tail.surplus + pair.surplus,
         picks: [{ container: candidate.container, ...pair }, ...tail.picks]
       };
       if (proposed.gold > best.gold ||
-        (proposed.gold === best.gold && proposed.total > best.total)) {
+          (proposed.gold === best.gold && proposed.surplus < best.surplus)) {
         best = proposed;
-        // No solution can use more than the remaining component resources.
-        const usedICount = usedI.toString(2).replace(/0/g, "").length;
-        const usedECount = usedE.toString(2).replace(/0/g, "").length;
-        const upperBound = Math.min(
-          count - goldCount,
-          candidates.length - index,
-          interiors.length - usedICount,
-          exteriors.length - usedECount
-        );
-        if (best.gold === upperBound && best.gold === count - goldCount) break;
       }
     }
     memo.set(key, best);
     return best;
   }
 
-  const optimum = solve(0, 0n, 0n, 0);
+  const optimum = solve(
+    0,
+    interiorGroups.map(() => 0),
+    exteriorGroups.map(() => 0),
+    0
+  );
+
+  // Assign real score records to the selected value groups. No source row can
+  // be selected twice, even when several rows have identical point values.
+  const interiorUsed = interiorGroups.map(() => 0);
+  const exteriorUsed = exteriorGroups.map(() => 0);
   const usedC = new Set(), usedI = new Set(), usedE = new Set(), goldSets = [];
   for (const pick of optimum.picks) {
+    const interior = interiorGroups[pick.iGroup].rows[interiorUsed[pick.iGroup]++];
+    const exterior = exteriorGroups[pick.eGroup].rows[exteriorUsed[pick.eGroup]++];
     usedC.add(pick.container.sourceRow);
-    usedI.add(interiors[pick.i].sourceRow);
-    usedE.add(exteriors[pick.e].sourceRow);
+    usedI.add(interior.sourceRow);
+    usedE.add(exterior.sourceRow);
     goldSets.push({
       level,
       container: pick.container,
-      interior: interiors[pick.i],
-      exterior: exteriors[pick.e],
+      interior,
+      exterior,
       total: pick.total,
       gold: true
     });
   }
 
-  // Keep the existing non-Gold completion behaviour unchanged: after finding
-  // the maximum possible Gold count, pair remaining scores high-to-low.
+  // Preserve the existing non-Gold completion behaviour: after maximizing
+  // Gold count and minimizing surplus, pair remaining scores high-to-low.
   const remainingC = ranked.Container.filter((row) => !usedC.has(row.sourceRow));
   const remainingI = ranked.Interior.filter((row) => !usedI.has(row.sourceRow));
   const remainingE = ranked.Exterior.filter((row) => !usedE.has(row.sourceRow));
@@ -384,7 +409,8 @@ function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
   return [...locked, ...[...goldSets, ...rest].filter((set) => set.total >= 100)
     .sort((a, b) => b.total - a.total)
     .map((set, index) => ({ ...set, rank: index + 1 }))];
-}function eliteSets(list = scores) {
+}
+function eliteSets(list = scores) {
   const trials = new Map();
   list.filter((score) => score.level === "Elite").forEach((score) => {
     if (!score.trial) return;
@@ -1043,15 +1069,34 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
   $("mobile-next-list").innerHTML = actionableTargets.map((target) => `<article class="next-card"><header><div><h3>${esc(target.name)}</h3><p class="next-kind">${esc(target.kind)}</p></div><span class="remaining-badge">${target.needed} needed</span></header><ol>${target.items.filter((item) => !/^0 more/i.test(item)).map((item) => typeof item === "string" ? `<li>${esc(item)}</li>` : `<li class="${item.pending ? "pending" : item.done ? "done" : ""}">${item.pending ? "Pending — " : item.done ? "Met — " : ""}${esc(item.text)}</li>`).join("")}</ol></article>`).join("") || `<article class="next-card"><h3>Everything shown is complete</h3><p>Check with SDDA for the next eligible extension.</p></article>`;
 }
 
+async function withLedgerLoading(message, task) {
+  const overlay = $("ledger-loading");
+  const label = overlay?.querySelector(".ledger-loading-label");
+  if (label) label.textContent = message;
+  if (overlay) overlay.hidden = false;
+  // Let the browser paint the flipbook before parsing and calculating.
+  await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+  try {
+    return await task();
+  } finally {
+    if (overlay) overlay.hidden = true;
+  }
+}
+
 async function loadTitles(file) {
+  return withLedgerLoading("Reading title history…", async () => {
   const parsed = await parseAccountFile(file, (headers) => headers.some((header) => /^description$/i.test(header)) && headers.some((header) => /title score/i.test(header)) && headers.some((header) => /title date/i.test(header)), "Dog Titles");
   titlesFileLoaded = true;
   titles = parsed.data.map((row) => ({ description: String(row.Description || "").trim(), honours: String(row.Honours || "").trim(), score: String(row["Title Score"] || "").trim() === "" ? null : Number(row["Title Score"]), date: workbookDate(row["Title Date"]) })).filter((title) => title.description);
   $("titles-name").textContent = `${file.name} · ${titles.length} titles${parsed.sheetName === "CSV" ? "" : ` · ${parsed.sheetName}`}`; render();
   const dated = titles.filter((title) => title.date).length;
   $("message").textContent = scores.length ? `Titles loaded: ${titles.length} recorded title${titles.length === 1 ? "" : "s"}, including ${dated} title date${dated === 1 ? "" : "s"}. Progress has been recalculated.` : `Titles loaded: ${titles.length} recorded title${titles.length === 1 ? "" : "s"}, including ${dated} title date${dated === 1 ? "" : "s"}. Now upload the matching Dog Scores file.`;
+
+  });
 }
+
 async function loadScores(file) {
+  return withLedgerLoading("Reading scores and optimizing Gold combinations…", async () => {
   const parsed = await parseAccountFile(file, (headers) => headers.some((header) => /^description$/i.test(header)) && headers.some((header) => /maximum score/i.test(header)) && headers.some((header) => /^score$/i.test(header)), "Dog Scores");
   const standard = [], gameRows = [];
   parsed.data.forEach((row, index) => { const description = String(row.Description || "").trim(), game = gameFrom(description); const common = { sourceRow: index + 2, dogNumber: String(row["Dog Number"] || "").trim(), dog: String(row["Registered Name"] || "").trim(), trial: String(row["Trial Number"] || "").trim(), date: workbookDate(row["Event Date"]), description }; 
@@ -1062,6 +1107,8 @@ if (game) {
 } const level = levelFrom(description), component = componentFrom(description), score = Number(row.Score); if (level && component && validComponentScore(level, component, row.Score)) standard.push({ ...common, level, component, score, maximum: Number(row["Maximum Score"]) }); });
   scores = standard; games = gameRows;
   $("scores-name").textContent = `${file.name} · ${scores.length} component scores${games.length ? ` · ${games.filter((row) => row.pass).length} Games passes` : ""}${parsed.sheetName === "CSV" ? "" : ` · ${parsed.sheetName}`}`; render();
+
+  });
 }
 
 $("titles-file").addEventListener("change", async (event) => { try { if (event.target.files[0]) await loadTitles(event.target.files[0]); } catch (error) { $("message").textContent = error.message; } });
