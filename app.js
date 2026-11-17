@@ -325,11 +325,13 @@ function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
     const cached = memo.get(key);
     if (cached) return cached;
 
+    const usedICount = bitCount(usedI);
+    const usedECount = bitCount(usedE);
     const upperBound = Math.min(
-      count,
+      count - usedICount,
       candidates.length - index,
-      interiors.length - bitCount(usedI),
-      exteriors.length - bitCount(usedE)
+      interiors.length - usedICount,
+      exteriors.length - usedECount
     );
     let best = solve(index + 1, usedI, usedE);
 
