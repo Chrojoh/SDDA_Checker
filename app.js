@@ -201,7 +201,7 @@ function firstCompletedTitleSet(level, list = scores) {
     const total = COMPONENTS.reduce((sum, component) => sum + parts[component].score, 0);
     return {
       level, trial: group.trial, parts, total, gold: total >= 192,
-      special, completionTrial: group.trial
+      special, completionTrial: group.trial, eligibleRows: [...eligibleRows]
     };
   }
   return null;
@@ -258,11 +258,7 @@ function titleLockForLevel(level, list = scores) {
   } else if (calculated && !calculated.special) {
     // Regular title: best successful component scores from all trials up to
     // and including the first trial that completes all three components.
-    eligibleRows = rows.filter((row) =>
-      row.sourceRow <= Math.max(...rows.filter((candidate) =>
-        candidate.trial === calculated.completionTrial
-      ).map((candidate) => candidate.sourceRow))
-    );
+    eligibleRows = calculated.eligibleRows;
   } else {
     return null;
   }
