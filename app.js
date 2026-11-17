@@ -279,7 +279,7 @@ function titleLockForLevel(level, list = scores) {
 const GOLD_SEARCH_NODE_LIMIT = 30000;
 const goldCombinationCache = new Map();
 
-function maximizeGoldCombinations(level, list = scores, maximum = Infinity) {
+function maximizeGoldCombinations(level, list = scores, maximum = 10) {
   const titleFingerprint = JSON.stringify((titles || []).map((title) => [title.description, title.date, title.score]));
   const rowFingerprint = list.map((row) => [row.sourceRow, row.level, row.component, row.score, row.trial, row.date].join(":")).join("|");
   const cacheKey = [level, maximum, titleFingerprint, rowFingerprint].join("||");
@@ -719,21 +719,26 @@ function machCutoffRowForTitle(title) {
   const trialGroups = machTrialGroups();
   if (!trialGroups) return null;
 
+  // Each repeat title is a new score batch. Only inspect the combinations
+  // needed for that title: MACH (10 total), MACH2 (7 Excellent + up to 3
+  // Advanced), then Excellent-only batches for MACH3 and MACH4.
   let cutoffIndex = -1;
   for (let currentStage = 1; currentStage <= stage; currentStage++) {
     const prefix = [];
     let foundCutoff = false;
     for (let groupIndex = cutoffIndex + 1; groupIndex < trialGroups.length; groupIndex++) {
-      const group = trialGroups[groupIndex];
-      prefix.push(...group.rows);
-      const advanced = maximizeGoldCombinations("Advanced", prefix);
-      const excellent = maximizeGoldCombinations("Excellent", prefix);
+      prefix.push(...trialGroups[groupIndex].rows);
+      const advancedLimit = currentStage === 1 ? 10 : currentStage === 2 ? 3 : 0;
+      const advanced = advancedLimit
+        ? maximizeGoldCombinations("Advanced", prefix, advancedLimit)
+        : [];
+      const excellent = maximizeGoldCombinations("Excellent", prefix, 10);
       const combined = [...advanced, ...excellent];
       const gold = combined.filter((set) => set.gold).length;
       const excellentGold = excellent.filter((set) => set.gold).length;
       let met = false;
       if (currentStage === 1) met = combined.length >= 10 && excellent.length >= 3 && gold >= 3;
-      else if (currentStage === 2) met = excellent.length >= 7 && excellentGold >= 3 && excellent.length + Math.min(advanced.length, 3) >= 10;
+      else if (currentStage === 2) met = excellent.length >= 7 && excellentGold >= 3 && excellent.length + advanced.length >= 10;
       else if (currentStage === 3) met = excellent.length >= 10 && excellentGold >= 3;
       else if (currentStage === 4) met = excellent.length >= 10 && excellentGold >= 4;
       if (met) {
@@ -753,13 +758,19 @@ function machExtensionProgress(rule, priorTitleOrStage) {
   if (!cutoff || !trialGroups) {
     return { verified: false, cutoffTrial: cutoff?.trial ?? null, advanced: 0, excellent: 0, gold: 0 };
   }
+
+  // Select whole trial groups after the previous title. Trial numbers are
+  // identifiers, not dates, and must never be compared numerically.
   const eligibleTrials = new Set(trialGroups.slice(cutoff.index + 1).map((group) => group.trial));
   const eligible = scores.filter((score) =>
     (score.level === "Advanced" || score.level === "Excellent") &&
     eligibleTrials.has(Number(score.trial))
   );
-  const advanced = maximizeGoldCombinations("Advanced", eligible);
-  const excellent = maximizeGoldCombinations("Excellent", eligible);
+  const advancedLimit = rule.maxAdvanced || 0;
+  const advanced = advancedLimit
+    ? maximizeGoldCombinations("Advanced", eligible, advancedLimit)
+    : [];
+  const excellent = maximizeGoldCombinations("Excellent", eligible, 10);
   return {
     verified: true,
     cutoffTrial: cutoff.trial,
@@ -769,10 +780,27 @@ function machExtensionProgress(rule, priorTitleOrStage) {
   };
 }
 function scoreRowsAfterTitle(priorTitle) {
-  const cutoffTrial = trialCutoffForTitle(priorTitle);
-  const eliteScores = scores.filter((score) => score.level === "Elite");
-  if (cutoffTrial == null || eliteScores.some((score) => !score.trial || !Number.isFinite(Number(score.trial)))) return null;
-  return eliteScores.filter((score) => Number(score.trial) > cutoffTrial);
+  if (!priorTitle) return null;
+  const eliteRows = scores.filter((score) => score.level === "Elite").sort((a, b) => a.sourceRow - b.sourceRow);
+  if (eliteRows.some((score) => !score.trial || !Number.isFinite(Number(score.trial)))) return null;
+  const groups = chronologicalTrialGroups("Elite", eliteRows);
+  if (!groups.length) return [];
+
+  // Prefer an explicit trial number in the title record. If only a title date
+  // is available, conservatively exclude every Elite trial on that date.
+  const honoursMatch = String(priorTitle.honours || "").match(/trial\s*#?\s*(\d+)/i);
+  let cutoffIndex = -1;
+  if (honoursMatch) {
+    const trialNumber = Number(honoursMatch[1]);
+    cutoffIndex = groups.findIndex((group) => Number(group.trial) === trialNumber);
+  }
+  if (cutoffIndex < 0 && priorTitle.date) {
+    groups.forEach((group, index) => {
+      if (group.rows.some((row) => row.date && row.date <= priorTitle.date)) cutoffIndex = index;
+    });
+  }
+  if (cutoffIndex < 0) return null;
+  return groups.slice(cutoffIndex + 1).flatMap((group) => group.rows);
 }
 
 function render() {
