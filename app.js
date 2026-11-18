@@ -442,7 +442,7 @@ function championshipTitle(kind){
  elch:/(?:^|\b)(?:SD[- ]?)?ELCH(?!\s*[2-4]\b)(?:\b|$)|elite champion(?!\s*[2-4]\b)/i,
  elch2:/(?:^|\b)(?:SD[- ]?)?ELCH\s*2(?:\b|$)|elite champion\s*2\b/i,elch3:/(?:^|\b)(?:SD[- ]?)?ELCH\s*3(?:\b|$)|elite champion\s*3\b/i,elch4:/(?:^|\b)(?:SD[- ]?)?ELCH\s*4(?:\b|$)|elite champion\s*4\b/i,
  gmch:/(?:^|\b)(?:SD[- ]?)?GMCH(?:\b|$)|grand master champion/i,
- gch:/(?:^|\b)(?:SD[- ]?)?GCH(?!\s*[2-5]\b)(?:\b|$)|games champion(?!\s*[2-5]\b)|^All Games$/i,
+ gch:/(?:^|\\b)(?:SD[- ]?)?GS(?:\\b|$)|games champion(?!\\s*[2-5]\\b)|^All Games$/i,
  gch2:/(?:^|\b)(?:SD[- ]?)?GCH\s*2(?:\b|$)|games champion\s*2\b|^All Games\s*2$/i,gch3:/(?:^|\b)(?:SD[- ]?)?GCH\s*3(?:\b|$)|games champion\s*3\b|^All Games\s*3$/i,gch4:/(?:^|\b)(?:SD[- ]?)?GCH\s*4(?:\b|$)|games champion\s*4\b|^All Games\s*4$/i,gch5:/(?:^|\b)(?:SD[- ]?)?GCH\s*5(?:\b|$)|games champion\s*5\b|^All Games\s*5$/i
  };return findTitle(p[kind]);
 }
