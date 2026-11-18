@@ -568,7 +568,7 @@ function selectProgressionCombinations(advanced, excellent, stageKey) {
       const replacement = candidates.find((candidate) => !selectedSet.has(candidate) && predicate(candidate));
       if (!replacement) break;
       const removable = selected.filter((candidate) => !predicate(candidate) &&
-        (!preserveExcellent || candidate.level !== "Excellent" || selected.filter(isExcellent).length > minExcellent))
+        (!preserveExcellent || candidate.level !== "Excellent" || replacement.level === "Excellent" || selected.filter(isExcellent).length > minExcellent))
         .sort((a, b) => a.total - b.total)[0];
       if (!removable) break;
       selected.splice(selected.indexOf(removable), 1, replacement);
