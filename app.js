@@ -859,131 +859,73 @@ function progressionTitleComparison(calculatedDate, recorded, calculatedTrial) {
 function renderFullProgressionExplanation() {
   const host = $('progression-story');
   if (!host) return;
-  if (!scores.length) {
-    host.innerHTML = '<p class="level-note">Upload a Dog Scores file to build the progression story.</p>';
+  if (!titlesFileLoaded || !titles.length) {
+    host.innerHTML = '<p class="level-note">Upload the Dog Titles file for this dog to view recorded title awards and dates. Score results are not substituted for recorded awards.</p>';
     return;
   }
-  const individual = ['Started', 'Advanced', 'Excellent'].map((level) => {
-    const set = progressionIndividualSet(level);
-    const recorded = progressionRecordForLevel(level);
-    const date = progressionCompletionDate(level, set);
-    const special = set?.special ? ' Special' : '';
-    return '<article class="next-card"><header><div><h3>' + esc(level + special) + '</h3><p class="next-kind">' +
-      (set ? 'First completed at Trial ' + esc(set.trial) : 'Not completed in supplied scores') +
-      '</p></div><span class="remaining-badge">' + (set ? 'Calculated' : 'In progress') + '</span></header>' +
-      '<p>Each component must have a qualifying pass. Components can be earned on different trials. For a regular title, the component that completes the title is selected from that trial; the other components use their highest eligible scores from that trial or earlier. For an initial SP, all three components must be from the same trial and stay locked together.</p>' +
-      progressionSetDetails(set, 'Selected title-earning scores') +
-      progressionTitleComparison(date || set?.parts?.Container?.date || '', recorded, set?.trial) +
-      '</article>';
-  }).join('');
 
-  const eliteRecord = progressionRecordForLevel('Elite');
-  const elite = eliteSets().sort((a, b) => {
-    const ia = scores.findIndex((row) => row.trial === a.trial && row.level === 'Elite');
-    const ib = scores.findIndex((row) => row.trial === b.trial && row.level === 'Elite');
-    return ia - ib;
-  });
-  const firstElite = elite[0] || null;
-  const eliteDate = firstElite?.date || '';
-  const eliteStory = '<article class="next-card"><header><div><h3>Elite</h3><p class="next-kind">' +
-    (firstElite ? 'First complete same-trial score · Trial ' + esc(firstElite.trial) : 'No complete same-trial score yet') +
-    '</p></div><span class="remaining-badge">' + (firstElite ? 'Calculated' : 'In progress') + '</span></header>' +
-    '<p>Elite is separate from Advanced and Excellent. Container, Exterior and Interior must all be passed in the same trial, and the Excellent title is a prerequisite. Each complete same-trial Elite set is one Elite titling score.</p>' +
-    progressionSetDetails(firstElite, 'First complete Elite score') +
-    progressionTitleComparison(eliteDate, eliteRecord, firstElite?.trial) +
-    '<p>' + esc(elite.length) + ' complete Elite same-trial scores are present; ' + esc(elite.filter((set) => set.gold).length) + ' are Gold.</p></article>';
-
-
-
-  const eliteRepeatRules = [
-    { key: "elch2", previous: "elch", gold: 3, name: "SD-ELCH2" },
-    { key: "elch3", previous: "elch2", gold: 4, name: "SD-ELCH3" },
-    { key: "elch4", previous: "elch3", gold: null, name: "SD-ELCH4" }
+  const titleCards = [
+    { label: 'Started', record: () => progressionRecordForLevel('Started') },
+    { label: 'Advanced', record: () => progressionRecordForLevel('Advanced') },
+    { label: 'Excellent', record: () => progressionRecordForLevel('Excellent') },
+    { label: 'Elite', record: () => progressionRecordForLevel('Elite') },
+    { label: 'SD-CH · Champion', record: () => championshipTitle('ch') },
+    { label: 'SD-MACH · Master Champion', record: () => championshipTitle('mach') },
+    { label: 'SD-MACH2', record: () => championshipTitle('mach2') },
+    { label: 'SD-MACH3', record: () => championshipTitle('mach3') },
+    { label: 'SD-MACH4', record: () => championshipTitle('mach4') },
+    { label: 'SD-ELCH · Elite Champion', record: () => championshipTitle('elch') },
+    { label: 'SD-ELCH2', record: () => championshipTitle('elch2') },
+    { label: 'SD-ELCH3', record: () => championshipTitle('elch3') },
+    { label: 'SD-ELCH4', record: () => championshipTitle('elch4') },
+    { label: 'SD-GMCH · Grand Master Champion', record: () => championshipTitle('gmch') },
+    { label: 'Aerial Games', record: () => gameTitleRecord('Aerial') },
+    { label: 'Distance Games', record: () => gameTitleRecord('Distance') },
+    { label: 'Speed Games', record: () => gameTitleRecord('Speed') },
+    { label: 'Team Games', record: () => gameTitleRecord('Team') },
+    { label: 'SD-GS · All Games', record: () => championshipTitle('gch') },
+    { label: 'SD-GCH2', record: () => championshipTitle('gch2') },
+    { label: 'SD-GCH3', record: () => championshipTitle('gch3') },
+    { label: 'SD-GCH4', record: () => championshipTitle('gch4') },
+    { label: 'SD-GCH5', record: () => championshipTitle('gch5') }
   ];
-  const eliteRepeatHtml = eliteRepeatRules.map((rule) => {
-    const prior = championshipTitle(rule.previous);
-    const eligibleRows = scoreRowsAfterTitle(prior);
-    const sets = eligibleRows ? eliteSets(eligibleRows) : [];
-    const goldCount = sets.filter((set) => set.gold).length;
-    const record = championshipTitle(rule.key);
-    const goldRule = rule.gold == null ? 'The July 2026 rulebook wording says “four (5) Gold scores”; this is internally inconsistent and must be confirmed with SDDA.' :
-      esc(rule.gold) + ' Gold scores required.';
-    return '<article class="next-card"><h3>' + esc(rule.name) + '</h3><p>Requires 5 additional complete same-trial Elite scores after the previous ELCH title. ' + goldRule + '</p><p>' +
-      (eligibleRows ? esc(sets.length) + '/5 additional Elite scores · ' + esc(goldCount) + ' Gold.' : 'Cannot establish the post-title score pool: the previous recorded title date/trial or complete score dates are missing.') +
-      '</p>' + (record ? '<p>Recorded by SDDA on ' + esc(dateLabel(record.date)) + '.</p>' : '<p>No matching award is recorded in the Titles file.</p>') + '</article>';
-  }).join('');
-  const chStory = chronologicalChStory();
-  const chRecorded = chStory.recorded;
-  const chCard = chStory.unavailable
-    ? '<article class="next-card"><h3>SD-CH · Champion</h3><p>' + esc(chStory.unavailable) + '</p></article>'
-    : '<article class="next-card"><header><div><h3>SD-CH · Champion</h3><p class="next-kind">' +
-      (chStory.completion ? 'First calculated at Trial ' + esc(chStory.completion.trial) : 'Not reached') +
-      '</p></div><span class="remaining-badge">' + (chStory.completion ? 'Calculated' : 'In progress') + '</span></header>' +
-      '<p>Requires 5 Advanced/Excellent titling combinations, including at least 2 Excellent. Each score record can be used only once.</p>' +
-      (chStory.completion ? '<p><strong>First qualifying point:</strong> ' + esc(chStory.completion.total) + ' selected combinations, including ' + esc(chStory.completion.excellent) + ' Excellent.</p>' +
-        chStory.completion.sets.map((set, index) => progressionSetDetails(set, 'Selected SD-CH combination ' + (index + 1))).join('') :
-        '<p>The supplied chronological score history does not yet contain five qualifying combinations with at least two Excellent.</p>') +
-      progressionTitleComparison(chStory.completion?.date || '', chRecorded, chStory.completion?.trial) +
-      '<details><summary>Trial-by-trial calculation (' + chStory.steps.length + ' trials)</summary><ol>' +
-      chStory.steps.map((step) => '<li><strong>Trial ' + esc(step.trial) + '</strong>: ' + esc(step.total) + '/5 selected combinations, ' + esc(step.excellent) + ' Excellent' + (step.met ? ' · <strong>first qualifying trial</strong>' : '') + '</li>').join('') +
-      '</ol></details></article>';
 
-  const machResult = chronologicalMachStory();
-  let machHtml = '';
-  if (machResult.unavailable) {
-    machHtml = '<article class="next-card"><h3>Advanced / Excellent championships</h3><p>' + esc(machResult.unavailable) + '</p></article>';
-  } else {
-    machHtml = machResult.stages.map((stage) => {
-      const recorded = stage.recorded;
-      const steps = stage.steps.map((step) =>
-        '<li><strong>Trial ' + esc(step.trial) + (step.date ? ' · ' + esc(dateLabel(step.date)) : '') + '</strong>: ' +
-        esc(step.advanced) + ' Advanced and ' + esc(step.excellent) + ' Excellent combinations; ' +
-        esc(step.gold) + ' Gold overall (' + esc(step.excellentGold) + ' Excellent Gold).' +
-        (step.met ? ' <strong>First qualifying trial.</strong>' : '') + '</li>'
-      ).join('');
-      const detail = stage.completion
-        ? '<p><strong>Calculated cutoff: Trial ' + esc(stage.completion.trial) + '.</strong> The high-to-low pairing at this point supplied ' +
-          esc(stage.completion.total) + ' combinations, including ' + esc(stage.completion.excellent.length) +
-          ' Excellent and ' + esc(stage.completion.gold) + ' Gold combinations.</p>' +
-          stage.completion.advanced.map((set, i) => progressionSetDetails(set, 'Advanced combination ' + (i + 1))).join('') +
-          stage.completion.excellent.map((set, i) => progressionSetDetails(set, 'Excellent combination ' + (i + 1))).join('')
-        : '<p>The title requirements were not reached in the supplied chronological score history.</p>';
-      return '<article class="next-card"><header><div><h3>' + esc(stage.name) + '</h3><p class="next-kind">' +
-        (stage.completion ? 'First calculated at Trial ' + esc(stage.completion.trial) : 'Not reached') +
-        '</p></div><span class="remaining-badge">' + (stage.completion ? 'Calculated' : 'In progress') + '</span></header>' +
-        '<p>These titles use Advanced and Excellent combinations separately. Container, Exterior and Interior are ranked high-to-low within each level, then paired by rank. A combination is qualifying at 100 or more; Gold is 192 or more. For the championship count, the checker selects exactly the required number of pairings, starts with the strongest totals, and makes the smallest necessary substitutions to preserve the required Excellent and Gold counts.</p>' +
-        detail + progressionTitleComparison(stage.completion?.date || '', recorded, stage.completion?.trial) +
-        '<details><summary>Trial-by-trial progression (' + stage.steps.length + ' trials)</summary><ol>' + steps + '</ol></details></article>';
+  const cards = titleCards.map(({ label, record: getRecord }) => {
+    const record = getRecord();
+    if (!record) return '';
+    const displayLabel = /special/i.test(record.description || '') ? label + ' · SP' : label;
+    const details = [
+      record.honours ? '<p><strong>Honours:</strong> ' + esc(record.honours) + '</p>' : '',
+      record.score != null && record.score !== '' ? '<p><strong>Title score:</strong> ' + esc(record.score) + '</p>' : '',
+      '<p class="level-note">This title and date are copied from the uploaded Dog Titles sheet. The checker does not calculate or award this title.</p>'
+    ].join('');
+    return '<details class="progression-record-card"><summary><span><strong>' + esc(displayLabel) +
+      '</strong></span><span class="progression-record-date">Recorded ' + esc(dateLabel(record.date)) +
+      '</span></summary><div class="progression-record-body">' + details + '</div></details>';
+  }).join('');
+
+  const scoreEvidenceCard = (level) => {
+    const combinations = maximizeGoldCombinations(level);
+    const rows = combinations.map((set, index) => {
+      const name = set.special ? level + ' SP' : set.titleLocked ? level + ' title-earning combination' : level + ' combination ' + (index + 1);
+      const part = (component) => set[component.toLowerCase()]?.score == null ? '—' :
+        esc(set[component.toLowerCase()].score) + ' (Trial ' + esc(set[component.toLowerCase()].trial || '—') + ')';
+      return '<li><strong>' + esc(name) + ':</strong> Container ' + part('Container') +
+        ' · Exterior ' + part('Exterior') + ' · Interior ' + part('Interior') +
+        ' · Total ' + esc(set.total) + ' (' + (set.gold ? 'Gold' : set.total >= 172 ? 'Silver' : set.total >= 142 ? 'Bronze' : set.total >= 100 ? 'Satisfactory' : 'Insufficient') + ')</li>';
     }).join('');
-  }
+    return '<details class="progression-record-card"><summary><strong>' + esc(level) +
+      ' score combinations</strong><span class="progression-record-date">' + byLevel(level).length +
+      ' component scores</span></summary><div class="progression-record-body"><p>These are score pairings from the Dog Scores export, not title awards. They are kept separate from the recorded title cards above.</p>' +
+      (rows ? '<ol>' + rows + '</ol>' : '<p>No complete combinations available.</p>') + '</div></details>';
+  };
+  const levelEvidence = '<p class="level-note"><strong>Score evidence is separate from recorded awards.</strong> The cards below identify Advanced and Excellent pairings explicitly. They do not create or confirm a title.</p>' +
+    scoreEvidenceCard('Advanced') + scoreEvidenceCard('Excellent');
 
-  const counts = gamePassCounts();
-  const gameCards = GAME_NAMES.map((game) => {
-    const record = gameTitleRecord(game);
-    const passes = games.filter((row) => row.game === game && row.pass !== false).length;
-    return '<li><strong>' + esc(game) + ':</strong> ' + esc(passes) + ' recorded pass rows' +
-      (record ? ' · title recorded ' + esc(dateLabel(record.date)) : passes >= 3 ? ' · three-pass title requirements shown as met; not recorded' : '') + '</li>';
-  }).join('');
-  const gameRules = GAME_CHAMPIONSHIP_RULES.map((rule) => {
-    const progress = gameChampionshipProgress(counts, rule);
-    const record = championshipTitle(rule.key);
-    return '<article class="next-card"><h3>' + esc(rule.name) + '</h3><p>' + esc(rule.text) + '.</p><p>' +
-      (record ? 'Recorded by SDDA on ' + esc(dateLabel(record.date)) + '.' : progress.met ? 'Current Games pass counts meet the calculated requirements; award not recorded in the Titles file.' : 'Still in progress under the current pass counts.') +
-      '</p></article>';
-  }).join('');
-  const gamesStory = '<article class="next-card"><h3>Individual Games titles</h3><p>Each Games pass is counted separately from scent scores. Three passes in an individual Game earn its individual Games title.</p><ul>' + gameCards + '</ul><p>Games passes may be banked for the repeat All Games championship levels; they are not reset at each repeat title.</p></article>' + gameRules;
-
-
-  const titleSheetHtml = titlesFileLoaded
-    ? '<article class="next-card"><h3>Titles sheet used for comparison</h3><ul>' + titles.map((title) => '<li><strong>' + esc(title.description) + ':</strong> ' + esc(dateLabel(title.date)) + (title.honours ? ' · ' + esc(title.honours) : '') + '</li>').join('') + '</ul><p>Title sheet labels are matched to their SDDA title codes; for example, “Champion” is SD-CH, “Master Champion” is SD-MACH, and “All Games” is SD-GS. The date and honours fields are used as recorded evidence, not overwritten by calculations.</p></article>'
-    : '<article class="next-card"><h3>Titles sheet required for complete progression</h3><p>Upload the Dog Titles file to compare calculated completion dates with recorded awards and establish repeat-title cutoffs. Without it, this story is an explanation of score evidence only.</p></article>';
-
-  host.innerHTML = '<p class="level-note"><strong>How to read this story:</strong> it reconstructs the earliest score-based completion using the supplied score rows and the checker’s fast high-to-low pairing method. It explains the evidence; it does not grant titles. The Dog Titles sheet is used to compare calculated dates with recorded awards. Any mismatch is shown rather than silently corrected.</p>' +
-    '<h3>Started, Advanced and Excellent</h3>' + individual +
-    '<h3>Elite and Elite Championship progression</h3>' + eliteStory + eliteRepeatHtml +
-    '<h3>SD-CH and Advanced / Excellent championship chain</h3>' + chCard + machHtml +
-    '<h3>Games progression</h3>' + gamesStory + titleSheetHtml +
-    '<h3>What the files can and cannot verify</h3><article class="next-card"><p>The score export supplies score, component, event date and trial number. It does not supply judge identities, so the two-judge ELCH and three-judge GMCH conditions still require handler/SDDA verification. Trial numbers are identifiers; chronological order comes from the score file order. Where a title date covers multiple trials and no exact trial is recorded in Honours, the exact titling trial may remain ambiguous. SDDA remains the official authority.</p></article>';
+  host.innerHTML = '<p class="level-note"><strong>Recorded title history:</strong> the cards below show only titles found in this dog\'s Dog Titles sheet. Dates and honours are displayed as recorded. Score-based estimates are not presented as awarded titles.</p>' +
+    (cards || '<p class="level-note">No recognized title records were found in the uploaded Dog Titles sheet.</p>') +
+    '<h3>Score export level identification</h3>' + levelEvidence +
+    '<h3>What the files can and cannot verify</h3><article class="next-card"><p>The score export identifies the score level (Advanced, Excellent, Elite), component, event date and trial number. It does not supply judge identities, so judge-diversity requirements still require handler/SDDA verification. Trial numbers are identifiers; chronological order comes from the score file order. SDDA remains the official authority.</p></article>';
 }
 
 function currentMachLedgerRows() {
