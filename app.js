@@ -345,15 +345,15 @@ function reportAchievedTitles() {
 
   const advanced = maximizeGoldCombinations("Advanced");
   const excellent = maximizeGoldCombinations("Excellent");
-  const combined = [...advanced, ...excellent];
-  const gold = combined.filter((set) => set.gold).length;
+  const chSelection = selectProgressionCombinations(advanced, excellent, "ch");
+  const machSelection = selectProgressionCombinations(advanced, excellent, "mach");
   const elite = eliteSets();
   const eliteGold = elite.filter((set) => set.gold).length;
-  const chMet = combined.length >= 5 && excellent.length >= 2;
-  const machMet = combined.length >= 10 && excellent.length >= 3 && gold >= 3;
+  const chMet = chSelection.met;
+  const machMet = machSelection.met;
   const elchMet = elite.length >= 5 && eliteGold >= 2;
-  if (chMet && !championshipTitle("ch")) add("SD-CH", "", "5 titling combinations · at least 2 Excellent");
-  if (machMet && !championshipTitle("mach")) add("SD-MACH", "", "10 combinations · " + Math.min(10, excellent.length) + " Excellent + " + Math.min(advanced.length, Math.max(0, 10 - excellent.length)) + " Advanced");
+  if (chMet && !championshipTitle("ch")) add("SD-CH", "", "5 titling combinations · " + chSelection.excellent.length + " Excellent");
+  if (machMet && !championshipTitle("mach")) add("SD-MACH", "", "10 selected combinations · " + machSelection.excellent.length + " Excellent + " + machSelection.advanced.length + " Advanced · " + machSelection.sets.filter((set) => set.gold).length + " Gold");
   if (elchMet && !championshipTitle("elch")) add("SD-ELCH", "", "5 same-trial Elite scores · " + eliteGold + " Gold", null, window.sddaJudgeVerification.elch ? "Judge minimum handler-confirmed; SDDA confirmation pending" : "Judge minimum requires confirmation");
   if ((machMet || championshipTitle("mach")) && (elchMet || championshipTitle("elch"))) {
     if (!championshipTitle("gmch")) add("SD-GMCH", "", "MACH and ELCH score requirements met", null, window.sddaJudgeVerification.gmch ? "Three-judge minimum handler-confirmed; SDDA confirmation pending" : "Three-judge minimum requires confirmation");
@@ -541,6 +541,54 @@ function machStageUpperBounds(rows, level, includeTitleLock) {
   };
 }
 
+
+function selectProgressionCombinations(advanced, excellent, stageKey) {
+  const target = stageKey === "ch" ? 5 : 10;
+  const minExcellent = stageKey === "ch" ? 2 : stageKey === "mach" ? 3 : stageKey === "mach2" ? 7 : 10;
+  const minGold = stageKey === "ch" ? 0 : stageKey === "mach" ? 3 : stageKey === "mach2" || stageKey === "mach3" ? 3 : 4;
+  const candidates = [...advanced, ...excellent].filter((set) => set.total >= 100)
+    .sort((a, b) => b.total - a.total ||
+      Number(a.container?.sourceRow || 0) - Number(b.container?.sourceRow || 0) ||
+      Number(a.exterior?.sourceRow || 0) - Number(b.exterior?.sourceRow || 0) ||
+      Number(a.interior?.sourceRow || 0) - Number(b.interior?.sourceRow || 0));
+  const excellentCandidates = candidates.filter((set) => set.level === "Excellent");
+  let selected;
+  if (stageKey === "mach3" || stageKey === "mach4") {
+    selected = excellentCandidates.slice(0, target);
+  } else if (stageKey === "mach2") {
+    selected = excellentCandidates.slice(0, 7);
+    const remaining = candidates.filter((set) => !selected.includes(set));
+    selected.push(...remaining.slice(0, Math.max(0, target - selected.length)));
+  } else {
+    selected = candidates.slice(0, target);
+  }
+  const selectedSet = new Set(selected);
+  const replaceFor = (predicate, preserveExcellent = false) => {
+    while (selected.filter(predicate).length < (predicate === isExcellent ? minExcellent : minGold)) {
+      const replacement = candidates.find((candidate) => !selectedSet.has(candidate) && predicate(candidate));
+      if (!replacement) break;
+      const removable = selected.filter((candidate) => !predicate(candidate) &&
+        (!preserveExcellent || candidate.level !== "Excellent" || replacement.level === "Excellent" || selected.filter(isExcellent).length > minExcellent))
+        .sort((a, b) => a.total - b.total)[0];
+      if (!removable) break;
+      selected.splice(selected.indexOf(removable), 1, replacement);
+      selectedSet.delete(removable);
+      selectedSet.add(replacement);
+    }
+  };
+  const isExcellent = (set) => set.level === "Excellent";
+  const isGold = (set) => set.gold && (stageKey !== "mach2" || set.level === "Excellent");
+  if (stageKey !== "mach3" && stageKey !== "mach4") replaceFor(isExcellent);
+  if (minGold) replaceFor(isGold, true);
+  selected.sort((a, b) => b.total - a.total);
+  const excellentCount = selected.filter(isExcellent).length;
+  const goldCount = selected.filter(isGold).length;
+  const met = selected.length >= target && excellentCount >= minExcellent && goldCount >= minGold &&
+    (stageKey !== "mach2" || selected.filter((set) => set.level === "Advanced").length <= 3);
+  return { sets: selected, advanced: selected.filter((set) => set.level === "Advanced"),
+    excellent: selected.filter(isExcellent), total: selected.length, excellentCount, goldCount, met };
+}
+
 function machCutoffRowForTitle(title) {
   const stage = machTitleStage(title);
   if (!stage) return null;
@@ -582,14 +630,9 @@ function machCutoffRowForTitle(title) {
         ? maximizeGoldCombinations("Advanced", prefix, advancedLimit, includeTitleLock)
         : [];
       const excellent = maximizeGoldCombinations("Excellent", prefix, 10, includeTitleLock);
-      const combined = [...advanced, ...excellent];
-      const gold = combined.filter((set) => set.gold).length;
-      const excellentGold = excellent.filter((set) => set.gold).length;
-      let met = false;
-      if (currentStage === 1) met = combined.length >= 10 && excellent.length >= 3 && gold >= 3;
-      else if (currentStage === 2) met = excellent.length >= 7 && excellentGold >= 3 && excellent.length + advanced.length >= 10;
-      else if (currentStage === 3) met = excellent.length >= 10 && excellentGold >= 3;
-      else if (currentStage === 4) met = excellent.length >= 10 && excellentGold >= 4;
+      const stageKey = currentStage === 1 ? "mach" : currentStage === 2 ? "mach2" : currentStage === 3 ? "mach3" : "mach4";
+      const selection = selectProgressionCombinations(advanced, excellent, stageKey);
+      const met = selection.met;
       const searchComplete =
         advanced.optimizationComplete !== false &&
         excellent.optimizationComplete !== false;
@@ -606,11 +649,39 @@ function machCutoffRowForTitle(title) {
       machCutoffCache.set(currentStage, null);
       return null;
     }
-    machCutoffCache.set(currentStage, { trial: trialGroups[cutoffIndex].trial, index: cutoffIndex });
+    const stageKey = currentStage === 1 ? "mach" : currentStage === 2 ? "mach2" : currentStage === 3 ? "mach3" : "mach4";
+    const recorded = championshipTitle(stageKey);
+    const calculatedGroup = trialGroups[cutoffIndex];
+    const calculatedDate = calculatedGroup.rows.find((row) => row.date)?.date || "";
+    const honourTrial = String(recorded?.honours || "").match(/trial\s*#?\s*(\d+)/i);
+    if (!titlesFileLoaded || !recorded || !recorded.date || recorded.date !== calculatedDate ||
+        (honourTrial && Number(honourTrial[1]) !== Number(calculatedGroup.trial))) {
+      machCutoffCache.set(currentStage, null);
+      return null;
+    }
+    machCutoffCache.set(currentStage, { trial: calculatedGroup.trial, index: cutoffIndex });
   }
   return machCutoffCache.get(stage) || null;
 }
 
+
+
+function chronologicalChStory() {
+  const groups = machTrialGroups();
+  if (!groups) return { unavailable: "Valid trial numbers are required to establish the chronological SD-CH completion point." };
+  const prefix = [], steps = [];
+  for (const group of groups) {
+    prefix.push(...group.rows);
+    const advanced = maximizeGoldCombinations("Advanced", prefix, 10, true);
+    const excellent = maximizeGoldCombinations("Excellent", prefix, 10, true);
+    const selection = selectProgressionCombinations(advanced, excellent, "ch");
+    steps.push({ trial: group.trial, date: group.rows.find((row) => row.date)?.date || "",
+      total: selection.total, excellent: selection.excellent.length, met: selection.met });
+    if (selection.met) return { completion: { trial: group.trial, date: group.rows.find((row) => row.date)?.date || "",
+      sets: selection.sets, total: selection.total, excellent: selection.excellent.length }, steps, recorded: championshipTitle("ch") };
+  }
+  return { completion: null, steps, recorded: championshipTitle("ch") };
+}
 
 function chronologicalMachStory() {
   const groups = machTrialGroups();
@@ -634,20 +705,16 @@ function chronologicalMachStory() {
         ? maximizeGoldCombinations("Advanced", prefix, stage.advanced, includeTitleLock)
         : [];
       const excellent = maximizeGoldCombinations("Excellent", prefix, 10, includeTitleLock);
-      const combined = [...advanced, ...excellent];
-      const gold = combined.filter((set) => set.gold).length;
-      const excellentGold = excellent.filter((set) => set.gold).length;
-      const total = Math.min(10, combined.length);
-      const met = stage.key === "mach"
-        ? total >= 10 && excellent.length >= 3 && gold >= 3
-        : stage.key === "mach2"
-          ? excellent.length >= 7 && excellentGold >= 3 && total >= 10
-          : excellent.length >= 10 && excellentGold >= stage.gold;
+      const selection = selectProgressionCombinations(advanced, excellent, stage.key);
+      const gold = selection.sets.filter((set) => set.gold).length;
+      const excellentGold = selection.excellent.filter((set) => set.gold).length;
+      const total = selection.total;
+      const met = selection.met;
       steps.push({
         trial: groups[index].trial,
         date: groups[index].rows.find((row) => row.date)?.date || "",
-        advanced: advanced.length,
-        excellent: excellent.length,
+        advanced: selection.advanced.length,
+        excellent: selection.excellent.length,
         gold,
         excellentGold,
         met
@@ -657,8 +724,8 @@ function chronologicalMachStory() {
           index,
           trial: groups[index].trial,
           date: groups[index].rows.find((row) => row.date)?.date || "",
-          advanced,
-          excellent,
+          advanced: selection.advanced,
+          excellent: selection.excellent,
           gold,
           excellentGold,
           total
@@ -845,14 +912,21 @@ function renderFullProgressionExplanation() {
       (eligibleRows ? esc(sets.length) + '/5 additional Elite scores · ' + esc(goldCount) + ' Gold.' : 'Cannot establish the post-title score pool: the previous recorded title date/trial or complete score dates are missing.') +
       '</p>' + (record ? '<p>Recorded by SDDA on ' + esc(dateLabel(record.date)) + '.</p>' : '<p>No matching award is recorded in the Titles file.</p>') + '</article>';
   }).join('');
-  const chRecorded = championshipTitle("ch");
-  const chAdvanced = maximizeGoldCombinations("Advanced"), chExcellent = maximizeGoldCombinations("Excellent");
-  const chCombined = [...chAdvanced, ...chExcellent];
-  const chGold = chCombined.filter((set) => set.gold).length;
-  const chCard = '<article class="next-card"><h3>SD-CH · Champion</h3><p>Requires 5 Advanced/Excellent titling combinations, including at least 2 Excellent. The same component score cannot be reused in more than one combination.</p><p>' +
-    esc(chCombined.length) + '/5 available combinations · ' + esc(chExcellent.length) + ' Excellent · ' + esc(chGold) + ' Gold combinations.</p>' +
-    (chRecorded ? '<p>Recorded by SDDA on ' + esc(dateLabel(chRecorded.date)) + '.</p>' : '<p>No SD-CH award is recorded in the Titles file.</p>') +
-    '<p>For the full chronological cutoff, the exact first qualifying trial must be reconstructed against the title record. The checker does not treat the current career-wide count as proof of the official award trial.</p></article>';
+  const chStory = chronologicalChStory();
+  const chRecorded = chStory.recorded;
+  const chCard = chStory.unavailable
+    ? '<article class="next-card"><h3>SD-CH · Champion</h3><p>' + esc(chStory.unavailable) + '</p></article>'
+    : '<article class="next-card"><header><div><h3>SD-CH · Champion</h3><p class="next-kind">' +
+      (chStory.completion ? 'First calculated at Trial ' + esc(chStory.completion.trial) : 'Not reached') +
+      '</p></div><span class="remaining-badge">' + (chStory.completion ? 'Calculated' : 'In progress') + '</span></header>' +
+      '<p>Requires 5 Advanced/Excellent titling combinations, including at least 2 Excellent. Each score record can be used only once.</p>' +
+      (chStory.completion ? '<p><strong>First qualifying point:</strong> ' + esc(chStory.completion.total) + ' selected combinations, including ' + esc(chStory.completion.excellent) + ' Excellent.</p>' +
+        chStory.completion.sets.map((set, index) => progressionSetDetails(set, 'Selected SD-CH combination ' + (index + 1))).join('') :
+        '<p>The supplied chronological score history does not yet contain five qualifying combinations with at least two Excellent.</p>') +
+      progressionTitleComparison(chStory.completion?.date || '', chRecorded, chStory.completion?.trial) +
+      '<details><summary>Trial-by-trial calculation (' + chStory.steps.length + ' trials)</summary><ol>' +
+      chStory.steps.map((step) => '<li><strong>Trial ' + esc(step.trial) + '</strong>: ' + esc(step.total) + '/5 selected combinations, ' + esc(step.excellent) + ' Excellent' + (step.met ? ' · <strong>first qualifying trial</strong>' : '') + '</li>').join('') +
+      '</ol></details></article>';
 
   const machResult = chronologicalMachStory();
   let machHtml = '';
@@ -877,7 +951,7 @@ function renderFullProgressionExplanation() {
       return '<article class="next-card"><header><div><h3>' + esc(stage.name) + '</h3><p class="next-kind">' +
         (stage.completion ? 'First calculated at Trial ' + esc(stage.completion.trial) : 'Not reached') +
         '</p></div><span class="remaining-badge">' + (stage.completion ? 'Calculated' : 'In progress') + '</span></header>' +
-        '<p>These titles use Advanced and Excellent combinations separately. Container, Exterior and Interior are ranked high-to-low within each level, then paired by rank. A combination is qualifying at 100 or more; Gold is 192 or more.</p>' +
+        '<p>These titles use Advanced and Excellent combinations separately. Container, Exterior and Interior are ranked high-to-low within each level, then paired by rank. A combination is qualifying at 100 or more; Gold is 192 or more. For the championship count, the checker selects exactly the required number of pairings, starts with the strongest totals, and makes the smallest necessary substitutions to preserve the required Excellent and Gold counts.</p>' +
         detail + progressionTitleComparison(stage.completion?.date || '', recorded, stage.completion?.trial) +
         '<details><summary>Trial-by-trial progression (' + stage.steps.length + ' trials)</summary><ol>' + steps + '</ol></details></article>';
     }).join('');
@@ -931,12 +1005,15 @@ function machExtensionProgress(rule, priorTitleOrStage) {
     ? maximizeGoldCombinations("Advanced", eligible, advancedLimit, false)
     : [];
   const excellent = maximizeGoldCombinations("Excellent", eligible, 10, false);
+  const selection = selectProgressionCombinations(advanced, excellent, rule.key);
   return {
     verified: true,
     cutoffTrial: cutoff.trial,
-    advanced: advanced.length,
-    excellent: excellent.length,
-    gold: excellent.filter((set) => set.gold).length
+    advanced: selection.advanced.length,
+    excellent: selection.excellent.length,
+    gold: selection.excellent.filter((set) => set.gold).length,
+    selected: selection.sets,
+    met: selection.met
   };
 }
 function scoreRowsAfterTitle(priorTitle) {
@@ -973,12 +1050,13 @@ function render() {
   const summaryInferred = inferredTitles();
   const summaryTitle = (pattern) => titles.find((title) => pattern.test(titleText(title))) || summaryInferred.find((title) => pattern.test(titleText(title)));
   const summaryAdvanced = maximizeGoldCombinations("Advanced"), summaryExcellent = maximizeGoldCombinations("Excellent"), summaryElite = eliteSets();
-  const summaryCombined = [...summaryAdvanced, ...summaryExcellent], summaryGolds = summaryCombined.filter((set) => set.gold).length;
+  const summaryChSelection = selectProgressionCombinations(summaryAdvanced, summaryExcellent, "ch");
+  const summaryMachSelection = selectProgressionCombinations(summaryAdvanced, summaryExcellent, "mach");
   const scentAchieved = [
     !!summaryTitle(/^Started(?:\s|$)/i), !!summaryTitle(/^Advanced(?:\s|$)/i), !!summaryTitle(/^Excellent(?:\s|$)/i),
     !!titles.find((title) => /^Elite(?:\s|$)/i.test(titleText(title))) || ((!!summaryTitle(/^Excellent(?:\s|$)/i) || COMPONENTS.every((component) => componentCounts("Excellent")[component] > 0)) && summaryElite.length > 0),
-    !!championshipTitle("ch") || (summaryCombined.length >= 5 && summaryExcellent.length >= 2),
-    !!championshipTitle("mach") || (summaryCombined.length >= 10 && summaryExcellent.length >= 3 && summaryGolds >= 3),
+    !!championshipTitle("ch") || summaryChSelection.met,
+    !!championshipTitle("mach") || summaryMachSelection.met,
     !!championshipTitle("elch") || (summaryElite.length >= 5 && summaryElite.filter((set) => set.gold).length >= 2),
     !!championshipTitle("gmch")
   ].filter(Boolean).length;
@@ -1024,21 +1102,23 @@ function render() {
   }
 
   const advancedSets = maximizeGoldCombinations("Advanced"), excellentSetsList = maximizeGoldCombinations("Excellent");
-  const combined = [...advancedSets, ...excellentSetsList], golds = combined.filter((set) => set.gold);
+  const chSelection = selectProgressionCombinations(advancedSets, excellentSetsList, "ch");
+  const machSelection = selectProgressionCombinations(advancedSets, excellentSetsList, "mach");
   const ch = championshipTitle("ch"), mach = championshipTitle("mach");
-  const totalSets = combined.length, excellentSets = excellentSetsList.length;
-  const machExcellentCount = Math.min(excellentSets, 10);
-  const machAdvancedCount = Math.min(advancedSets.length, Math.max(0, 10 - machExcellentCount));
-  cards.push(progressCard("SD-CH", ch ? "Achieved" : totalSets >= 5 && excellentSets >= 2 ? "Requirements shown as met" : "In progress", [
-    { done: totalSets >= 5, text: `${totalSets}/5 Advanced or Excellent titling scores` },
-    { done: excellentSets >= 2, text: `${excellentSets}/2 must be Excellent` }
+  const chTotal = chSelection.total, chExcellentCount = chSelection.excellent.length;
+  const totalSets = machSelection.total, excellentSets = machSelection.excellent.length;
+  const machAdvancedCount = machSelection.advanced.length;
+  const golds = machSelection.sets.filter((set) => set.gold);
+  cards.push(progressCard("SD-CH", ch ? "Achieved" : chSelection.met ? "Requirements shown as met" : "In progress", [
+    { done: chTotal >= 5, text: `${chTotal}/5 selected Advanced or Excellent titling scores` },
+    { done: chExcellentCount >= 2, text: `${chExcellentCount}/2 must be Excellent` }
   ], ch ? `Recorded ${dateLabel(ch.date)}.` : "Advanced components are combined only with Advanced; Excellent components only with Excellent. Initial SP titles remain locked."));
-  cards.push(progressCard("SD-MACH", mach ? "Achieved" : totalSets >= 10 && excellentSets >= 3 && golds.length >= 3 ? "Requirements shown as met" : "In progress", [
-    { done: totalSets >= 10, text: `${totalSets}/10 Advanced or Excellent titling scores` },
+  cards.push(progressCard("SD-MACH", mach ? "Achieved" : machSelection.met ? "Requirements shown as met" : "In progress", [
+    { done: totalSets >= 10, text: `${totalSets}/10 selected Advanced or Excellent titling scores` },
     { done: excellentSets >= 3, text: `${excellentSets}/3 must be Excellent` },
-    { done: golds.length >= 3, text: `${golds.length}/3 calculated Gold combinations (Silver combinations count toward the 10 total)` },
-    { done: totalSets >= 10, text: `${Math.min(10, totalSets)}/10 composition: ${machExcellentCount} Excellent + ${machAdvancedCount} Advanced` }
-  ], mach ? `Recorded ${dateLabel(mach.date)}.` : "Golds may be earned at Advanced or Excellent."));
+    { done: golds.length >= 3, text: `${golds.length}/3 Gold combinations (Silver combinations count toward the 10 total)` },
+    { done: totalSets >= 10, text: `${Math.min(10, totalSets)}/10 composition: ${excellentSets} Excellent + ${machAdvancedCount} Advanced` }
+  ], mach ? `Recorded ${dateLabel(mach.date)}.` : "The ten selected combinations preserve the Excellent and Gold requirements while favoring high totals."));
 
   const elSets = eliteSets(), elGolds = elSets.filter((set) => set.gold), elch = championshipTitle("elch");
   const elchScoresMet = elSets.length >= 5 && elGolds.length >= 2;
@@ -1130,15 +1210,16 @@ function renderMobileDashboard() {
     return accordion({ name: entry.name, subtitle: recorded ? "Recorded title" : met ? "Requirements met · not yet recorded" : "In progress", achieved: met, date: recorded?.date, body: reqList(requirements), accent: entry.elite ? "level-accent-elite" : "" });
   });
   const advanced = maximizeGoldCombinations("Advanced"), excellent = maximizeGoldCombinations("Excellent"), elite = eliteSets();
-  const total = advanced.length + excellent.length, gold = [...advanced, ...excellent].filter((set) => set.gold).length;
-  // Keep championship prerequisite calculations local to this renderer.
-  const machExcellentCount = Math.min(excellent.length, 10);
-  const machAdvancedCount = Math.min(advanced.length, Math.max(0, 10 - machExcellentCount));
-  const machScoresMet = total >= 10 && excellent.length >= 3 && gold >= 3;
+  const chSelection = selectProgressionCombinations(advanced, excellent, "ch");
+  const machSelection = selectProgressionCombinations(advanced, excellent, "mach");
+  const total = machSelection.total, gold = machSelection.sets.filter((set) => set.gold).length;
+  const machExcellentCount = machSelection.excellent.length;
+  const machAdvancedCount = machSelection.advanced.length;
+  const machScoresMet = machSelection.met;
   const elchScoresMet = elite.length >= 5 && elite.filter((set) => set.gold).length >= 2;
   const championCards = [
-    { name: "SD-CH", found: championshipTitle("ch"), met: total >= 5 && excellent.length >= 2, items: [{ done: total >= 5, text: `${total}/5 Advanced or Excellent scores` }, { done: excellent.length >= 2, text: `${excellent.length}/2 must be Excellent` }] },
-    { name: "SD-MACH", found: championshipTitle("mach"), met: total >= 10 && excellent.length >= 3 && gold >= 3, items: [{ done: total >= 10, text: `${total}/10 Advanced or Excellent scores` }, { done: excellent.length >= 3, text: `${excellent.length}/3 must be Excellent` }, { done: gold >= 3, text: `${gold}/3 Gold combinations (Silver combinations count toward the 10 total)` }, { done: total >= 10, text: `${Math.min(10,total)}/10 composition: ${machExcellentCount} Excellent + ${machAdvancedCount} Advanced` }] },
+    { name: "SD-CH", found: championshipTitle("ch"), met: chSelection.met, items: [{ done: chSelection.total >= 5, text: `${chSelection.total}/5 selected Advanced or Excellent scores` }, { done: chSelection.excellent.length >= 2, text: `${chSelection.excellent.length}/2 must be Excellent` }] },
+    { name: "SD-MACH", found: championshipTitle("mach"), met: machSelection.met, items: [{ done: total >= 10, text: `${total}/10 selected Advanced or Excellent scores` }, { done: machExcellentCount >= 3, text: `${machExcellentCount}/3 must be Excellent` }, { done: gold >= 3, text: `${gold}/3 Gold combinations (Silver combinations count toward the 10 total)` }, { done: total >= 10, text: `${Math.min(10,total)}/10 composition: ${machExcellentCount} Excellent + ${machAdvancedCount} Advanced` }] },
     { name: "SD-ELCH", found: championshipTitle("elch"), met: elite.length >= 5 && elite.filter((set) => set.gold).length >= 2, verificationRequired: true, items: [{ done: elite.length >= 5, text: `${elite.length}/5 complete Elite scores` }, { done: elite.filter((set) => set.gold).length >= 2, text: `${elite.filter((set) => set.gold).length}/2 Elite Gold scores` }, { done: !!window.sddaJudgeVerification.elch, pending: !!window.sddaJudgeVerification.elch, text: window.sddaJudgeVerification.elch ? "Handler confirms at least 2 different judges for qualifying Elite scores" : "Handler confirmation needed: at least 2 different judges for qualifying Elite scores" }] },
     { name: "SD-GMCH", found: championshipTitle("gmch"), met: (!!championshipTitle("mach") || machScoresMet) && (!!championshipTitle("elch") || elchScoresMet), verificationRequired: true, items: [{ done: !!championshipTitle("mach") || machScoresMet, text: championshipTitle("mach") ? "SD-MACH recorded" : machScoresMet ? "SD-MACH score requirements met" : "SD-MACH required" }, { done: !!championshipTitle("elch") || elchScoresMet, pending: !championshipTitle("elch") && elchScoresMet, text: championshipTitle("elch") ? "SD-ELCH recorded by SDDA" : elchScoresMet ? "SD-ELCH score requirements met · judge minimum awaiting SDDA confirmation" : "SD-ELCH required" }, { done: !!window.sddaJudgeVerification.gmch, pending: !!window.sddaJudgeVerification.gmch, text: window.sddaJudgeVerification.gmch ? "Handler confirms at least 3 different judges for qualifying Scent scores" : "Handler confirmation needed: at least 3 different judges for qualifying Scent scores" }] }
   ];
@@ -1147,7 +1228,7 @@ function renderMobileDashboard() {
     { key: "mach3", previous: "mach2", name: "SD-MACH3", excellent: 10, gold: 3 },
     { key: "mach4", previous: "mach3", name: "SD-MACH4", excellent: 10, gold: 4 }
   ];
-  const machStageMet = new Map([["mach", !!championshipTitle("mach") || (total >= 10 && excellent.length >= 3 && gold >= 3)]]);
+  const machStageMet = new Map([["mach", !!championshipTitle("mach") || machScoresMet]]);
   repeatMachRules.forEach((rule) => {
     const found = championshipTitle(rule.key), previous = championshipTitle(rule.previous), progress = machExtensionProgress(rule, rule.previous);
     const previousMet = progress.verified || !!previous || !!machStageMet.get(rule.previous);
