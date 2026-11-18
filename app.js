@@ -6,7 +6,6 @@ const GAME_NAMES = ["Aerial", "Distance", "Speed", "Team"];
 let titles = [], scores = [], games = [];
 let titlesFileLoaded = false;
 let currentPdfUrl = "";
-window.sddaJudgeVerification = window.sddaJudgeVerification || { elch: false, gmch: false };
 
 const $ = (id) => document.getElementById(id);
 const pendingCheckStyle = document.createElement("style");
@@ -415,10 +414,6 @@ function reportAchievedTitles() {
   const elchMet = elite.length >= 5 && eliteGold >= 2;
   if (chMet && !championshipTitle("ch")) add("SD-CH", "", "5 titling combinations · " + chSelection.excellent.length + " Excellent");
   if (machMet && !championshipTitle("mach")) add("SD-MACH", "", "10 selected combinations · " + machSelection.excellent.length + " Excellent + " + machSelection.advanced.length + " Advanced · " + machSelection.sets.filter((set) => set.gold).length + " Gold");
-  if (elchMet && !championshipTitle("elch")) add("SD-ELCH", "", "5 same-trial Elite scores · " + eliteGold + " Gold", null, window.sddaJudgeVerification.elch ? "Judge minimum handler-confirmed; SDDA confirmation pending" : "Judge minimum requires confirmation");
-  if ((machMet || championshipTitle("mach")) && (elchMet || championshipTitle("elch"))) {
-    if (!championshipTitle("gmch")) add("SD-GMCH", "", "MACH and ELCH score requirements met", null, window.sddaJudgeVerification.gmch ? "Three-judge minimum handler-confirmed; SDDA confirmation pending" : "Three-judge minimum requires confirmation");
-  }
 
   const counts = gamePassCounts();
   for (const game of GAME_NAMES) {
@@ -1198,17 +1193,16 @@ function render() {
 
   const elSets = eliteSets(), elGolds = elSets.filter((set) => set.gold), elch = championshipTitle("elch");
   const elchScoresMet = elSets.length >= 5 && elGolds.length >= 2;
-  cards.push(progressCard("SD-ELCH", elch ? "Achieved" : elchScoresMet ? (window.sddaJudgeVerification.elch ? "Score requirements met · SDDA judge confirmation pending" : "Score requirements met · judge confirmation needed") : "In progress", [
+  cards.push(progressCard("SD-ELCH", elch ? "Achieved" : elchScoresMet ? "Score requirements met · title not recorded in Titles file" : "In progress", [
     { done: elSets.length >= 5, text: `${elSets.length}/5 complete same-trial Elite scores` },
     { done: elGolds.length >= 2, text: `${elGolds.length}/2 calculated Elite Gold scores` },
-    { done: !!window.sddaJudgeVerification.elch, pending: !!window.sddaJudgeVerification.elch, text: window.sddaJudgeVerification.elch ? "Handler confirms qualifying Elite scores were earned under at least 2 different judges" : "Handler confirmation: qualifying Elite scores under at least 2 different judges" }
   ], elch ? `Recorded ${dateLabel(elch.date)}.` : "Trial numbers are used to group Elite components."));
   const machScoresMet = totalSets >= 10 && excellentSets >= 3 && golds.length >= 3;
   const gmch = championshipTitle("gmch");
   const gmchScoresMet = (!!mach || machScoresMet) && (!!elch || elchScoresMet);
-  cards.push(progressCard("SD-GMCH", gmch ? "Achieved" : gmchScoresMet ? (window.sddaJudgeVerification.gmch ? "Score requirements met · SDDA judge confirmation pending" : "Score requirements met · judge confirmation needed") : "In progress", [
-    { done: !!mach || machScoresMet, text: mach ? "SD-MACH recorded" : machScoresMet ? "Calculated SD-MACH score requirements met" : "SD-MACH required" }, { done: !!elch || elchScoresMet, pending: !elch && elchScoresMet, text: elch ? "SD-ELCH recorded by SDDA" : elchScoresMet ? "SD-ELCH score requirements met · judge minimum awaiting SDDA confirmation" : "SD-ELCH required" }, { done: !!window.sddaJudgeVerification.gmch, pending: !!window.sddaJudgeVerification.gmch, text: window.sddaJudgeVerification.gmch ? "Handler confirms qualifying Scent scores were earned under at least 3 different judges" : "Handler confirmation: qualifying Scent scores under at least 3 different judges" }
-  ], gmch ? `Recorded ${dateLabel(gmch.date)}.` : "The score requirements can be calculated, but judge names and official title approval require SDDA confirmation."));
+  cards.push(progressCard("SD-GMCH", gmch ? "Achieved" : gmchScoresMet ? "Score requirements met · title not recorded in Titles file" : "In progress", [
+    { done: !!mach || machScoresMet, text: mach ? "SD-MACH recorded" : machScoresMet ? "Calculated SD-MACH score requirements met" : "SD-MACH required" }, { done: !!elch || elchScoresMet, pending: !elch && elchScoresMet, text: elch ? "SD-ELCH recorded by SDDA" : elchScoresMet ? "SD-ELCH score requirements met · title not recorded in Titles file" : "SD-ELCH required" },
+  ], gmch ? `Recorded ${dateLabel(gmch.date)}.` : "The SDDA Titles file confirms whether this championship was awarded."));
 
   const extensions = [
     { key: "mach2", previous: "mach", prior: mach, title: "SD-MACH2", excellent: 7, gold: 3, maxAdvanced: 3 },
@@ -1301,8 +1295,8 @@ function renderMobileDashboard() {
     { name: "SD-MACH", found: championshipTitle("mach"), met: machSelection.met, items: championshipTitle("mach")
       ? [{ done: true, text: `Recorded by SDDA on ${dateLabel(championshipTitle("mach").date)}. The title requirements are satisfied.` }]
       : [{ done: total >= 10, text: `${total}/10 selected Advanced or Excellent scores` }, { done: machExcellentCount >= 3, text: `${machExcellentCount}/3 must be Excellent` }, { done: gold >= 3, text: `${gold}/3 Gold combinations (Silver combinations count toward the 10 total)` }, { done: total >= 10, text: `${Math.min(10,total)}/10 composition: ${machExcellentCount} Excellent + ${machAdvancedCount} Advanced` }] },
-    { name: "SD-ELCH", found: championshipTitle("elch"), met: elite.length >= 5 && elite.filter((set) => set.gold).length >= 2, verificationRequired: true, items: [{ done: elite.length >= 5, text: `${elite.length}/5 complete Elite scores` }, { done: elite.filter((set) => set.gold).length >= 2, text: `${elite.filter((set) => set.gold).length}/2 Elite Gold scores` }, { done: !!window.sddaJudgeVerification.elch, pending: !!window.sddaJudgeVerification.elch, text: window.sddaJudgeVerification.elch ? "Handler confirms at least 2 different judges for qualifying Elite scores" : "Handler confirmation needed: at least 2 different judges for qualifying Elite scores" }] },
-    { name: "SD-GMCH", found: championshipTitle("gmch"), met: (!!championshipTitle("mach") || machScoresMet) && (!!championshipTitle("elch") || elchScoresMet), verificationRequired: true, items: [{ done: !!championshipTitle("mach") || machScoresMet, text: championshipTitle("mach") ? "SD-MACH recorded" : machScoresMet ? "SD-MACH score requirements met" : "SD-MACH required" }, { done: !!championshipTitle("elch") || elchScoresMet, pending: !championshipTitle("elch") && elchScoresMet, text: championshipTitle("elch") ? "SD-ELCH recorded by SDDA" : elchScoresMet ? "SD-ELCH score requirements met · judge minimum awaiting SDDA confirmation" : "SD-ELCH required" }, { done: !!window.sddaJudgeVerification.gmch, pending: !!window.sddaJudgeVerification.gmch, text: window.sddaJudgeVerification.gmch ? "Handler confirms at least 3 different judges for qualifying Scent scores" : "Handler confirmation needed: at least 3 different judges for qualifying Scent scores" }] }
+    { name: "SD-ELCH", found: championshipTitle("elch"), met: elite.length >= 5 && elite.filter((set) => set.gold).length >= 2, items: [{ done: elite.length >= 5, text: `${elite.length}/5 complete Elite scores` }, { done: elite.filter((set) => set.gold).length >= 2, text: `${elite.filter((set) => set.gold).length}/2 Elite Gold scores` } ] },
+    { name: "SD-GMCH", found: championshipTitle("gmch"), met: (!!championshipTitle("mach") || machScoresMet) && (!!championshipTitle("elch") || elchScoresMet), items: [{ done: !!championshipTitle("mach") || machScoresMet, text: championshipTitle("mach") ? "SD-MACH recorded" : machScoresMet ? "SD-MACH score requirements met" : "SD-MACH required" }, { done: !!championshipTitle("elch") || elchScoresMet, pending: !championshipTitle("elch") && elchScoresMet, text: championshipTitle("elch") ? "SD-ELCH recorded by SDDA" : elchScoresMet ? "SD-ELCH score requirements met · title not recorded in Titles file" : "SD-ELCH required" } ] }
   ];
   const repeatMachRules = [
     { key: "mach2", previous: "mach", name: "SD-MACH2", excellent: 7, maxAdvanced: 3, gold: 3 },
@@ -1346,7 +1340,7 @@ function renderMobileDashboard() {
       { done: true, text: "No additional judge-count requirement is listed for this repeat title" }
     ] });
   });
-  championCards.forEach((entry) => { const pending = !entry.found && !!entry.met && !!entry.verificationRequired; const achieved = !!entry.found || !!entry.met; const subtitle = entry.found ? "Recorded title" : pending ? "Title requirements met · awaiting judge verification" : entry.met ? "Title requirements met · not yet recorded" : "In progress"; scentCards.push(accordion({ name: entry.name, subtitle, achieved, pending, date: entry.found?.date, body: reqList(entry.items), accent: entry.name.includes("EL") || entry.name.includes("GMCH") ? "level-accent-elite" : entry.name.includes("MACH") ? "level-accent-gold" : "" })); });
+  championCards.forEach((entry) => { const achieved = !!entry.found || !!entry.met; const subtitle = entry.found ? "Recorded title" : entry.met ? "Score requirements met · not recorded in Titles file" : "In progress"; scentCards.push(accordion({ name: entry.name, subtitle, achieved, date: entry.found?.date, body: reqList(entry.items), accent: entry.name.includes("EL") || entry.name.includes("GMCH") ? "level-accent-elite" : entry.name.includes("MACH") ? "level-accent-gold" : "" })); });
   scentTarget.innerHTML = scentCards.join("");
 
   const runClass = (total) => total >= 192 ? "Gold" : total >= 172 ? "Silver" : total >= 142 ? "Bronze" : total >= 100 ? "Satisfactory" : "Insufficient";
