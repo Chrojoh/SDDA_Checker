@@ -995,27 +995,27 @@ function renderProgressionScoreColumns(activeLedger = currentMachLedgerRows()) {
     championshipTitle("elch"), findTitle(/^Elite(?:\\s|$)/i)].find(Boolean);
   const eliteRows = eliteTitle ? scoreRowsAfterTitle(eliteTitle) : scores.filter((row) => row.level === "Elite");
   const elite = eliteRows ? eliteSets(eliteRows) : [];
-  const columns = [
+  const cards = [
     {level:"Advanced",sets:advanced,accent:"level-accent-silver",elite:false},
     {level:"Excellent",sets:excellent,accent:"level-accent-gold",elite:false},
     {level:"Elite",sets:elite,accent:"level-accent-elite",elite:true}
   ];
   return '<p class="level-note current-cutoff-announcement">' + esc(activeLedger.message) +
     '</p><div class="progression-score-columns">' +
-    columns.map((column) => {
-      const count = column.elite
-        ? column.sets.length + ' complete same-trial · ' + column.sets.filter((set) => set.gold).length + ' Gold'
-        : column.sets.filter((set) => set.total >= 100).length + ' qualifying · ' + column.sets.filter((set) => set.gold && set.total >= 100).length + ' Gold';
-      const current = column.level !== "Elite" && !activeLedger.verified
+    cards.map((card) => {
+      const count = card.elite
+        ? card.sets.length + ' complete same-trial · ' + card.sets.filter((set) => set.gold).length + ' Gold'
+        : card.sets.filter((set) => set.total >= 100).length + ' qualifying · ' + card.sets.filter((set) => set.gold && set.total >= 100).length + ' Gold';
+      const current = card.level !== "Elite" && !activeLedger.verified
         ? '<p class="run-empty">Current combinations are withheld until the recorded MACH cutoff can be verified.</p>'
-        : progressionRunRows(column.sets,column.elite);
-      return '<article class="progression-score-column title-accordion ' + column.accent + '">' +
-        '<header class="progression-card-header"><span class="summary-copy"><strong>' + column.level +
-        '</strong><small>' + count + '</small></span></header>' +
-        '<div class="progression-card-body"><section class="progression-current-combinations">' +
-        current + '</section></div>' +
-        '<section class="progression-history"><h4>' + column.level + ' history</h4>' +
-        progressionHistoryMarkup(column.level) + '</section></article>';
+        : progressionRunRows(card.sets,card.elite);
+      return '<details class="progression-score-column title-accordion ' + card.accent + '">' +
+        '<summary class="progression-card-header"><span class="summary-copy"><strong>' + card.level +
+        '</strong><small>' + count + '</small></span><span class="summary-action">Details</span></summary>' +
+        '<div class="progression-expanded-body"><section class="progression-current-combinations">' +
+        '<h4>Current combinations</h4>' + current + '</section>' +
+        '<section class="progression-history"><h4>' + card.level + ' history</h4>' +
+        progressionHistoryMarkup(card.level) + '</section></div></details>';
     }).join("") + '</div>';
 }
 function currentMachLedgerRows() {
