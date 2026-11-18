@@ -992,7 +992,7 @@ function renderProgressionScoreColumns(activeLedger = currentMachLedgerRows()) {
   const advanced = activeLedger.verified ? maximizeGoldCombinations("Advanced", activeLedger.rows) : [];
   const excellent = activeLedger.verified ? maximizeGoldCombinations("Excellent", activeLedger.rows) : [];
   const eliteTitle = [championshipTitle("elch4"), championshipTitle("elch3"), championshipTitle("elch2"),
-    championshipTitle("elch"), findTitle(/^Elite(?:\s|$)/i)].find(Boolean);
+    championshipTitle("elch"), findTitle(/^Elite(?:\\s|$)/i)].find(Boolean);
   const eliteRows = eliteTitle ? scoreRowsAfterTitle(eliteTitle) : scores.filter((row) => row.level === "Elite");
   const elite = eliteRows ? eliteSets(eliteRows) : [];
   const columns = [
@@ -1001,7 +1001,7 @@ function renderProgressionScoreColumns(activeLedger = currentMachLedgerRows()) {
     {level:"Elite",sets:elite,accent:"level-accent-elite",elite:true}
   ];
   return '<p class="level-note current-cutoff-announcement">' + esc(activeLedger.message) +
-    '</p><div class="progression-score-scroll"><div class="progression-score-columns">' +
+    '</p><div class="progression-score-columns">' +
     columns.map((column) => {
       const count = column.elite
         ? column.sets.length + ' complete same-trial · ' + column.sets.filter((set) => set.gold).length + ' Gold'
@@ -1013,8 +1013,10 @@ function renderProgressionScoreColumns(activeLedger = currentMachLedgerRows()) {
         '<header class="progression-card-header"><span class="summary-copy"><strong>' + column.level +
         '</strong><small>' + count + '</small></span></header>' +
         '<div class="progression-card-body"><section class="progression-current-combinations">' +
-        current + '</section></div></article>';
-    }).join("") + '</div></div>';
+        current + '</section></div>' +
+        '<section class="progression-history"><h4>' + column.level + ' history</h4>' +
+        progressionHistoryMarkup(column.level) + '</section></article>';
+    }).join("") + '</div>';
 }
 function currentMachLedgerRows() {
   const stages = [
