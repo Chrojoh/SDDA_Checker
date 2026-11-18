@@ -952,7 +952,6 @@ function progressionEliteTitleCutoffs(groups) {
     championshipTitle("elch3"), championshipTitle("elch4")
   ].filter(Boolean);
   const cutoffs = new Map();
-  const cutoffDates = new Map();
   for (const record of records) {
     const honourTrial = String(record.honours || "").match(/trial\s*#?\s*(\d+)/i);
     let index = honourTrial ? groups.findIndex((group) => Number(group.trial) === Number(honourTrial[1])) : -1;
@@ -971,6 +970,7 @@ function progressionHistoryMarkup(level) {
   const lock = level === "Advanced" || level === "Excellent" ? titleLockForLevel(level) : null;
   const lockedRows = new Set(lock ? COMPONENTS.map((component) => lock.parts[component].sourceRow) : []);
   const cutoffs = new Map();
+  const cutoffDates = new Map();
   if (level === "Advanced" || level === "Excellent") {
     for (const stage of [{key:"mach",label:"MACH cutoff"},{key:"mach2",label:"MACH2 cutoff"},{key:"mach3",label:"MACH3 cutoff"},{key:"mach4",label:"MACH4 cutoff"}]) {
       if (!championshipTitle(stage.key)) continue;
