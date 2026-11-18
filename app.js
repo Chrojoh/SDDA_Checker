@@ -97,7 +97,7 @@ function dateLabel(value) {
 function byLevel(level, list = scores) { return list.filter((score) => score.level === level); }
 function componentCounts(level, list = scores) { return Object.fromEntries(COMPONENTS.map((component) => [component, list.filter((score) => score.level === level && score.component === component).length])); }
 function gamePassCounts(){return Object.fromEntries(GAME_NAMES.map(g=>[g,Math.max(games.filter(r=>r.game===g&&r.pass!==false).length,gamesTitleRecorded(g)?3:0)]));}
-const GAME_CHAMPIONSHIP_RULES=[{key:"gch",name:"SD-GCH",type:"base",target:0,text:"3 passes in each of any 3 Games"},{key:"gch2",name:"SD-GCH2",type:"three",target:4,text:"4 additional passes across any 3 Games (13 cumulative)"},{key:"gch3",name:"SD-GCH3",type:"three",target:9,text:"5 additional passes after GCH2 (18 cumulative)"},{key:"gch4",name:"SD-GCH4",type:"three",target:16,text:"7 additional passes after GCH3 (25 cumulative)"},{key:"gch5",name:"SD-GCH5",type:"four",target:26,text:"10 additional passes after GCH4 across all 4 Games (35 cumulative)"}];
+const GAME_CHAMPIONSHIP_RULES=[{key:"gch",name:"SD-GS",type:"base",target:0,text:"3 passes in each of any 3 Games"},{key:"gch2",name:"SD-GCH2",type:"three",target:4,text:"4 additional passes across any 3 Games (13 cumulative)"},{key:"gch3",name:"SD-GCH3",type:"three",target:9,text:"5 additional passes after GCH2 (18 cumulative)"},{key:"gch4",name:"SD-GCH4",type:"three",target:16,text:"7 additional passes after GCH3 (25 cumulative)"},{key:"gch5",name:"SD-GCH5",type:"four",target:26,text:"10 additional passes after GCH4 across all 4 Games (35 cumulative)"}];
 function gameChampionshipProgress(counts, rule) {
   let best = null;
   for (let a = 0; a < 4; a++) for (let b = a + 1; b < 4; b++) for (let c = b + 1; c < 4; c++) {
@@ -142,7 +142,7 @@ function validComponentScore(level, component, value) {
 
 function renderGames() {
  const counts=gamePassCounts(),total=Object.values(counts).reduce((a,b)=>a+b,0),titled=GAME_NAMES.filter(g=>counts[g]>=3),progress=GAME_CHAMPIONSHIP_RULES.map(rule=>({rule,...gameChampionshipProgress(counts,rule)}));
- $("games-summary").innerHTML="<span>"+total+" banked Games passes</span><span>"+titled.length+"/4 individual Games titles</span><span>"+(progress[0].met?"SD-GCH requirements met":progress[0].remaining+" more pass(es) needed for SD-GCH")+"</span>";
+ $("games-summary").innerHTML="<span>"+total+" banked Games passes</span><span>"+titled.length+"/4 individual Games titles</span><span>"+(progress[0].met?"SD-GS requirements met":progress[0].remaining+" more pass(es) needed for SD-GS")+"</span>";
  $("games-grid").innerHTML=GAME_NAMES.map(game=>{const passes=counts[game],entries=games.filter(r=>r.game===game&&r.pass!==false),recorded=gameTitleRecord(game),met=passes>=3,details=game==="Aerial"?"1 hide · 1 distractor · recommended 2 min; judge may adjust":game==="Distance"?"1 hide · no distractors · recommended 3 min; judge may adjust":game==="Speed"?"2–4 hides · 2–4 distractors · fixed 60 sec":"2–5 hides · 2–4 distractors · recommended 5 min; judge may adjust",rows=entries.map(r=>"<div class='game-attempt'><span>"+esc(dateLabel(r.date))+"</span><span>Trial "+esc(r.trial||"—")+"</span><strong>Q / PASS</strong></div>").join("");return "<article class='game-card'><h3>"+esc(game)+" <small>SD-G"+game[0]+"</small></h3><span class='status "+(met?"met":passes?"partial":"unknown")+"'>"+(met?"Individual title requirement met":passes?"In progress":"No pass data")+"</span><div class='game-count'><strong>"+passes+"</strong><span>/ 3 passes</span></div><p>"+details+"</p><div class='game-history'><h4>Games pass history</h4><div class='game-history-summary'><span>"+passes+" passes</span><span>"+entries.length+" listed entries</span></div><div class='game-attempt-header'><span>Date</span><span>Trial</span><span>Result</span></div>"+(rows||"<p>No Games pass entries recorded.</p>")+"</div>"+(recorded?"<p><strong>SDDA title record:</strong> "+esc(dateLabel(recorded.date))+"</p>":"")+"</article>";}).join("");
  $("games-championships").innerHTML="<h3>Games Championship progress · Rule Book v5.1</h3><div class='game-ladder'>"+progress.map(({rule,met,remaining,progressText})=>"<p><strong>"+rule.name+"</strong><span>"+rule.text+"</span><span class='status "+(met?"met":"partial")+"'>"+(met?"Pass requirements met":remaining+" more pass(es) needed")+"</span><small>"+progressText+"</small></p>").join("")+"</div><p class='level-note'>GCH requires 3 passes in each of any 3 Games. GCH2 adds 4 passes, GCH3 adds 5 more, GCH4 adds 7 more, and GCH5 adds 10 more across all four Games. These correspond to cumulative totals of 13, 18, 25 and 35. Surplus Games passes may be banked for repeat GCH titles, including passes earned before the previous title. Each pass counts once and cannot be counted again toward another repeat-title requirement.</p>";
 }
@@ -412,7 +412,7 @@ function reportAchievedTitles() {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, "");
-  const order = ["Started","Advanced","Excellent","Elite","SD-CH","SD-MACH","SD-MACH2","SD-MACH3","SD-MACH4","SD-ELCH","SD-ELCH2","SD-ELCH3","SD-ELCH4","SD-GMCH","Aerial","Distance","Speed","Team","SD-GCH","SD-GCH2","SD-GCH3","SD-GCH4","SD-GCH5"];
+  const order = ["Started","Advanced","Excellent","Elite","SD-CH","SD-MACH","SD-MACH2","SD-MACH3","SD-MACH4","SD-ELCH","SD-ELCH2","SD-ELCH3","SD-ELCH4","SD-GMCH","Aerial","Distance","Speed","Team","SD-GS","SD-GCH2","SD-GCH3","SD-GCH4","SD-GCH5"];
   const groupRank = (title) => {
     const value = normalizeReportTitle(title.description);
     if (/^(aerial|distance|speed|team)$/.test(value) || /^sd-gch(?:2|3|4|5)?$/.test(value)) return 2;
@@ -1271,7 +1271,7 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
   });
   const progressionRows = [
     { done: false, text: titlesFileLoaded ? "Titles file uploaded · official award records are shown when matched" : "Titles file not uploaded" },
-    { done: !!gameChampionships[0].found || gameChampionships[0].stageMet, text: gameChampionships[0].found ? "Initial SD-GCH · Recorded by SDDA" : gameChampionships[0].progress.progressText },
+    { done: !!gameChampionships[0].found || gameChampionships[0].stageMet, text: gameChampionships[0].found ? "Initial SD-GS · Recorded by SDDA" : gameChampionships[0].progress.progressText },
     ...gameChampionships.slice(1).map(({ rule, found, stageProgress, stageSize, stageMet, progress }) => ({
       done: !!found || stageMet,
       text: found
@@ -1279,11 +1279,11 @@ $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
         : rule.name + " · " + stageProgress + "/" + stageSize + " additional passes " + (rule.type === "four" ? "across all 4 Games" : "across any 3 Games") +
           (rule.type === "four" && !GAME_NAMES.every((game) => gameCounts[game] > 0) ? " · all 4 Games must be represented" : "")
     })),
-    { done: false, text: "Progression: Initial SD-GCH requires 3 passes in each of any 3 Games. GCH2 adds 4 passes, GCH3 adds 5 more, GCH4 adds 7 more, and GCH5 adds 10 more across all 4 Games. Games passes are banked and may be used toward repeat titles." }
+    { done: false, text: "Progression: Initial SD-GS requires 3 passes in each of any 3 Games. GCH2 adds 4 passes, GCH3 adds 5 more, GCH4 adds 7 more, and GCH5 adds 10 more across all 4 Games. Games passes are banked and may be used toward repeat titles." }
   ];
   $("mobile-game-titles").innerHTML += accordion({
     name: "Games Championship Progression",
-    subtitle: "SD-GCH through SD-GCH5",
+    subtitle: "SD-GS through SD-GCH5",
     body: reqList(progressionRows),
     accent: "level-accent-elite"
   });
@@ -1421,7 +1421,7 @@ async function downloadPdfReport() {
     const value = String(description || "").trim().toUpperCase()
       .replace(/\s+SPECIAL$/, "")
       .replace(/\s*\(SD-G[ADST]\)\s*$/, "");
-    if (/^(AERIAL|DISTANCE|SPEED|TEAM)\b/.test(value) || /^SD-GCH(?:2|3|4|5)?$/.test(value)) return "Games Titles and Championships";
+    if (/^(AERIAL|DISTANCE|SPEED|TEAM)\b/.test(value) || /^SD-GS$|^SD-GCH(?:2|3|4|5)$/.test(value)) return "Games Titles and Championships";
     if (/^SD-(?:CH|MACH(?:2|3|4)?|ELCH(?:2|3|4)?|GMCH)$/.test(value)) return "Scent Championships";
     return "Scent Titles";
   };
