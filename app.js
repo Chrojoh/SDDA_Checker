@@ -345,15 +345,15 @@ function reportAchievedTitles() {
 
   const advanced = maximizeGoldCombinations("Advanced");
   const excellent = maximizeGoldCombinations("Excellent");
-  const combined = [...advanced, ...excellent];
-  const gold = combined.filter((set) => set.gold).length;
+  const chSelection = selectProgressionCombinations(advanced, excellent, "ch");
+  const machSelection = selectProgressionCombinations(advanced, excellent, "mach");
   const elite = eliteSets();
   const eliteGold = elite.filter((set) => set.gold).length;
-  const chMet = combined.length >= 5 && excellent.length >= 2;
-  const machMet = combined.length >= 10 && excellent.length >= 3 && gold >= 3;
+  const chMet = chSelection.met;
+  const machMet = machSelection.met;
   const elchMet = elite.length >= 5 && eliteGold >= 2;
-  if (chMet && !championshipTitle("ch")) add("SD-CH", "", "5 titling combinations · at least 2 Excellent");
-  if (machMet && !championshipTitle("mach")) add("SD-MACH", "", "10 combinations · " + Math.min(10, excellent.length) + " Excellent + " + Math.min(advanced.length, Math.max(0, 10 - excellent.length)) + " Advanced");
+  if (chMet && !championshipTitle("ch")) add("SD-CH", "", "5 titling combinations · " + chSelection.excellent.length + " Excellent");
+  if (machMet && !championshipTitle("mach")) add("SD-MACH", "", "10 selected combinations · " + machSelection.excellent.length + " Excellent + " + machSelection.advanced.length + " Advanced · " + machSelection.sets.filter((set) => set.gold).length + " Gold");
   if (elchMet && !championshipTitle("elch")) add("SD-ELCH", "", "5 same-trial Elite scores · " + eliteGold + " Gold", null, window.sddaJudgeVerification.elch ? "Judge minimum handler-confirmed; SDDA confirmation pending" : "Judge minimum requires confirmation");
   if ((machMet || championshipTitle("mach")) && (elchMet || championshipTitle("elch"))) {
     if (!championshipTitle("gmch")) add("SD-GMCH", "", "MACH and ELCH score requirements met", null, window.sddaJudgeVerification.gmch ? "Three-judge minimum handler-confirmed; SDDA confirmation pending" : "Three-judge minimum requires confirmation");
@@ -1025,12 +1025,13 @@ function render() {
   const summaryInferred = inferredTitles();
   const summaryTitle = (pattern) => titles.find((title) => pattern.test(titleText(title))) || summaryInferred.find((title) => pattern.test(titleText(title)));
   const summaryAdvanced = maximizeGoldCombinations("Advanced"), summaryExcellent = maximizeGoldCombinations("Excellent"), summaryElite = eliteSets();
-  const summaryCombined = [...summaryAdvanced, ...summaryExcellent], summaryGolds = summaryCombined.filter((set) => set.gold).length;
+  const summaryChSelection = selectProgressionCombinations(summaryAdvanced, summaryExcellent, "ch");
+  const summaryMachSelection = selectProgressionCombinations(summaryAdvanced, summaryExcellent, "mach");
   const scentAchieved = [
     !!summaryTitle(/^Started(?:\s|$)/i), !!summaryTitle(/^Advanced(?:\s|$)/i), !!summaryTitle(/^Excellent(?:\s|$)/i),
     !!titles.find((title) => /^Elite(?:\s|$)/i.test(titleText(title))) || ((!!summaryTitle(/^Excellent(?:\s|$)/i) || COMPONENTS.every((component) => componentCounts("Excellent")[component] > 0)) && summaryElite.length > 0),
-    !!championshipTitle("ch") || (summaryCombined.length >= 5 && summaryExcellent.length >= 2),
-    !!championshipTitle("mach") || (summaryCombined.length >= 10 && summaryExcellent.length >= 3 && summaryGolds >= 3),
+    !!championshipTitle("ch") || summaryChSelection.met,
+    !!championshipTitle("mach") || summaryMachSelection.met,
     !!championshipTitle("elch") || (summaryElite.length >= 5 && summaryElite.filter((set) => set.gold).length >= 2),
     !!championshipTitle("gmch")
   ].filter(Boolean).length;
@@ -1076,21 +1077,23 @@ function render() {
   }
 
   const advancedSets = maximizeGoldCombinations("Advanced"), excellentSetsList = maximizeGoldCombinations("Excellent");
-  const combined = [...advancedSets, ...excellentSetsList], golds = combined.filter((set) => set.gold);
+  const chSelection = selectProgressionCombinations(advancedSets, excellentSetsList, "ch");
+  const machSelection = selectProgressionCombinations(advancedSets, excellentSetsList, "mach");
   const ch = championshipTitle("ch"), mach = championshipTitle("mach");
-  const totalSets = combined.length, excellentSets = excellentSetsList.length;
-  const machExcellentCount = Math.min(excellentSets, 10);
-  const machAdvancedCount = Math.min(advancedSets.length, Math.max(0, 10 - machExcellentCount));
-  cards.push(progressCard("SD-CH", ch ? "Achieved" : totalSets >= 5 && excellentSets >= 2 ? "Requirements shown as met" : "In progress", [
-    { done: totalSets >= 5, text: `${totalSets}/5 Advanced or Excellent titling scores` },
-    { done: excellentSets >= 2, text: `${excellentSets}/2 must be Excellent` }
+  const chTotal = chSelection.total, chExcellentCount = chSelection.excellent.length;
+  const totalSets = machSelection.total, excellentSets = machSelection.excellent.length;
+  const machAdvancedCount = machSelection.advanced.length;
+  const golds = machSelection.sets.filter((set) => set.gold);
+  cards.push(progressCard("SD-CH", ch ? "Achieved" : chSelection.met ? "Requirements shown as met" : "In progress", [
+    { done: chTotal >= 5, text: `${chTotal}/5 selected Advanced or Excellent titling scores` },
+    { done: chExcellentCount >= 2, text: `${chExcellentCount}/2 must be Excellent` }
   ], ch ? `Recorded ${dateLabel(ch.date)}.` : "Advanced components are combined only with Advanced; Excellent components only with Excellent. Initial SP titles remain locked."));
-  cards.push(progressCard("SD-MACH", mach ? "Achieved" : totalSets >= 10 && excellentSets >= 3 && golds.length >= 3 ? "Requirements shown as met" : "In progress", [
-    { done: totalSets >= 10, text: `${totalSets}/10 Advanced or Excellent titling scores` },
+  cards.push(progressCard("SD-MACH", mach ? "Achieved" : machSelection.met ? "Requirements shown as met" : "In progress", [
+    { done: totalSets >= 10, text: `${totalSets}/10 selected Advanced or Excellent titling scores` },
     { done: excellentSets >= 3, text: `${excellentSets}/3 must be Excellent` },
-    { done: golds.length >= 3, text: `${golds.length}/3 calculated Gold combinations (Silver combinations count toward the 10 total)` },
-    { done: totalSets >= 10, text: `${Math.min(10, totalSets)}/10 composition: ${machExcellentCount} Excellent + ${machAdvancedCount} Advanced` }
-  ], mach ? `Recorded ${dateLabel(mach.date)}.` : "Golds may be earned at Advanced or Excellent."));
+    { done: golds.length >= 3, text: `${golds.length}/3 Gold combinations (Silver combinations count toward the 10 total)` },
+    { done: totalSets >= 10, text: `${Math.min(10, totalSets)}/10 composition: ${excellentSets} Excellent + ${machAdvancedCount} Advanced` }
+  ], mach ? `Recorded ${dateLabel(mach.date)}.` : "The ten selected combinations preserve the Excellent and Gold requirements while favoring high totals."));
 
   const elSets = eliteSets(), elGolds = elSets.filter((set) => set.gold), elch = championshipTitle("elch");
   const elchScoresMet = elSets.length >= 5 && elGolds.length >= 2;
@@ -1182,15 +1185,16 @@ function renderMobileDashboard() {
     return accordion({ name: entry.name, subtitle: recorded ? "Recorded title" : met ? "Requirements met · not yet recorded" : "In progress", achieved: met, date: recorded?.date, body: reqList(requirements), accent: entry.elite ? "level-accent-elite" : "" });
   });
   const advanced = maximizeGoldCombinations("Advanced"), excellent = maximizeGoldCombinations("Excellent"), elite = eliteSets();
-  const total = advanced.length + excellent.length, gold = [...advanced, ...excellent].filter((set) => set.gold).length;
-  // Keep championship prerequisite calculations local to this renderer.
-  const machExcellentCount = Math.min(excellent.length, 10);
-  const machAdvancedCount = Math.min(advanced.length, Math.max(0, 10 - machExcellentCount));
-  const machScoresMet = total >= 10 && excellent.length >= 3 && gold >= 3;
+  const chSelection = selectProgressionCombinations(advanced, excellent, "ch");
+  const machSelection = selectProgressionCombinations(advanced, excellent, "mach");
+  const total = machSelection.total, gold = machSelection.sets.filter((set) => set.gold).length;
+  const machExcellentCount = machSelection.excellent.length;
+  const machAdvancedCount = machSelection.advanced.length;
+  const machScoresMet = machSelection.met;
   const elchScoresMet = elite.length >= 5 && elite.filter((set) => set.gold).length >= 2;
   const championCards = [
-    { name: "SD-CH", found: championshipTitle("ch"), met: total >= 5 && excellent.length >= 2, items: [{ done: total >= 5, text: `${total}/5 Advanced or Excellent scores` }, { done: excellent.length >= 2, text: `${excellent.length}/2 must be Excellent` }] },
-    { name: "SD-MACH", found: championshipTitle("mach"), met: total >= 10 && excellent.length >= 3 && gold >= 3, items: [{ done: total >= 10, text: `${total}/10 Advanced or Excellent scores` }, { done: excellent.length >= 3, text: `${excellent.length}/3 must be Excellent` }, { done: gold >= 3, text: `${gold}/3 Gold combinations (Silver combinations count toward the 10 total)` }, { done: total >= 10, text: `${Math.min(10,total)}/10 composition: ${machExcellentCount} Excellent + ${machAdvancedCount} Advanced` }] },
+    { name: "SD-CH", found: championshipTitle("ch"), met: chSelection.met, items: [{ done: chSelection.total >= 5, text: `${chSelection.total}/5 selected Advanced or Excellent scores` }, { done: chSelection.excellent.length >= 2, text: `${chSelection.excellent.length}/2 must be Excellent` }] },
+    { name: "SD-MACH", found: championshipTitle("mach"), met: machSelection.met, items: [{ done: total >= 10, text: `${total}/10 selected Advanced or Excellent scores` }, { done: machExcellentCount >= 3, text: `${machExcellentCount}/3 must be Excellent` }, { done: gold >= 3, text: `${gold}/3 Gold combinations (Silver combinations count toward the 10 total)` }, { done: total >= 10, text: `${Math.min(10,total)}/10 composition: ${machExcellentCount} Excellent + ${machAdvancedCount} Advanced` }] },
     { name: "SD-ELCH", found: championshipTitle("elch"), met: elite.length >= 5 && elite.filter((set) => set.gold).length >= 2, verificationRequired: true, items: [{ done: elite.length >= 5, text: `${elite.length}/5 complete Elite scores` }, { done: elite.filter((set) => set.gold).length >= 2, text: `${elite.filter((set) => set.gold).length}/2 Elite Gold scores` }, { done: !!window.sddaJudgeVerification.elch, pending: !!window.sddaJudgeVerification.elch, text: window.sddaJudgeVerification.elch ? "Handler confirms at least 2 different judges for qualifying Elite scores" : "Handler confirmation needed: at least 2 different judges for qualifying Elite scores" }] },
     { name: "SD-GMCH", found: championshipTitle("gmch"), met: (!!championshipTitle("mach") || machScoresMet) && (!!championshipTitle("elch") || elchScoresMet), verificationRequired: true, items: [{ done: !!championshipTitle("mach") || machScoresMet, text: championshipTitle("mach") ? "SD-MACH recorded" : machScoresMet ? "SD-MACH score requirements met" : "SD-MACH required" }, { done: !!championshipTitle("elch") || elchScoresMet, pending: !championshipTitle("elch") && elchScoresMet, text: championshipTitle("elch") ? "SD-ELCH recorded by SDDA" : elchScoresMet ? "SD-ELCH score requirements met · judge minimum awaiting SDDA confirmation" : "SD-ELCH required" }, { done: !!window.sddaJudgeVerification.gmch, pending: !!window.sddaJudgeVerification.gmch, text: window.sddaJudgeVerification.gmch ? "Handler confirms at least 3 different judges for qualifying Scent scores" : "Handler confirmation needed: at least 3 different judges for qualifying Scent scores" }] }
   ];
