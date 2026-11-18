@@ -669,6 +669,11 @@ function chronologicalMachStory() {
     const recorded = championshipTitle(stage.key);
     story.push({ ...stage, steps, completion, recorded });
     if (!completion) break;
+    // A repeat stage may only begin after the preceding title is confirmed in
+    // the uploaded Titles sheet and its recorded date agrees with the score history.
+    if (!titlesFileLoaded || !recorded || !recorded.date || recorded.date !== completion.date) break;
+    const honourTrial = String(recorded.honours || "").match(/trial\\s*#?\\s*(\\d+)/i);
+    if (honourTrial && Number(honourTrial[1]) !== Number(completion.trial)) break;
     previousCutoffIndex = completion.index;
   }
   return { stages: story, totalTrials: groups.length };
@@ -740,9 +745,19 @@ function progressionIndividualSet(level) {
       return [component, selected];
     }));
     if (!COMPONENTS.every((component) => parts[component])) return null;
-    return { level, trial: group.trial, parts, total: COMPONENTS.reduce((sum, component) => sum + parts[component].score, 0), special };
+    return { level, trial: group.trial, parts, total: COMPONENTS.reduce((sum, component) => sum + parts[component].score, 0), special, completionComponent: completion.component, completionDate: completion.date || "" };
   }
   return null;
+}
+
+function progressionCompletionDate(level, set) {
+  if (!set) return "";
+  if (set.completionDate) return set.completionDate;
+  const component = set.completionComponent;
+  if (!component) return "";
+  const row = scores.filter((score) => score.level === level && score.component === component && String(score.trial) === String(set.completionTrial || set.trial))
+    .sort((a, b) => a.sourceRow - b.sourceRow).at(-1);
+  return row?.date || "";
 }
 
 function progressionScoreRecord(row) {
@@ -784,7 +799,7 @@ function renderFullProgressionExplanation() {
   const individual = ['Started', 'Advanced', 'Excellent'].map((level) => {
     const set = progressionIndividualSet(level);
     const recorded = progressionRecordForLevel(level);
-    const date = set?.parts?.Container?.date || set?.parts?.Exterior?.date || set?.parts?.Interior?.date || '';
+    const date = progressionCompletionDate(level, set);
     const special = set?.special ? ' Special' : '';
     return '<article class="next-card"><header><div><h3>' + esc(level + special) + '</h3><p class="next-kind">' +
       (set ? 'First completed at Trial ' + esc(set.trial) : 'Not completed in supplied scores') +
@@ -810,6 +825,34 @@ function renderFullProgressionExplanation() {
     progressionSetDetails(firstElite, 'First complete Elite score') +
     progressionTitleComparison(eliteDate, eliteRecord, firstElite?.trial) +
     '<p>' + esc(elite.length) + ' complete Elite same-trial scores are present; ' + esc(elite.filter((set) => set.gold).length) + ' are Gold.</p></article>';
+
+
+
+  const eliteRepeatRules = [
+    { key: "elch2", previous: "elch", gold: 3, name: "SD-ELCH2" },
+    { key: "elch3", previous: "elch2", gold: 4, name: "SD-ELCH3" },
+    { key: "elch4", previous: "elch3", gold: null, name: "SD-ELCH4" }
+  ];
+  const eliteRepeatHtml = eliteRepeatRules.map((rule) => {
+    const prior = championshipTitle(rule.previous);
+    const eligibleRows = scoreRowsAfterTitle(prior);
+    const sets = eligibleRows ? eliteSets(eligibleRows) : [];
+    const goldCount = sets.filter((set) => set.gold).length;
+    const record = championshipTitle(rule.key);
+    const goldRule = rule.gold == null ? 'The July 2026 rulebook wording says “four (5) Gold scores”; this is internally inconsistent and must be confirmed with SDDA.' :
+      esc(rule.gold) + ' Gold scores required.';
+    return '<article class="next-card"><h3>' + esc(rule.name) + '</h3><p>Requires 5 additional complete same-trial Elite scores after the previous ELCH title. ' + goldRule + '</p><p>' +
+      (eligibleRows ? esc(sets.length) + '/5 additional Elite scores · ' + esc(goldCount) + ' Gold.' : 'Cannot establish the post-title score pool: the previous recorded title date/trial or complete score dates are missing.') +
+      '</p>' + (record ? '<p>Recorded by SDDA on ' + esc(dateLabel(record.date)) + '.</p>' : '<p>No matching award is recorded in the Titles file.</p>') + '</article>';
+  }).join('');
+  const chRecorded = championshipTitle("ch");
+  const chAdvanced = maximizeGoldCombinations("Advanced"), chExcellent = maximizeGoldCombinations("Excellent");
+  const chCombined = [...chAdvanced, ...chExcellent];
+  const chGold = chCombined.filter((set) => set.gold).length;
+  const chCard = '<article class="next-card"><h3>SD-CH · Champion</h3><p>Requires 5 Advanced/Excellent titling combinations, including at least 2 Excellent. The same component score cannot be reused in more than one combination.</p><p>' +
+    esc(chCombined.length) + '/5 available combinations · ' + esc(chExcellent.length) + ' Excellent · ' + esc(chGold) + ' Gold combinations.</p>' +
+    (chRecorded ? '<p>Recorded by SDDA on ' + esc(dateLabel(chRecorded.date)) + '.</p>' : '<p>No SD-CH award is recorded in the Titles file.</p>') +
+    '<p>For the full chronological cutoff, the exact first qualifying trial must be reconstructed against the title record. The checker does not treat the current career-wide count as proof of the official award trial.</p></article>';
 
   const machResult = chronologicalMachStory();
   let machHtml = '';
@@ -856,11 +899,16 @@ function renderFullProgressionExplanation() {
   }).join('');
   const gamesStory = '<article class="next-card"><h3>Individual Games titles</h3><p>Each Games pass is counted separately from scent scores. Three passes in an individual Game earn its individual Games title.</p><ul>' + gameCards + '</ul><p>Games passes may be banked for the repeat All Games championship levels; they are not reset at each repeat title.</p></article>' + gameRules;
 
+
+  const titleSheetHtml = titlesFileLoaded
+    ? '<article class="next-card"><h3>Titles sheet used for comparison</h3><ul>' + titles.map((title) => '<li><strong>' + esc(title.description) + ':</strong> ' + esc(dateLabel(title.date)) + (title.honours ? ' · ' + esc(title.honours) : '') + '</li>').join('') + '</ul><p>Title sheet labels are matched to their SDDA title codes; for example, “Champion” is SD-CH, “Master Champion” is SD-MACH, and “All Games” is SD-GS. The date and honours fields are used as recorded evidence, not overwritten by calculations.</p></article>'
+    : '<article class="next-card"><h3>Titles sheet required for complete progression</h3><p>Upload the Dog Titles file to compare calculated completion dates with recorded awards and establish repeat-title cutoffs. Without it, this story is an explanation of score evidence only.</p></article>';
+
   host.innerHTML = '<p class="level-note"><strong>How to read this story:</strong> it reconstructs the earliest score-based completion using the supplied score rows and the checker’s fast high-to-low pairing method. It explains the evidence; it does not grant titles. The Dog Titles sheet is used to compare calculated dates with recorded awards. Any mismatch is shown rather than silently corrected.</p>' +
     '<h3>Started, Advanced and Excellent</h3>' + individual +
-    '<h3>Elite</h3>' + eliteStory +
-    '<h3>Advanced / Excellent championship chain</h3>' + machHtml +
-    '<h3>Games progression</h3>' + gamesStory +
+    '<h3>Elite and Elite Championship progression</h3>' + eliteStory + eliteRepeatHtml +
+    '<h3>SD-CH and Advanced / Excellent championship chain</h3>' + chCard + machHtml +
+    '<h3>Games progression</h3>' + gamesStory + titleSheetHtml +
     '<h3>What the files can and cannot verify</h3><article class="next-card"><p>The score export supplies score, component, event date and trial number. It does not supply judge identities, so the two-judge ELCH and three-judge GMCH conditions still require handler/SDDA verification. Trial numbers are identifiers; chronological order comes from the score file order. Where a title date covers multiple trials and no exact trial is recorded in Honours, the exact titling trial may remain ambiguous. SDDA remains the official authority.</p></article>';
 }
 
