@@ -1659,8 +1659,6 @@ async function downloadPdfReport() {
   text(`Generated ${new Date().toLocaleDateString()} from the member's SDDA account downloads.`, { size: 8, color: rgb(.4, .45, .42), after: 8 });
 
   heading("Titles achieved");
-  const achievedTitles = reportAchievedTitles();
-  let activeTitleGroup = "";
   const titleGroup = (description) => {
     const value = String(description || "").trim().toUpperCase()
       .replace(/\s+SPECIAL$/, "")
@@ -1669,6 +1667,18 @@ async function downloadPdfReport() {
     if (/^SD-(?:CH|MACH(?:2|3|4)?|ELCH(?:2|3|4)?|GMCH)$/.test(value)) return "Scent Championships";
     return "Scent Titles";
   };
+  // Keep the source order within each category, but group every scent title
+  // and championship before any Games title so the PDF never switches back.
+  const titleGroupOrder = {
+    "Scent Titles": 0,
+    "Scent Championships": 1,
+    "Games Titles and Championships": 2
+  };
+  const achievedTitles = reportAchievedTitles()
+    .map((title, index) => ({ title, index }))
+    .sort((a, b) => titleGroupOrder[titleGroup(a.title.description)] - titleGroupOrder[titleGroup(b.title.description)] || a.index - b.index)
+    .map(({ title }) => title);
+  let activeTitleGroup = "";
   for (const title of achievedTitles) {
     const group = titleGroup(title.description);
     if (group !== activeTitleGroup) {
