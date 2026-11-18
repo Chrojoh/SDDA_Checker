@@ -1648,7 +1648,7 @@ async function downloadPdfReport() {
     const drawCells = (values, height, fill, header = false) => { let x = margin; values.forEach((value, index) => { page.drawRectangle({ x, y: y - height, width: widths[index], height, color: fill, borderColor: rgb(.42, .48, .44), borderWidth: .8 }); const cellFont = header ? bold : index === 0 || index === 5 ? bold : regular, size = header ? 7.5 : 8.5, safe = String(value ?? "").replace(/[^\x20-\x7E]/g, " "), textWidth = cellFont.widthOfTextAtSize(safe, size); page.drawText(safe, { x: index > 0 ? x + Math.max(4, (widths[index] - textWidth) / 2) : x + 6, y: y - height + 6, size, font: cellFont, color: rgb(.10, .14, .12) }); x += widths[index]; }); y -= height; };
     const drawHeader = (continued = false) => { page.drawRectangle({ x: margin, y: y - sectionHeight, width: tableWidth, height: sectionHeight, color: rgb(.13, .37, .27), borderColor: rgb(.08, .24, .17), borderWidth: 1 }); page.drawText(`${title}${continued ? " (continued)" : ""}`, { x: margin + 7, y: y - 16, size: 10, font: bold, color: rgb(1, 1, 1) }); y -= sectionHeight; drawCells(headers, headerHeight, rgb(.89, .92, .90), true); };
     if (y < 52 + sectionHeight + headerHeight + rowHeight) newPage(); drawHeader();
-    const tableRows = rows.length ? rows : [["No complete combinations", "-", "-", "-", "-", "-"]];
+    const tableRows = rows.length ? rows : [["No current scores", "-", "-", "-", "-", "-"]];
     for (const row of tableRows) { if (y < 52 + rowHeight) { newPage(); drawHeader(true); } drawCells(row, rowHeight, row[5] === "Gold" ? rgb(1, .96, .84) : rgb(1, 1, 1)); }
     y -= 10;
   }
@@ -1712,12 +1712,39 @@ async function downloadPdfReport() {
     set.total,
     classification(set.total)
   ]);
+  // The combination optimizer only returns complete three-component sets.
+  // Keep every remaining current component visible as its own partial row,
+  // including components that cannot yet form a qualifying combination.
+  const pdfCurrentRows = (level, combinations, sourceRows) => {
+    const rows = pdfRowsForSets(combinations);
+    const usedSourceRows = new Set();
+    combinations.forEach((set) => COMPONENTS.forEach((component) => {
+      const part = set[component.toLowerCase()];
+      if (part && part.sourceRow != null) usedSourceRows.add(part.sourceRow);
+    }));
+    sourceRows
+      .filter((score) => score.level === level && !usedSourceRows.has(score.sourceRow))
+      .sort((a, b) => (Number(a.sourceRow) || 0) - (Number(b.sourceRow) || 0))
+      .forEach((score) => {
+        const cells = ["-", "-", "-", "-", "-", ""];
+        cells[0] = `Partial ${score.component}`;
+        const componentIndex = { Container: 1, Exterior: 2, Interior: 3 }[score.component];
+        if (componentIndex) cells[componentIndex] = componentWithTrial(score);
+        cells[4] = "—";
+        cells[5] = "—";
+        rows.push(cells);
+      });
+    return rows;
+  };
 
   for (const level of ["Advanced", "Excellent"]) {
     const currentCombinations = activePdfLedger.verified
       ? maximizeGoldCombinations(level, activePdfLedger.rows)
       : [];
-    scoreTable(`${level} — Current scores`, pdfRowsForSets(currentCombinations));
+    const currentRows = activePdfLedger.verified
+      ? pdfCurrentRows(level, currentCombinations, activePdfLedger.rows)
+      : [];
+    scoreTable(`${level} — Current scores`, currentRows);
 
     for (const stage of historicalMachStages) {
       if (!stage.completion || !machCutoffRowForTitle(stage.key)) continue;
