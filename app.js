@@ -611,6 +611,106 @@ function machCutoffRowForTitle(title) {
   return machCutoffCache.get(stage) || null;
 }
 
+
+function chronologicalMachStory() {
+  const groups = machTrialGroups();
+  if (!groups) return { unavailable: "The score file is missing valid trial numbers. Chronological title progression cannot be established." };
+  const stages = [
+    { key: "mach", name: "SD-MACH", excellent: 3, gold: 3, advanced: 10 },
+    { key: "mach2", name: "SD-MACH 2", excellent: 7, gold: 3, advanced: 3 },
+    { key: "mach3", name: "SD-MACH 3", excellent: 10, gold: 3, advanced: 0 },
+    { key: "mach4", name: "SD-MACH 4", excellent: 10, gold: 4, advanced: 0 }
+  ];
+  const story = [];
+  let previousCutoffIndex = -1;
+  for (const stage of stages) {
+    const prefix = [];
+    const steps = [];
+    let completion = null;
+    for (let index = previousCutoffIndex + 1; index < groups.length; index++) {
+      prefix.push(...groups[index].rows);
+      const includeTitleLock = stage.key === "mach";
+      const advanced = stage.advanced
+        ? maximizeGoldCombinations("Advanced", prefix, stage.advanced, includeTitleLock)
+        : [];
+      const excellent = maximizeGoldCombinations("Excellent", prefix, 10, includeTitleLock);
+      const combined = [...advanced, ...excellent];
+      const gold = combined.filter((set) => set.gold).length;
+      const excellentGold = excellent.filter((set) => set.gold).length;
+      const total = Math.min(10, combined.length);
+      const met = stage.key === "mach"
+        ? total >= 10 && excellent.length >= 3 && gold >= 3
+        : stage.key === "mach2"
+          ? excellent.length >= 7 && excellentGold >= 3 && total >= 10
+          : excellent.length >= 10 && excellentGold >= stage.gold;
+      steps.push({
+        trial: groups[index].trial,
+        date: groups[index].rows.find((row) => row.date)?.date || "",
+        advanced: advanced.length,
+        excellent: excellent.length,
+        gold,
+        excellentGold,
+        met
+      });
+      if (met) {
+        completion = {
+          index,
+          trial: groups[index].trial,
+          date: groups[index].rows.find((row) => row.date)?.date || "",
+          advanced,
+          excellent,
+          gold,
+          excellentGold,
+          total
+        };
+        break;
+      }
+    }
+    const recorded = championshipTitle(stage.key);
+    story.push({ ...stage, steps, completion, recorded });
+    if (!completion) break;
+    previousCutoffIndex = completion.index;
+  }
+  return { stages: story, totalTrials: groups.length };
+}
+
+function renderChronologicalMachStory() {
+  const host = $("progression-story");
+  if (!host) return;
+  if (!titlesFileLoaded) {
+    host.innerHTML = '<p class="level-note">Upload the Dog Titles file to compare calculated completion points with SDDA-recorded title dates. Score-only calculations can still be explored, but recorded title validation is unavailable.</p>';
+  }
+  const result = chronologicalMachStory();
+  if (result.unavailable) {
+    host.innerHTML = '<p class="level-note">' + esc(result.unavailable) + '</p>';
+    return;
+  }
+  const classification = (total) => total >= 192 ? "Gold" : total >= 172 ? "Silver" : total >= 142 ? "Bronze" : total >= 100 ? "Satisfactory" : "Insufficient";
+  const stagesHtml = result.stages.map((stage) => {
+    const recordedText = stage.recorded
+      ? 'SDDA title sheet: recorded ' + esc(dateLabel(stage.recorded.date)) + '.'
+      : (titlesFileLoaded ? 'No matching SDDA award record was found in the uploaded Titles file.' : 'No Titles file loaded; official award-date comparison is unavailable.');
+    const steps = stage.steps.map((step) =>
+      '<li><strong>Trial ' + esc(step.trial) + (step.date ? ' · ' + esc(dateLabel(step.date)) : '') + '</strong>: ' +
+      esc(step.advanced) + ' Advanced + ' + esc(step.excellent) + ' Excellent combinations; ' +
+      esc(step.gold) + ' Gold overall (' + esc(step.excellentGold) + ' Excellent Gold).' +
+      (step.met ? ' <strong>First qualifying point — title requirements reached.</strong>' : '') +
+      '</li>'
+    ).join("");
+    const selected = stage.completion
+      ? '<p><strong>Cutoff established at Trial ' + esc(stage.completion.trial) + '.</strong> The next championship stage starts with the following trial.</p>' +
+        '<p>At the cutoff, the high-to-low pairing contained ' + esc(stage.completion.total) + ' qualifying combinations, including ' +
+        esc(stage.completion.excellent.length) + ' Excellent and ' + esc(stage.completion.gold) + ' Gold overall.</p>'
+      : '<p><strong>Not reached in the uploaded score history.</strong> The available trials were checked in chronological order.</p>';
+    return '<article class="next-card"><header><div><h3>' + esc(stage.name) + '</h3><p class="next-kind">' +
+      (stage.completion ? 'First reached at Trial ' + esc(stage.completion.trial) : 'Still in progress') +
+      '</p></div><span class="remaining-badge">' + (stage.completion ? 'Reached' : 'Not reached') + '</span></header>' +
+      '<p>' + recordedText + '</p>' + selected + '<details><summary>Trial-by-trial calculation (' + stage.steps.length + ' trials)</summary><ol>' + steps + '</ol></details></article>';
+  }).join("");
+  host.innerHTML = '<p class="level-note">Trials are processed in the order they appear in the score export. After each complete trial is added, the eligible pool is re-paired high-to-low and checked against the title rules. The first trial that satisfies every requirement becomes the cutoff; later trials are not used to move that title earlier or improve its selected combinations.</p>' +
+    (stagesHtml || '<p class="level-note">No complete championship calculation could be produced from the current score history.</p>');
+}
+
 function machExtensionProgress(rule, priorTitleOrStage) {
   const cutoff = machCutoffRowForTitle(priorTitleOrStage);
   const trialGroups = machTrialGroups();
@@ -1057,6 +1157,8 @@ if (game) {
 
 $("titles-file").addEventListener("change", async (event) => { try { if (event.target.files[0]) await loadTitles(event.target.files[0]); } catch (error) { $("message").textContent = error.message; } });
 $("scores-file").addEventListener("change", async (event) => { try { if (event.target.files[0]) await loadScores(event.target.files[0]); } catch (error) { $("message").textContent = error.message; } });
+
+$("progression-story-button")?.addEventListener("click", () => { const panel = $("progression-story"); if (!panel) return; panel.hidden = !panel.hidden; if (!panel.hidden) renderChronologicalMachStory(); });
 
 document.querySelectorAll(".tracker-tab").forEach((button) => button.addEventListener("click", () => {
   document.querySelectorAll(".tracker-tab").forEach((tab) => { const active = tab === button; tab.classList.toggle("active", active); tab.setAttribute("aria-selected", String(active)); });
