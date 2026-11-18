@@ -64,3 +64,8 @@ body,.mobile-ledger,.desktop-ledger{background:#f1f0eb!important;color:#202a25}
   margin:3px 0;
   border:1px solid #d2e2d4;
 }
+
+
+/* Brighter mobile top banner for clearer white-on-green contrast. */
+.hero,.mobile-hero{background-color:#397b5c!important;color:#fff!important}
+.mobile-hero h1,.mobile-hero p,.mobile-hero p strong,.mobile-hero a{color:#fff!important}
