@@ -133,3 +133,46 @@ body,.mobile-ledger,.desktop-ledger{background:#f1f0eb!important;color:#202a25}
  .progression-history .history-score{font-size:9px;gap:1px}
  .progression-history .history-cutoff{font-size:9px}
 }
+
+
+/* Title Progression uses the same full-width collapsed-card header as the qualification cards. */
+.progression-score-scroll{width:100%;overflow-x:auto;overscroll-behavior-x:contain;padding:1px 1px 8px}
+.progression-score-columns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:start;width:100%;min-width:900px}
+.progression-score-column.title-accordion{min-width:0;overflow:hidden;background:#fff;border:1px solid var(--line,#d5d8d2);border-radius:15px!important;box-shadow:0 3px 12px #14231d0b!important;display:flex;flex-direction:column}
+.progression-score-column.title-accordion.level-accent-silver{border-left:5px solid var(--silver,#77828a)}
+.progression-score-column.title-accordion.level-accent-gold{border-left:5px solid var(--gold,#a87712)}
+.progression-score-column.title-accordion.level-accent-elite{border-left:5px solid var(--elite,#6d548f)}
+.progression-score-column>.progression-card-header{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:60px;padding:12px 14px;border:0;border-bottom:1px solid #edf1ee;background:#fff}
+.progression-score-column .progression-card-header .summary-copy{min-width:0}
+.progression-score-column .progression-card-header .summary-copy strong{display:block;font-size:16px;line-height:1.25}
+.progression-score-column .progression-card-header .summary-copy small{display:block;margin-top:3px;color:var(--muted,#626c65);font-size:12px;font-weight:500}
+.progression-score-column .progression-card-header .summary-action{flex:0 0 auto;color:#315f4d;font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+.progression-card-body{min-width:0;padding:12px 14px 14px}
+.progression-current-combinations{min-width:0}
+.progression-current-combinations>h4,.progression-history>h4{margin:0 0 8px;font-size:13px;font-weight:800}
+.progression-current-combinations .run-grid{margin-top:0}
+.progression-current-combinations .run-row{grid-template-columns:1fr;gap:3px;padding:8px;font-size:12px;overflow-wrap:anywhere}
+.progression-history{min-width:0;margin-top:14px;padding:12px 0 0;border:0;border-top:1px solid var(--line,#d5d8d2);background:transparent}
+.progression-history>h4{margin-bottom:9px}
+.progression-history .history-component-columns{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.progression-history .history-component{min-width:0;padding:5px}
+.progression-history .history-component h4{font-size:11px;overflow-wrap:anywhere}
+.progression-history .history-score{font-size:11px;gap:2px;flex-wrap:wrap;padding:4px 2px}
+.progression-history .history-score.is-title-lock{border:2px solid #d62828!important;border-radius:999px!important;background:#fff!important;color:#202a25;padding:3px 5px}
+.progression-history .history-score.is-title-lock b{display:none}
+.progression-history .history-cutoff{border-top:3px solid #e6b800;border-bottom:1px solid #e6b800;color:#705700;background:#fff9dc;margin:7px -2px;padding:5px 3px}
+.progression-history .history-cutoff small{font-size:9px}
+.progression-score-column .history-title-lock{display:none}
+@media(max-width:780px){
+ .progression-score-columns{grid-template-columns:repeat(3,minmax(280px,1fr));min-width:864px;gap:8px}
+ .progression-score-column>.progression-card-header{min-height:56px;padding:10px 12px}
+ .progression-score-column .progression-card-header .summary-copy strong{font-size:15px}
+ .progression-card-body{padding:10px}
+ .progression-current-combinations .run-row{font-size:11px;padding:6px}
+ .progression-history{padding-top:10px}
+ .progression-history .history-component-columns{gap:3px}
+ .progression-history .history-component{padding:3px}
+ .progression-history .history-component h4{font-size:9px}
+ .progression-history .history-score{font-size:10px;gap:1px}
+ .progression-history .history-cutoff{font-size:9px}
+}
