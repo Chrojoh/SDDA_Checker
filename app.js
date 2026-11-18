@@ -1659,8 +1659,6 @@ async function downloadPdfReport() {
   text(`Generated ${new Date().toLocaleDateString()} from the member's SDDA account downloads.`, { size: 8, color: rgb(.4, .45, .42), after: 8 });
 
   heading("Titles achieved");
-  const achievedTitles = reportAchievedTitles();
-  let activeTitleGroup = "";
   const titleGroup = (description) => {
     const value = String(description || "").trim().toUpperCase()
       .replace(/\s+SPECIAL$/, "")
@@ -1669,6 +1667,18 @@ async function downloadPdfReport() {
     if (/^SD-(?:CH|MACH(?:2|3|4)?|ELCH(?:2|3|4)?|GMCH)$/.test(value)) return "Scent Championships";
     return "Scent Titles";
   };
+  // Keep the source order within each category, but group every scent title
+  // and championship before any Games title so the PDF never switches back.
+  const titleGroupOrder = {
+    "Scent Titles": 0,
+    "Scent Championships": 1,
+    "Games Titles and Championships": 2
+  };
+  const achievedTitles = reportAchievedTitles()
+    .map((title, index) => ({ title, index }))
+    .sort((a, b) => titleGroupOrder[titleGroup(a.title.description)] - titleGroupOrder[titleGroup(b.title.description)] || a.index - b.index)
+    .map(({ title }) => title);
+  let activeTitleGroup = "";
   for (const title of achievedTitles) {
     const group = titleGroup(title.description);
     if (group !== activeTitleGroup) {
@@ -1704,14 +1714,19 @@ async function downloadPdfReport() {
   // verified MACH cutoff, in chronological order.
   const activePdfLedger = currentMachLedgerRows();
   const historicalMachStages = chronologicalMachStory().stages || [];
-  const pdfRowsForSets = (sets) => sets.map((set, index) => [
-    set.special ? "SP" : set.titleLocked ? "Title" : `Combination ${set.rank || index + 1}`,
-    componentWithTrial(set.container),
-    componentWithTrial(set.exterior),
-    componentWithTrial(set.interior),
-    set.total,
-    classification(set.total)
-  ]);
+  const pdfRowsForSets = (sets) => [...sets]
+    // Keep the recorded regular-title combination visibly locked at the top
+    // of its historical block; the remaining rows are the optimizer's
+    // maximized combinations in their selected order.
+    .sort((a, b) => Number(!!b.titleLocked) - Number(!!a.titleLocked))
+    .map((set, index) => [
+      set.titleLocked ? "Title locked" : set.special ? "SP" : `Combination ${set.rank || index + 1}`,
+      componentWithTrial(set.container),
+      componentWithTrial(set.exterior),
+      componentWithTrial(set.interior),
+      set.total,
+      classification(set.total)
+    ]);
   // The combination optimizer only returns complete three-component sets.
   // Keep every remaining current component visible as its own partial row,
   // including components that cannot yet form a qualifying combination.
