@@ -939,7 +939,12 @@ function progressionEliteTitleCutoffs(groups) {
   return cutoffs;
 }
 function progressionHistoryMarkup(level) {
-  const groups = chronologicalTrialGroups(level, scores);
+  // Advanced and Excellent share the same MACH title cutoffs. Build their
+  // history from every trial in the score export so a cutoff remains visible
+  // in both columns even when that level has no score recorded in the cutoff trial.
+  const groups = (level === "Advanced" || level === "Excellent")
+    ? machTrialGroups()
+    : chronologicalTrialGroups(level, scores);
   if (!groups.length) return '<p class="run-empty">No ' + esc(level) + ' score history is available.</p>';
   const lock = level === "Advanced" || level === "Excellent" ? titleLockForLevel(level) : null;
   const lockedRows = new Set(lock ? COMPONENTS.map((component) => lock.parts[component].sourceRow) : []);
