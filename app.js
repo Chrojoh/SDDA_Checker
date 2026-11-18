@@ -405,7 +405,9 @@ function reportAchievedTitles() {
 
   const advanced = maximizeGoldCombinations("Advanced");
   const excellent = maximizeGoldCombinations("Excellent");
-  const chSelection = selectProgressionCombinations(advanced, excellent, "ch");
+  const chSelection = championshipTitle("ch")
+    ? (historicalChProgressSelection() || { sets: [], advanced: [], excellent: [], total: 0, met: false })
+    : selectProgressionCombinations(advanced, excellent, "ch");
   const machSelection = selectProgressionCombinations(advanced, excellent, "mach");
   const elite = eliteSets();
   const eliteGold = elite.filter((set) => set.gold).length;
@@ -729,6 +731,28 @@ function machCutoffRowForTitle(title) {
 }
 
 
+
+
+function historicalChProgressSelection() {
+  const recorded = championshipTitle("ch");
+  const groups = machTrialGroups();
+  if (!recorded || !recorded.date || !groups) return null;
+  const honourTrial = String(recorded.honours || "").match(/trial\\s*#?\\s*(\\d+)/i);
+  const prefix = [];
+  let lastSelection = null;
+  for (const group of groups) {
+    prefix.push(...group.rows);
+    const groupDates = [...new Set(group.rows.map((row) => row.date).filter(Boolean))];
+    if (!groupDates.includes(recorded.date)) continue;
+    if (honourTrial && Number(honourTrial[1]) !== Number(group.trial)) continue;
+    const advanced = maximizeGoldCombinations("Advanced", prefix, 10, true);
+    const excellent = maximizeGoldCombinations("Excellent", prefix, 10, true);
+    const selection = selectProgressionCombinations(advanced, excellent, "ch");
+    lastSelection = selection;
+    if (selection.met) return selection;
+  }
+  return lastSelection;
+}
 
 function chronologicalChStory() {
   const groups = machTrialGroups();
