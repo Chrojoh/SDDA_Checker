@@ -649,7 +649,17 @@ function machCutoffRowForTitle(title) {
       machCutoffCache.set(currentStage, null);
       return null;
     }
-    machCutoffCache.set(currentStage, { trial: trialGroups[cutoffIndex].trial, index: cutoffIndex });
+    const stageKey = currentStage === 1 ? "mach" : currentStage === 2 ? "mach2" : currentStage === 3 ? "mach3" : "mach4";
+    const recorded = championshipTitle(stageKey);
+    const calculatedGroup = trialGroups[cutoffIndex];
+    const calculatedDate = calculatedGroup.rows.find((row) => row.date)?.date || "";
+    const honourTrial = String(recorded?.honours || "").match(/trial\s*#?\s*(\d+)/i);
+    if (!titlesFileLoaded || !recorded || !recorded.date || recorded.date !== calculatedDate ||
+        (honourTrial && Number(honourTrial[1]) !== Number(calculatedGroup.trial))) {
+      machCutoffCache.set(currentStage, null);
+      return null;
+    }
+    machCutoffCache.set(currentStage, { trial: calculatedGroup.trial, index: cutoffIndex });
   }
   return machCutoffCache.get(stage) || null;
 }
@@ -677,20 +687,16 @@ function chronologicalMachStory() {
         ? maximizeGoldCombinations("Advanced", prefix, stage.advanced, includeTitleLock)
         : [];
       const excellent = maximizeGoldCombinations("Excellent", prefix, 10, includeTitleLock);
-      const combined = [...advanced, ...excellent];
-      const gold = combined.filter((set) => set.gold).length;
-      const excellentGold = excellent.filter((set) => set.gold).length;
-      const total = Math.min(10, combined.length);
-      const met = stage.key === "mach"
-        ? total >= 10 && excellent.length >= 3 && gold >= 3
-        : stage.key === "mach2"
-          ? excellent.length >= 7 && excellentGold >= 3 && total >= 10
-          : excellent.length >= 10 && excellentGold >= stage.gold;
+      const selection = selectProgressionCombinations(advanced, excellent, stage.key);
+      const gold = selection.sets.filter((set) => set.gold).length;
+      const excellentGold = selection.excellent.filter((set) => set.gold).length;
+      const total = selection.total;
+      const met = selection.met;
       steps.push({
         trial: groups[index].trial,
         date: groups[index].rows.find((row) => row.date)?.date || "",
-        advanced: advanced.length,
-        excellent: excellent.length,
+        advanced: selection.advanced.length,
+        excellent: selection.excellent.length,
         gold,
         excellentGold,
         met
@@ -700,8 +706,8 @@ function chronologicalMachStory() {
           index,
           trial: groups[index].trial,
           date: groups[index].rows.find((row) => row.date)?.date || "",
-          advanced,
-          excellent,
+          advanced: selection.advanced,
+          excellent: selection.excellent,
           gold,
           excellentGold,
           total
