@@ -1704,14 +1704,19 @@ async function downloadPdfReport() {
   // verified MACH cutoff, in chronological order.
   const activePdfLedger = currentMachLedgerRows();
   const historicalMachStages = chronologicalMachStory().stages || [];
-  const pdfRowsForSets = (sets) => sets.map((set, index) => [
-    set.special ? "SP" : set.titleLocked ? "Title" : `Combination ${set.rank || index + 1}`,
-    componentWithTrial(set.container),
-    componentWithTrial(set.exterior),
-    componentWithTrial(set.interior),
-    set.total,
-    classification(set.total)
-  ]);
+  const pdfRowsForSets = (sets) => [...sets]
+    // Keep the recorded regular-title combination visibly locked at the top
+    // of its historical block; the remaining rows are the optimizer's
+    // maximized combinations in their selected order.
+    .sort((a, b) => Number(!!b.titleLocked) - Number(!!a.titleLocked))
+    .map((set, index) => [
+      set.titleLocked ? "Title locked" : set.special ? "SP" : `Combination ${set.rank || index + 1}`,
+      componentWithTrial(set.container),
+      componentWithTrial(set.exterior),
+      componentWithTrial(set.interior),
+      set.total,
+      classification(set.total)
+    ]);
   // The combination optimizer only returns complete three-component sets.
   // Keep every remaining current component visible as its own partial row,
   // including components that cannot yet form a qualifying combination.
