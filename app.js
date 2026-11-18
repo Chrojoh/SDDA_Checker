@@ -653,9 +653,9 @@ function machCutoffRowForTitle(title) {
   const trialGroups = machTrialGroups();
   if (!trialGroups) return null;
 
-  // Each title cutoff is calculated once per loaded score history. The main
-  // report and mobile dashboard both ask for these values; reusing completed
-  // stages avoids repeating the same combinatorial search several times.
+  // The Dog Titles file supplies the award date. Reconstruct the actual
+  // completion trial by checking each trial on that date in score-file order.
+  // This matters when a dog runs multiple trials on the same calendar date.
   let cutoffIndex = -1;
   for (let currentStage = 1; currentStage <= stage; currentStage++) {
     if (machCutoffCache.has(currentStage)) {
@@ -664,10 +664,28 @@ function machCutoffRowForTitle(title) {
       cutoffIndex = cached.index;
       continue;
     }
+
+    const stageKey = currentStage === 1 ? "mach" : currentStage === 2 ? "mach2" : currentStage === 3 ? "mach3" : "mach4";
+    const recorded = championshipTitle(stageKey);
+    if (!titlesFileLoaded || !recorded || !recorded.date) {
+      machCutoffCache.set(currentStage, null);
+      return null;
+    }
+    const awardDate = recorded.date;
+    const honourTrial = String(recorded.honours || "").match(/trial\s*#?\s*(\d+)/i);
     const prefix = [];
     let foundCutoff = false;
+
     for (let groupIndex = cutoffIndex + 1; groupIndex < trialGroups.length; groupIndex++) {
-      prefix.push(...trialGroups[groupIndex].rows);
+      const group = trialGroups[groupIndex];
+      prefix.push(...group.rows);
+
+      // Do not let a trial from an earlier date establish this title's
+      // cutoff. Only trials on the recorded award date are candidates.
+      const groupDates = [...new Set(group.rows.map((row) => row.date).filter(Boolean))];
+      if (!groupDates.includes(awardDate)) continue;
+      if (honourTrial && Number(honourTrial[1]) !== Number(group.trial)) continue;
+
       const includeTitleLock = currentStage === 1;
       const advancedLimit = currentStage === 1 ? 10 : currentStage === 2 ? 3 : 0;
       const advancedUpper = advancedLimit ? machStageUpperBounds(prefix, "Advanced", includeTitleLock) : { combinations: 0, gold: 0 };
@@ -686,36 +704,26 @@ function machCutoffRowForTitle(title) {
         ? maximizeGoldCombinations("Advanced", prefix, advancedLimit, includeTitleLock)
         : [];
       const excellent = maximizeGoldCombinations("Excellent", prefix, 10, includeTitleLock);
-      const stageKey = currentStage === 1 ? "mach" : currentStage === 2 ? "mach2" : currentStage === 3 ? "mach3" : "mach4";
       const selection = selectProgressionCombinations(advanced, excellent, stageKey);
-      const met = selection.met;
-      const searchComplete =
-        advanced.optimizationComplete !== false &&
+      const searchComplete = advanced.optimizationComplete !== false &&
         excellent.optimizationComplete !== false;
-      // If the bounded search stopped early and did not find enough valid
-      // combinations, do not move the title cutoff forward on a false negative.
-      if (!searchComplete && !met) return null;
-      if (met) {
+      if (!searchComplete && !selection.met) return null;
+      if (selection.met) {
         cutoffIndex = groupIndex;
         foundCutoff = true;
         break;
       }
     }
+
     if (!foundCutoff) {
       machCutoffCache.set(currentStage, null);
       return null;
     }
-    const stageKey = currentStage === 1 ? "mach" : currentStage === 2 ? "mach2" : currentStage === 3 ? "mach3" : "mach4";
-    const recorded = championshipTitle(stageKey);
-    const calculatedGroup = trialGroups[cutoffIndex];
-    const calculatedDate = calculatedGroup.rows.find((row) => row.date)?.date || "";
-    const honourTrial = String(recorded?.honours || "").match(/trial\s*#?\s*(\d+)/i);
-    if (!titlesFileLoaded || !recorded || !recorded.date || recorded.date !== calculatedDate ||
-        (honourTrial && Number(honourTrial[1]) !== Number(calculatedGroup.trial))) {
-      machCutoffCache.set(currentStage, null);
-      return null;
-    }
-    machCutoffCache.set(currentStage, { trial: calculatedGroup.trial, index: cutoffIndex });
+    machCutoffCache.set(currentStage, {
+      trial: trialGroups[cutoffIndex].trial,
+      index: cutoffIndex,
+      date: awardDate
+    });
   }
   return machCutoffCache.get(stage) || null;
 }
