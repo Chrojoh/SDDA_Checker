@@ -108,3 +108,9 @@ button { min-height: 48px; border-radius: 12px; font-size: 15px; }
   td::before { display: none; }
   #print-button { position: static; width: auto; box-shadow: none; }
 }
+
+
+/* Keep the three Scent score-level cards aligned in one row. The cutoff note remains above them. */
+.scent-run-card-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;align-items:start;}
+.scent-run-card-row>.title-accordion{min-width:0;}
+@media(max-width:520px){.scent-run-card-row{grid-template-columns:repeat(3,minmax(220px,1fr));overflow-x:auto;padding-bottom:8px;}}
