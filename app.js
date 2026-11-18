@@ -970,11 +970,15 @@ function progressionHistoryMarkup(level) {
   const lock = level === "Advanced" || level === "Excellent" ? titleLockForLevel(level) : null;
   const lockedRows = new Set(lock ? COMPONENTS.map((component) => lock.parts[component].sourceRow) : []);
   const cutoffs = new Map();
+  const cutoffDates = new Map();
   if (level === "Advanced" || level === "Excellent") {
     for (const stage of [{key:"mach",label:"MACH cutoff"},{key:"mach2",label:"MACH2 cutoff"},{key:"mach3",label:"MACH3 cutoff"},{key:"mach4",label:"MACH4 cutoff"}]) {
       if (!championshipTitle(stage.key)) continue;
       const cutoff = machCutoffRowForTitle(stage.key);
-      if (cutoff) cutoffs.set(String(cutoff.trial), stage.label);
+      if (cutoff) {
+        cutoffs.set(String(cutoff.trial), stage.label);
+        cutoffDates.set(String(cutoff.trial), cutoff.date);
+      }
     }
   } else if (level === "Elite") progressionEliteTitleCutoffs(groups).forEach((label, trial) => cutoffs.set(trial, label));
 
@@ -1004,7 +1008,7 @@ function progressionHistoryMarkup(level) {
         '"><span>' + esc(row.score) + '</span><small>(' + esc(row.trial || "—") + ')</small>' +
         (lockedRows.has(row.sourceRow) ? '<b>Title lock</b>' : '') + '</div>').join("");
       if (cutoffs.has(String(group.trial))) output += '<div class="history-cutoff"><b>' +
-        esc(cutoffs.get(String(group.trial))) + '</b><small>Trial ' + esc(group.trial) +
+        esc(cutoffs.get(String(group.trial))) + '</b><small>Trial ' + esc(group.trial) + (cutoffDates.has(String(group.trial)) ? ' · ' + esc(dateLabel(cutoffDates.get(String(group.trial)))) : '') +
         ' · scores through this title date/trial are not carried forward</small></div>';
     }
     return '<section class="history-component"><h4>' + esc(component) + '</h4>' +
@@ -1036,32 +1040,53 @@ function progressionRunRows(sets, isElite = false) {
       ' · ' + classification(set.total) + '</strong></div>';
   }).join("") + '</div>';
 }
+function progressionCurrentScoreRows(rows, level) {
+  const entries = rows.filter((row) => row.level === level)
+    .sort((a, b) => a.sourceRow - b.sourceRow);
+  if (!entries.length) return '<p class="run-empty">No post-cutoff component scores recorded yet.</p>';
+  return '<div class="run-grid">' + entries.map((row) =>
+    '<div class="run-row">' +
+      '<b>Trial ' + esc(row.trial || "—") + '</b>' +
+      '<span>' + esc(dateLabel(row.date)) + '</span>' +
+      '<span>' + esc(row.component) + ': ' + esc(row.score) + '</span>' +
+      '<strong>Component score</strong>' +
+    '</div>'
+  ).join("") + '</div>';
+}
+
 function renderProgressionScoreColumns(activeLedger = currentMachLedgerRows()) {
+  const advancedRows = activeLedger.verified ? activeLedger.rows.filter((row) => row.level === "Advanced") : [];
+  const excellentRows = activeLedger.verified ? activeLedger.rows.filter((row) => row.level === "Excellent") : [];
   const advanced = activeLedger.verified ? maximizeGoldCombinations("Advanced", activeLedger.rows) : [];
   const excellent = activeLedger.verified ? maximizeGoldCombinations("Excellent", activeLedger.rows) : [];
   const eliteTitle = [championshipTitle("elch4"), championshipTitle("elch3"), championshipTitle("elch2"),
-    championshipTitle("elch"), findTitle(/^Elite(?:\\s|$)/i)].find(Boolean);
+    championshipTitle("elch"), findTitle(/^Elite/i)].find(Boolean);
   const eliteRows = eliteTitle ? scoreRowsAfterTitle(eliteTitle) : scores.filter((row) => row.level === "Elite");
   const elite = eliteRows ? eliteSets(eliteRows) : [];
   const cards = [
-    {level:"Advanced",sets:advanced,accent:"level-accent-silver",elite:false},
-    {level:"Excellent",sets:excellent,accent:"level-accent-gold",elite:false},
-    {level:"Elite",sets:elite,accent:"level-accent-elite",elite:true}
+    {level:"Advanced",sets:advanced,rows:advancedRows,accent:"level-accent-silver",elite:false},
+    {level:"Excellent",sets:excellent,rows:excellentRows,accent:"level-accent-gold",elite:false},
+    {level:"Elite",sets:elite,rows:eliteRows || [],accent:"level-accent-elite",elite:true}
   ];
   return '<p class="level-note current-cutoff-announcement">' + esc(activeLedger.message) +
-    '</p><div class="progression-score-columns">' +
+    '</p>' + 
+    '<div class="progression-score-columns">' +
     cards.map((card) => {
+      const completeCount = card.elite ? card.sets.length : card.sets.filter((set) => set.total >= 100).length;
+      const goldCount = card.sets.filter((set) => set.gold && (card.elite || set.total >= 100)).length;
       const count = card.elite
-        ? card.sets.length + ' complete same-trial · ' + card.sets.filter((set) => set.gold).length + ' Gold'
-        : card.sets.filter((set) => set.total >= 100).length + ' qualifying · ' + card.sets.filter((set) => set.gold && set.total >= 100).length + ' Gold';
-      const current = card.level !== "Elite" && !activeLedger.verified
-        ? '<p class="run-empty">Current combinations are withheld until the recorded MACH cutoff can be verified.</p>'
-        : progressionRunRows(card.sets,card.elite);
+        ? card.sets.length + ' complete same-trial · ' + goldCount + ' Gold'
+        : card.rows.length + ' component scores · ' + completeCount + ' complete combinations · ' + goldCount + ' Gold';
+      const current = card.elite
+        ? progressionRunRows(card.sets, true)
+        : !activeLedger.verified
+          ? '<p class="run-empty">Current scores are withheld until the recorded MACH cutoff can be verified.</p>'
+          : progressionCurrentScoreRows(card.rows, card.level);
       return '<details class="progression-score-column title-accordion ' + card.accent + '">' +
         '<summary class="progression-card-header"><span class="summary-copy"><strong>' + card.level +
         '</strong><small>' + count + '</small></span><span class="summary-action">Details</span></summary>' +
         '<div class="progression-expanded-body"><section class="progression-current-combinations">' +
-        '<h4>Current combinations</h4>' + current + '</section>' +
+        '<h4>' + (card.elite ? 'Current combinations' : 'Current scores') + '</h4>' + current + '</section>' +
         '<section class="progression-history"><h4>' + card.level + ' history</h4>' +
         progressionHistoryMarkup(card.level) + '</section></div></details>';
     }).join("") + '</div>';
