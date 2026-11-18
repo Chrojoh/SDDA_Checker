@@ -665,6 +665,24 @@ function machCutoffRowForTitle(title) {
 }
 
 
+
+function chronologicalChStory() {
+  const groups = machTrialGroups();
+  if (!groups) return { unavailable: "Valid trial numbers are required to establish the chronological SD-CH completion point." };
+  const prefix = [], steps = [];
+  for (const group of groups) {
+    prefix.push(...group.rows);
+    const advanced = maximizeGoldCombinations("Advanced", prefix, 10, true);
+    const excellent = maximizeGoldCombinations("Excellent", prefix, 10, true);
+    const selection = selectProgressionCombinations(advanced, excellent, "ch");
+    steps.push({ trial: group.trial, date: group.rows.find((row) => row.date)?.date || "",
+      total: selection.total, excellent: selection.excellent.length, met: selection.met });
+    if (selection.met) return { completion: { trial: group.trial, date: group.rows.find((row) => row.date)?.date || "",
+      sets: selection.sets, total: selection.total, excellent: selection.excellent.length }, steps, recorded: championshipTitle("ch") };
+  }
+  return { completion: null, steps, recorded: championshipTitle("ch") };
+}
+
 function chronologicalMachStory() {
   const groups = machTrialGroups();
   if (!groups) return { unavailable: "The score file is missing valid trial numbers. Chronological title progression cannot be established." };
@@ -894,14 +912,21 @@ function renderFullProgressionExplanation() {
       (eligibleRows ? esc(sets.length) + '/5 additional Elite scores · ' + esc(goldCount) + ' Gold.' : 'Cannot establish the post-title score pool: the previous recorded title date/trial or complete score dates are missing.') +
       '</p>' + (record ? '<p>Recorded by SDDA on ' + esc(dateLabel(record.date)) + '.</p>' : '<p>No matching award is recorded in the Titles file.</p>') + '</article>';
   }).join('');
-  const chRecorded = championshipTitle("ch");
-  const chAdvanced = maximizeGoldCombinations("Advanced"), chExcellent = maximizeGoldCombinations("Excellent");
-  const chCombined = [...chAdvanced, ...chExcellent];
-  const chGold = chCombined.filter((set) => set.gold).length;
-  const chCard = '<article class="next-card"><h3>SD-CH · Champion</h3><p>Requires 5 Advanced/Excellent titling combinations, including at least 2 Excellent. The same component score cannot be reused in more than one combination.</p><p>' +
-    esc(chCombined.length) + '/5 available combinations · ' + esc(chExcellent.length) + ' Excellent · ' + esc(chGold) + ' Gold combinations.</p>' +
-    (chRecorded ? '<p>Recorded by SDDA on ' + esc(dateLabel(chRecorded.date)) + '.</p>' : '<p>No SD-CH award is recorded in the Titles file.</p>') +
-    '<p>For the full chronological cutoff, the exact first qualifying trial must be reconstructed against the title record. The checker does not treat the current career-wide count as proof of the official award trial.</p></article>';
+  const chStory = chronologicalChStory();
+  const chRecorded = chStory.recorded;
+  const chCard = chStory.unavailable
+    ? '<article class="next-card"><h3>SD-CH · Champion</h3><p>' + esc(chStory.unavailable) + '</p></article>'
+    : '<article class="next-card"><header><div><h3>SD-CH · Champion</h3><p class="next-kind">' +
+      (chStory.completion ? 'First calculated at Trial ' + esc(chStory.completion.trial) : 'Not reached') +
+      '</p></div><span class="remaining-badge">' + (chStory.completion ? 'Calculated' : 'In progress') + '</span></header>' +
+      '<p>Requires 5 Advanced/Excellent titling combinations, including at least 2 Excellent. Each score record can be used only once.</p>' +
+      (chStory.completion ? '<p><strong>First qualifying point:</strong> ' + esc(chStory.completion.total) + ' selected combinations, including ' + esc(chStory.completion.excellent) + ' Excellent.</p>' +
+        chStory.completion.sets.map((set, index) => progressionSetDetails(set, 'Selected SD-CH combination ' + (index + 1))).join('') :
+        '<p>The supplied chronological score history does not yet contain five qualifying combinations with at least two Excellent.</p>') +
+      progressionTitleComparison(chStory.completion?.date || '', chRecorded, chStory.completion?.trial) +
+      '<details><summary>Trial-by-trial calculation (' + chStory.steps.length + ' trials)</summary><ol>' +
+      chStory.steps.map((step) => '<li><strong>Trial ' + esc(step.trial) + '</strong>: ' + esc(step.total) + '/5 selected combinations, ' + esc(step.excellent) + ' Excellent' + (step.met ? ' · <strong>first qualifying trial</strong>' : '') + '</li>').join('') +
+      '</ol></details></article>';
 
   const machResult = chronologicalMachStory();
   let machHtml = '';
@@ -926,7 +951,7 @@ function renderFullProgressionExplanation() {
       return '<article class="next-card"><header><div><h3>' + esc(stage.name) + '</h3><p class="next-kind">' +
         (stage.completion ? 'First calculated at Trial ' + esc(stage.completion.trial) : 'Not reached') +
         '</p></div><span class="remaining-badge">' + (stage.completion ? 'Calculated' : 'In progress') + '</span></header>' +
-        '<p>These titles use Advanced and Excellent combinations separately. Container, Exterior and Interior are ranked high-to-low within each level, then paired by rank. A combination is qualifying at 100 or more; Gold is 192 or more.</p>' +
+        '<p>These titles use Advanced and Excellent combinations separately. Container, Exterior and Interior are ranked high-to-low within each level, then paired by rank. A combination is qualifying at 100 or more; Gold is 192 or more. For the championship count, the checker selects exactly the required number of pairings, starts with the strongest totals, and makes the smallest necessary substitutions to preserve the required Excellent and Gold counts.</p>' +
         detail + progressionTitleComparison(stage.completion?.date || '', recorded, stage.completion?.trial) +
         '<details><summary>Trial-by-trial progression (' + stage.steps.length + ' trials)</summary><ol>' + steps + '</ol></details></article>';
     }).join('');
@@ -1203,7 +1228,7 @@ function renderMobileDashboard() {
     { key: "mach3", previous: "mach2", name: "SD-MACH3", excellent: 10, gold: 3 },
     { key: "mach4", previous: "mach3", name: "SD-MACH4", excellent: 10, gold: 4 }
   ];
-  const machStageMet = new Map([["mach", !!championshipTitle("mach") || (total >= 10 && excellent.length >= 3 && gold >= 3)]]);
+  const machStageMet = new Map([["mach", !!championshipTitle("mach") || machScoresMet]]);
   repeatMachRules.forEach((rule) => {
     const found = championshipTitle(rule.key), previous = championshipTitle(rule.previous), progress = machExtensionProgress(rule, rule.previous);
     const previousMet = progress.verified || !!previous || !!machStageMet.get(rule.previous);
