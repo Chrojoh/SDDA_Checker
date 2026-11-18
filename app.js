@@ -986,6 +986,48 @@ function renderFullProgressionExplanation() {
     '<h3>What the files can and cannot verify</h3><article class="next-card"><p>The score export supplies score, component, event date and trial number. It does not supply judge identities, so the two-judge ELCH and three-judge GMCH conditions still require handler/SDDA verification. Trial numbers are identifiers; chronological order comes from the score file order. Where a title date covers multiple trials and no exact trial is recorded in Honours, the exact titling trial may remain ambiguous. SDDA remains the official authority.</p></article>';
 }
 
+function currentMachLedgerRows() {
+  const stages = [
+    { key: "mach4", title: "mach4" },
+    { key: "mach3", title: "mach3" },
+    { key: "mach2", title: "mach2" },
+    { key: "mach", title: "mach" }
+  ];
+  const recordedStage = stages.find((stage) => !!championshipTitle(stage.title));
+  if (!recordedStage) {
+    return { verified: true, rows: scores, cutoffTrial: null, message: "Full score history · no recorded MACH title cutoff." };
+  }
+  const cutoff = machCutoffRowForTitle(recordedStage.title);
+  const groups = machTrialGroups();
+  if (!cutoff || !groups || !groups[cutoff.index]) {
+    return {
+      verified: false,
+      rows: [],
+      cutoffTrial: null,
+      message: recordedStage.key.toUpperCase() + " is recorded, but its chronological cutoff could not be verified against the score export and Dog Titles sheet. The active combination list is withheld rather than showing pre-title scores."
+    };
+  }
+  // Exclude the entire cutoff trial, not merely the three rows selected for
+  // the title. sourceRow is the score export's chronology; Trial Number is
+  // only an identifier and is never used to order records.
+  const cutoffTrialNumber = Number(cutoff.trial);
+  const lastCutoffSourceRow = scores.reduce((last, score) =>
+    Number(score.trial) === cutoffTrialNumber
+      ? Math.max(last, Number(score.sourceRow) || 0)
+      : last, 0);
+  if (!lastCutoffSourceRow) {
+    return { verified: false, rows: [], cutoffTrial: cutoff.trial,
+      message: "The recorded " + recordedStage.key.toUpperCase() + " cutoff trial could not be located in the full score export. The active combination list is withheld." };
+  }
+  return {
+    verified: true,
+    rows: scores.filter((score) => (Number(score.sourceRow) || 0) > lastCutoffSourceRow),
+    cutoffTrial: cutoff.trial,
+    lastSourceRow: lastCutoffSourceRow,
+    message: "Active combinations use score-file rows after the complete " + recordedStage.key.toUpperCase() + " cutoff trial " + cutoff.trial + ". All rows from that trial are excluded."
+  };
+}
+
 function machExtensionProgress(rule, priorTitleOrStage) {
   const cutoff = machCutoffRowForTitle(priorTitleOrStage);
   const trialGroups = machTrialGroups();
@@ -1209,7 +1251,10 @@ function renderMobileDashboard() {
       : COMPONENTS.map((component) => ({ done: counts[component] >= 1, text: `${component}: ${counts[component]} / 1 qualifying score${counts[component] === 1 ? "" : "s"} (have / need)` }));
     return accordion({ name: entry.name, subtitle: recorded ? "Recorded title" : met ? "Requirements met · not yet recorded" : "In progress", achieved: met, date: recorded?.date, body: reqList(requirements), accent: entry.elite ? "level-accent-elite" : "" });
   });
-  const advanced = maximizeGoldCombinations("Advanced"), excellent = maximizeGoldCombinations("Excellent"), elite = eliteSets();
+  const activeLedger = currentMachLedgerRows();
+  const advanced = activeLedger.verified ? maximizeGoldCombinations("Advanced", activeLedger.rows) : [];
+  const excellent = activeLedger.verified ? maximizeGoldCombinations("Excellent", activeLedger.rows) : [];
+  const elite = eliteSets();
   const chSelection = selectProgressionCombinations(advanced, excellent, "ch");
   const machSelection = selectProgressionCombinations(advanced, excellent, "mach");
   const total = machSelection.total, gold = machSelection.sets.filter((set) => set.gold).length;
@@ -1241,7 +1286,11 @@ function renderMobileDashboard() {
       { done: progress.verified && progress.excellent >= rule.excellent, text: `${progress.verified ? progress.excellent : "—"}/${rule.excellent} additional Excellent combinations` },
       { done: progress.verified && progress.gold >= rule.gold, text: `${progress.verified ? progress.gold : "—"}/${rule.gold} additional Excellent Gold combinations` }
     ];
-    items.push({ done: progress.verified && countedTotal >= 10, text: `${progress.verified ? countedTotal : "—"}/10 additional combinations counted (${progress.verified ? countedExcellent : 0} Excellent + ${progress.verified ? countedAdvanced : 0} Advanced)` });
+    if (rule.maxAdvanced) {
+      items.push({ done: progress.verified && countedTotal >= 10, text: `${progress.verified ? countedTotal : "—"}/10 additional combinations counted (${progress.verified ? countedExcellent : 0} Excellent + ${progress.verified ? countedAdvanced : 0} Advanced)` });
+    } else {
+      items.push({ done: progress.verified && countedExcellent >= 10, text: `${progress.verified ? countedExcellent : "—"}/10 additional Excellent combinations counted` });
+    }
     if (rule.maxAdvanced) items.push({ done: progress.verified, text: progress.verified ? `${countedAdvanced} of up to ${rule.maxAdvanced} Advanced combinations may be included (optional)` : "Advanced score allowance cannot be checked until the previous title cutoff is known" });
     items.push({ done: progress.verified, text: progress.verified ? `Only Qs from trials after Trial ${progress.cutoffTrial} count` : "Previous title score sequence could not be established from the uploaded chronological score list" });
     championCards.push({ name: rule.name, found, met: !!found || met, items });
@@ -1270,11 +1319,11 @@ function renderMobileDashboard() {
     if (!qualifying.length) return `<p class="run-empty">No qualifying combinations yet.</p>`;
     return `<div class="run-grid">${qualifying.map((set, index) => { const container = isElite ? set.parts?.Container : set.container, exterior = isElite ? set.parts?.Exterior : set.exterior, interior = isElite ? set.parts?.Interior : set.interior; const show = (part) => part ? `${esc(part.score)} (${esc(part.trial || "-")})` : "—"; return `<div class="run-row ${set.gold ? "gold" : runClass(set.total).toLowerCase()}"><b>${isElite ? `Trial ${esc(set.trial || "—")}` : set.special ? "SP" : set.titleLocked ? "Title" : `#${index + 1}`}</b><span>Container: ${show(container)}</span><span>Exterior: ${show(exterior)}</span><span>Interior: ${show(interior)}</span><strong>Total: ${esc(set.total)} · ${runClass(set.total)}</strong></div>`; }).join("")}</div>`;
   };
-  $("mobile-scent-runs").innerHTML = `<p class="sp-definition"><strong>SP = Special.</strong> Its three title-earning components stay together as one locked combination.</p>` + [
+  $("mobile-scent-runs").innerHTML = `<p class="sp-definition"><strong>SP = Special.</strong> Its three title-earning components stay together as one locked combination.</p><p class="level-note">${esc(activeLedger.message)}</p>` + (activeLedger.verified ? [
     accordion({ name: "Advanced combinations", subtitle: `${advanced.filter((set) => set.total >= 100).length} qualifying · ${advanced.filter((set) => set.gold && set.total >= 100).length} Gold · ${advanced.filter((set) => set.total >= 172 && set.total < 192).length} Silver · ${advanced.filter((set) => set.total >= 142 && set.total < 172).length} Bronze · ${advanced.filter((set) => set.total >= 100 && set.total < 142).length} Satisfactory`, body: `<p class="run-legend"><strong>SP = Special.</strong> Its three title-earning Advanced components stay together as one locked combination.</p>${runRows(advanced)}`, accent: "level-accent-silver" }),
     accordion({ name: "Excellent combinations", subtitle: `${excellent.filter((set) => set.total >= 100).length} qualifying · ${excellent.filter((set) => set.gold && set.total >= 100).length} Gold · ${excellent.filter((set) => set.total >= 172 && set.total < 192).length} Silver · ${excellent.filter((set) => set.total >= 142 && set.total < 172).length} Bronze · ${excellent.filter((set) => set.total >= 100 && set.total < 142).length} Satisfactory`, body: `<p class="run-legend"><strong>SP = Special.</strong> Its three title-earning Excellent components stay together as one locked combination.</p>${runRows(excellent)}`, accent: "level-accent-gold" }),
     accordion({ name: "Elite runs", subtitle: `${elite.length} same-trial scores · ${elite.filter((set) => set.gold).length} Gold`, body: runRows(elite, true), accent: "level-accent-elite" })
-  ].join("");
+  ].join("") : `<p class="run-empty">Combination list unavailable until the recorded MACH cutoff can be verified.</p>`);
 
 
 const gameCounts = gamePassCounts(), gameTargets = [];
