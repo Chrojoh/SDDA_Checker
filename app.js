@@ -917,78 +917,110 @@ function progressionTitleComparison(calculatedDate, recorded, calculatedTrial) {
     '. This supports the record comparison but does not replace SDDA approval.</p>';
 }
 
-function renderFullProgressionExplanation() {
-  const host = $('progression-story');
-  if (!host) return;
-  if (!titlesFileLoaded || !titles.length) {
-    host.innerHTML = '<p class="level-note">Upload the Dog Titles file for this dog to view recorded title awards and dates. Score results are not substituted for recorded awards.</p>';
-    return;
+
+function progressionEliteTitleCutoffs(groups) {
+  const records = [
+    findTitle(/^Elite(?:\s|$)/i),
+    championshipTitle("elch"), championshipTitle("elch2"),
+    championshipTitle("elch3"), championshipTitle("elch4")
+  ].filter(Boolean);
+  const cutoffs = new Map();
+  for (const record of records) {
+    const honourTrial = String(record.honours || "").match(/trial\s*#?\s*(\d+)/i);
+    let index = honourTrial ? groups.findIndex((group) => Number(group.trial) === Number(honourTrial[1])) : -1;
+    if (index < 0 && record.date) groups.forEach((group, groupIndex) => {
+      if (group.rows.some((row) => row.date && row.date <= record.date)) index = groupIndex;
+    });
+    if (index >= 0) cutoffs.set(String(groups[index].trial), record.description || "Elite title");
   }
-
-  const titleCards = [
-    { label: 'Started', record: () => progressionRecordForLevel('Started') },
-    { label: 'Advanced', record: () => progressionRecordForLevel('Advanced') },
-    { label: 'Excellent', record: () => progressionRecordForLevel('Excellent') },
-    { label: 'Elite', record: () => progressionRecordForLevel('Elite') },
-    { label: 'SD-CH · Champion', record: () => championshipTitle('ch') },
-    { label: 'SD-MACH · Master Champion', record: () => championshipTitle('mach') },
-    { label: 'SD-MACH2', record: () => championshipTitle('mach2') },
-    { label: 'SD-MACH3', record: () => championshipTitle('mach3') },
-    { label: 'SD-MACH4', record: () => championshipTitle('mach4') },
-    { label: 'SD-ELCH · Elite Champion', record: () => championshipTitle('elch') },
-    { label: 'SD-ELCH2', record: () => championshipTitle('elch2') },
-    { label: 'SD-ELCH3', record: () => championshipTitle('elch3') },
-    { label: 'SD-ELCH4', record: () => championshipTitle('elch4') },
-    { label: 'SD-GMCH · Grand Master Champion', record: () => championshipTitle('gmch') },
-    { label: 'Aerial Games', record: () => gameTitleRecord('Aerial') },
-    { label: 'Distance Games', record: () => gameTitleRecord('Distance') },
-    { label: 'Speed Games', record: () => gameTitleRecord('Speed') },
-    { label: 'Team Games', record: () => gameTitleRecord('Team') },
-    { label: 'SD-GS · All Games', record: () => championshipTitle('gch') },
-    { label: 'SD-GCH2', record: () => championshipTitle('gch2') },
-    { label: 'SD-GCH3', record: () => championshipTitle('gch3') },
-    { label: 'SD-GCH4', record: () => championshipTitle('gch4') },
-    { label: 'SD-GCH5', record: () => championshipTitle('gch5') }
+  return cutoffs;
+}
+function progressionHistoryMarkup(level) {
+  const groups = chronologicalTrialGroups(level, scores);
+  if (!groups.length) return '<p class="run-empty">No ' + esc(level) + ' score history is available.</p>';
+  const lock = level === "Advanced" || level === "Excellent" ? titleLockForLevel(level) : null;
+  const lockedRows = new Set(lock ? COMPONENTS.map((component) => lock.parts[component].sourceRow) : []);
+  const cutoffs = new Map();
+  if (level === "Advanced" || level === "Excellent") {
+    for (const stage of [{key:"mach",label:"MACH cutoff"},{key:"mach2",label:"MACH2 cutoff"},{key:"mach3",label:"MACH3 cutoff"},{key:"mach4",label:"MACH4 cutoff"}]) {
+      if (!championshipTitle(stage.key)) continue;
+      const cutoff = machCutoffRowForTitle(stage.key);
+      if (cutoff) cutoffs.set(String(cutoff.trial), stage.label);
+    }
+  } else if (level === "Elite") progressionEliteTitleCutoffs(groups).forEach((label, trial) => cutoffs.set(trial, label));
+  const columns = COMPONENTS.map((component) => {
+    let output = "";
+    for (const group of groups) {
+      const rows = group.rows.filter((row) => row.component === component);
+      output += rows.map((row) => '<div class="history-score ' + (lockedRows.has(row.sourceRow) ? 'is-title-lock' : '') +
+        '"><span>' + esc(row.score) + '</span><small>(' + esc(row.trial || "—") + ')</small>' +
+        (lockedRows.has(row.sourceRow) ? '<b>Title lock</b>' : '') + '</div>').join("");
+      if (cutoffs.has(String(group.trial))) output += '<div class="history-cutoff"><b>' +
+        esc(cutoffs.get(String(group.trial))) + '</b><small>Trial ' + esc(group.trial) +
+        ' · scores through this title date/trial are not carried forward</small></div>';
+    }
+    return '<section class="history-component"><h4>' + esc(component) + '</h4>' +
+      (output || '<p class="run-empty">No scores</p>') + '</section>';
+  }).join("");
+  const lockSummary = lock ? '<div class="history-title-lock"><b>' + esc(level) +
+    ' title-lock combination</b><div class="history-lock-parts">' + COMPONENTS.map((component) => {
+      const part = lock.parts[component];
+      return '<span><strong>' + esc(component) + '</strong><em>' + esc(part.score) +
+        ' (' + esc(part.trial || "—") + ')</em></span>';
+    }).join("") + '</div><strong>Total ' + esc(lock.total) + '</strong></div>' : "";
+  return '<div class="history-panel-intro">' + lockSummary +
+    '<p>Scores remain in score-file order. Trial numbers in brackets are identifiers, not sort order. Red circles mark the three records permanently locked together for the regular title. Yellow lines mark championship cutoffs only.</p></div>' +
+    '<div class="history-component-columns">' + columns + '</div>';
+}
+function progressionRunRows(sets, isElite = false) {
+  const classification = (total) => total >= 192 ? "Gold" : total >= 172 ? "Silver" : total >= 142 ? "Bronze" : total >= 100 ? "Satisfactory" : "Insufficient";
+  const qualifying = sets.filter((set) => set.total >= 100);
+  if (!qualifying.length) return '<p class="run-empty">No qualifying combinations yet.</p>';
+  return '<div class="run-grid">' + qualifying.map((set, index) => {
+    const container = isElite ? set.parts?.Container : set.container;
+    const exterior = isElite ? set.parts?.Exterior : set.exterior;
+    const interior = isElite ? set.parts?.Interior : set.interior;
+    const show = (part) => part ? esc(part.score) + ' (' + esc(part.trial || "—") + ')' : "—";
+    return '<div class="run-row ' + (set.gold ? "gold" : classification(set.total).toLowerCase()) + '">' +
+      '<b>' + (isElite ? "Trial " + esc(set.trial || "—") : set.special ? "SP" : set.titleLocked ? "Title lock" : "#" + (index + 1)) +
+      '</b><span>Container: ' + show(container) + '</span><span>Exterior: ' + show(exterior) +
+      '</span><span>Interior: ' + show(interior) + '</span><strong>Total: ' + esc(set.total) +
+      ' · ' + classification(set.total) + '</strong></div>';
+  }).join("") + '</div>';
+}
+function renderProgressionScoreColumns(activeLedger = currentMachLedgerRows()) {
+  const advanced = activeLedger.verified ? maximizeGoldCombinations("Advanced", activeLedger.rows) : [];
+  const excellent = activeLedger.verified ? maximizeGoldCombinations("Excellent", activeLedger.rows) : [];
+  const eliteTitle = [championshipTitle("elch4"), championshipTitle("elch3"), championshipTitle("elch2"),
+    championshipTitle("elch"), findTitle(/^Elite(?:\s|$)/i)].find(Boolean);
+  const eliteRows = eliteTitle ? scoreRowsAfterTitle(eliteTitle) : scores.filter((row) => row.level === "Elite");
+  const elite = eliteRows ? eliteSets(eliteRows) : [];
+  const columns = [
+    {level:"Advanced",sets:advanced,accent:"level-accent-silver",elite:false},
+    {level:"Excellent",sets:excellent,accent:"level-accent-gold",elite:false},
+    {level:"Elite",sets:elite,accent:"level-accent-elite",elite:true}
   ];
-
-  const cards = titleCards.map(({ label, record: getRecord }) => {
-    const record = getRecord();
-    if (!record) return '';
-    const displayLabel = /special/i.test(record.description || '') ? label + ' · SP' : label;
-    const details = [
-      record.honours ? '<p><strong>Honours:</strong> ' + esc(record.honours) + '</p>' : '',
-      record.score != null && record.score !== '' ? '<p><strong>Title score:</strong> ' + esc(record.score) + '</p>' : '',
-      '<p class="level-note">This title and date are copied from the uploaded Dog Titles sheet. The checker does not calculate or award this title.</p>'
-    ].join('');
-    return '<details class="progression-record-card"><summary><span><strong>' + esc(displayLabel) +
-      '</strong></span><span class="progression-record-date">Recorded ' + esc(dateLabel(record.date)) +
-      '</span></summary><div class="progression-record-body">' + details + '</div></details>';
-  }).join('');
-
-  const scoreEvidenceCard = (level) => {
-    const combinations = maximizeGoldCombinations(level);
-    const rows = combinations.map((set, index) => {
-      const name = set.special ? level + ' SP' : set.titleLocked ? level + ' title-earning combination' : level + ' combination ' + (index + 1);
-      const part = (component) => set[component.toLowerCase()]?.score == null ? '—' :
-        esc(set[component.toLowerCase()].score) + ' (Trial ' + esc(set[component.toLowerCase()].trial || '—') + ')';
-      return '<li><strong>' + esc(name) + ':</strong> Container ' + part('Container') +
-        ' · Exterior ' + part('Exterior') + ' · Interior ' + part('Interior') +
-        ' · Total ' + esc(set.total) + ' (' + (set.gold ? 'Gold' : set.total >= 172 ? 'Silver' : set.total >= 142 ? 'Bronze' : set.total >= 100 ? 'Satisfactory' : 'Insufficient') + ')</li>';
-    }).join('');
-    return '<details class="progression-record-card"><summary><strong>' + esc(level) +
-      ' score combinations</strong><span class="progression-record-date">' + byLevel(level).length +
-      ' component scores</span></summary><div class="progression-record-body"><p>These are score pairings from the Dog Scores export, not title awards. They are kept separate from the recorded title cards above.</p>' +
-      (rows ? '<ol>' + rows + '</ol>' : '<p>No complete combinations available.</p>') + '</div></details>';
-  };
-  const levelEvidence = '<p class="level-note"><strong>Score evidence is separate from recorded awards.</strong> The cards below identify Advanced and Excellent pairings explicitly. They do not create or confirm a title.</p>' +
-    scoreEvidenceCard('Advanced') + scoreEvidenceCard('Excellent');
-
-  host.innerHTML = '<p class="level-note"><strong>Recorded title history:</strong> the cards below show only titles found in this dog\'s Dog Titles sheet. Dates and honours are displayed as recorded. Score-based estimates are not presented as awarded titles.</p>' +
-    (cards || '<p class="level-note">No recognized title records were found in the uploaded Dog Titles sheet.</p>') +
-    '<h3>Score export level identification</h3>' + levelEvidence +
-    '<h3>What the files can and cannot verify</h3><article class="next-card"><p>The score export identifies the score level (Advanced, Excellent, Elite), component, event date and trial number. It does not supply judge identities, so judge-diversity requirements still require handler/SDDA verification. Trial numbers are identifiers; chronological order comes from the score file order. SDDA remains the official authority.</p></article>';
+  return '<p class="level-note current-cutoff-announcement">' + esc(activeLedger.message) + '</p><div class="progression-score-columns">' +
+    columns.map((column) => '<article class="progression-score-column ' + column.accent +
+      '"><section class="current-level-card"><header><h3>' + column.level + '</h3><span>' +
+      (column.elite ? column.sets.length + ' complete same-trial · ' + column.sets.filter((set) => set.gold).length + ' Gold' :
+        column.sets.filter((set) => set.total >= 100).length + ' qualifying · ' + column.sets.filter((set) => set.gold && set.total >= 100).length + ' Gold') +
+      '</span></header>' + (column.level !== "Elite" && !activeLedger.verified ?
+        '<p class="run-empty">Current combinations are withheld until the recorded MACH cutoff can be verified.</p>' :
+        progressionRunRows(column.sets,column.elite)) + '</section><section class="progression-history"><h4>Historical score combinations</h4>' +
+      progressionHistoryMarkup(column.level) + '</section></article>').join("") + '</div>';
 }
 
+function renderFullProgressionExplanation() {
+  const host = $("progression-story");
+  if (!host) return;
+  if (!scores.length) {
+    host.innerHTML = '<p class="level-note">Upload the Dog Scores file to view the historical score combinations.</p>';
+    return;
+  }
+  host.innerHTML = '<p class="level-note"><strong>Score progression:</strong> current combinations appear first in each level. Historical scores remain in score-file order, with title-lock records circled and championship cutoffs marked between stages.</p>' +
+    renderProgressionScoreColumns(currentMachLedgerRows());
+}
 function currentMachLedgerRows() {
   const stages = [
     { key: "mach4", title: "mach4" },
@@ -1326,46 +1358,7 @@ function renderMobileDashboard() {
     if (!qualifying.length) return `<p class="run-empty">No qualifying combinations yet.</p>`;
     return `<div class="run-grid">${qualifying.map((set, index) => { const container = isElite ? set.parts?.Container : set.container, exterior = isElite ? set.parts?.Exterior : set.exterior, interior = isElite ? set.parts?.Interior : set.interior; const show = (part) => part ? `${esc(part.score)} (${esc(part.trial || "-")})` : "—"; return `<div class="run-row ${set.gold ? "gold" : runClass(set.total).toLowerCase()}"><b>${isElite ? `Trial ${esc(set.trial || "—")}` : set.special ? "SP" : set.titleLocked ? "Title" : `#${index + 1}`}</b><span>Container: ${show(container)}</span><span>Exterior: ${show(exterior)}</span><span>Interior: ${show(interior)}</span><strong>Total: ${esc(set.total)} · ${runClass(set.total)}</strong></div>`; }).join("")}</div>`;
   };
-  const historyPanel = (level) => {
-    const lock = titleLockForLevel(level);
-    const groups = chronologicalTrialGroups(level, scores);
-    if (!groups.length) return `<p class="run-empty">No ${esc(level)} score history is available.</p>`;
-    const lockedRows = new Set(lock ? COMPONENTS.map((component) => lock.parts[component].sourceRow) : []);
-    const cutoffTrial = lock?.completionTrial || lock?.trial || "";
-    const summary = lock ? `<div class="history-title-lock"><b>${esc(level)} title combination</b><div class="history-lock-parts">${COMPONENTS.map((component) => {
-      const part = lock.parts[component];
-      return `<span><strong>${esc(component)}</strong><em>${esc(part.score)} (${esc(part.trial || "—")})</em></span>`;
-    }).join("")}</div><strong>Total ${esc(lock.total)} · ${runClass(lock.total)}</strong></div>` : '<p class="run-empty">The exact title-lock combination could not be reconstructed from the available scores and title date.</p>';
-    const columns = COMPONENTS.map((component) => {
-      let output = "";
-      for (const group of groups) {
-        const groupRows = group.rows.filter((row) => row.component === component);
-        if (groupRows.length) output += groupRows.map((row) => `<div class="history-score ${lockedRows.has(row.sourceRow) ? "is-title-lock" : ""}"><span>${esc(row.score)}</span><small>(${esc(row.trial || "—")})</small>${lockedRows.has(row.sourceRow) ? '<b>Title lock</b>' : ""}</div>`).join("");
-        if (cutoffTrial && String(group.trial) === String(cutoffTrial)) output += `<div class="history-cutoff"><b>Title cutoff</b><small>Trial ${esc(group.trial)} · all scores through this trial are before the next stage</small></div>`;
-      }
-      return `<section class="history-component"><h4>${esc(component)}</h4>${output || '<p class="run-empty">No scores</p>'}</section>`;
-    }).join("");
-    return `<div class="history-panel-intro">${summary}<p>Scores stay in score-file order. Trial numbers in brackets identify the source trial; they are not used to sort chronology. Circled entries are the three exact component records locked for the title.</p></div><div class="history-component-columns">${columns}</div>`;
-  };
-  const combinationCard = (name, sets, accent) => `<article class="current-level-card ${accent}"><header><h3>${esc(name)}</h3><span>${sets.filter((set) => set.total >= 100).length} qualifying · ${sets.filter((set) => set.gold && set.total >= 100).length} Gold</span></header>${runRows(sets)}</article>`;
-  const eliteCurrentCard = `<article class="current-level-card level-accent-elite"><header><h3>Elite</h3><span>${elite.length} complete same-trial · ${elite.filter((set) => set.gold).length} Gold</span></header>${runRows(elite, true)}</article>`;
-  const historyMarkup = `<section class="ledger-history"><h3>Score history</h3><div class="ledger-history-buttons"><button type="button" class="history-toggle" data-history="advanced-history" aria-expanded="false">Advanced history</button><button type="button" class="history-toggle" data-history="excellent-history" aria-expanded="false">Excellent history</button></div><div id="advanced-history" class="history-panel" hidden>${historyPanel("Advanced")}</div><div id="excellent-history" class="history-panel" hidden>${historyPanel("Excellent")}</div></section>`;
-  $("mobile-scent-runs").innerHTML =
-    `<p class="level-note current-cutoff-announcement">${esc(activeLedger.message)}</p>` +
-    (activeLedger.verified
-      ? `<div class="current-score-ledger">${combinationCard("Advanced", advanced, "level-accent-silver")}${combinationCard("Excellent", excellent, "level-accent-gold")}${eliteCurrentCard}</div>`
-      : `<p class="run-empty">Current combinations are withheld until the recorded title cutoff can be verified.</p>`) +
-    historyMarkup;
-  $("mobile-scent-runs").querySelectorAll("[data-history]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const panel = $(button.dataset.history);
-      if (!panel) return;
-      const opening = panel.hidden;
-      panel.hidden = !opening;
-      button.setAttribute("aria-expanded", String(opening));
-      button.textContent = (button.dataset.history === "advanced-history" ? "Advanced" : "Excellent") + (opening ? " history −" : " history +");
-    });
-  });
+  $("mobile-scent-runs").innerHTML = renderProgressionScoreColumns(activeLedger);
   const gameCounts = gamePassCounts();
 
 $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
