@@ -1314,7 +1314,7 @@ function renderMobileDashboard() {
     <div class="story-level-locks">${titleStory("Advanced")}${titleStory("Excellent")}</div>
     ${stageStory("mach", "MACH championship", null)}
     ${stageStory("mach2", "MACH2 championship", "mach")}
-    <p class="story-optimization-note"><b>Why a combination may not use the highest score in every class:</b> selection must satisfy the title rules while producing the largest usable set of qualifying combinations. A lower component score can be the better choice if it allows more complete combinations to pass the total and Gold/Excellent requirements. Scores from a completed MACH stage are not carried into the next stage.</p>
+    <p class="story-optimization-note"><b>Why a combination may not use the highest score in every class:</b> The current calculation pairs each component's available scores from highest to lowest; it does not test every possible reassignment. This history makes the selected components visible so we can identify where a different pairing could create more passing combinations. A lower score may be worth using if it allows more complete combinations to pass the total and Gold/Excellent requirements. Scores from a completed MACH stage are not carried into the next stage.</p>
   </section>`;
   const combinationCard = (name, sets, accent) => accordion({
     name,
