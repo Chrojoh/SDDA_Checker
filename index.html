@@ -27,13 +27,13 @@
   <main class="wrap">
     <section class="privacy"><strong>Your files stay private.</strong> Everything is calculated on this device and cleared when the page closes.</section>
     <details class="download-help" open>
-      <summary><span><strong>How to get your SDDA files</strong><small>Scores required; Titles optional</small></span><b aria-hidden="true">+</b></summary>
+      <summary><span><strong>How to get your SDDA files</strong><small>Scores and Titles files required</small></span><b aria-hidden="true">+</b></summary>
       <div class="download-help-body">
         <ol>
           <li>Go to <a href="https://www.sdda.ca/login/" target="_blank" rel="noopener">your SDDA account</a> and sign in.</li>
           <li>Open your registered dog’s record.</li>
           <li>Open the dog’s <strong>Scores</strong> table and download or export it as CSV or XLSX.</li>
-          <li>Optional: open the dog’s <strong>Titles</strong> table and download it if you want the tracker to show SDDA-recorded titles and dates.</li>
+          <li>Required: open the dog’s <strong>Titles</strong> table and download it if you want the tracker to show SDDA-recorded titles and dates.</li>
           <li>Return here and select the Scores file in Step 1. Add the Titles file in Step 2 if available.</li>
         </ol>
         <p>Use files for one dog at a time. The optional Trial Workbook is only needed when score dates are missing.</p>
@@ -41,7 +41,7 @@
     </details>
     <section class="upload-grid" aria-label="Upload SDDA account downloads">
       <label class="upload-card"><span>1</span><strong>Required — Dog Scores CSV or XLSX</strong><small>Expected columns include Dog Number, Trial Number, Description, Score, Maximum Score</small><input id="scores-file" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><em id="scores-name">Choose Dog_Scores_Table CSV or XLSX</em></label>
-      <label class="upload-card"><span>2</span><strong>Optional — Dog Titles CSV or XLSX</strong><small>Confirms official titles and dates. Expected: Description, Honours, Title Score, Title Date</small><input id="titles-file" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><em id="titles-name">Choose Dog_Titles_Table CSV or XLSX, if available</em></label>
+      <label class="upload-card"><span>2</span><strong>Required — Dog Titles CSV or XLSX</strong><small>Confirms official titles and dates. Expected: Description, Honours, Title Score, Title Date</small><input id="titles-file" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><em id="titles-name">Choose Dog_Titles_Table CSV or XLSX</em></label>
     </section>
     <details class="optional-date">
       <summary><span><strong>Add missing trial dates</strong><small>Optional Trial Workbook lookup</small></span><b aria-hidden="true">+</b></summary>
