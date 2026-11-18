@@ -751,8 +751,11 @@ function historicalChProgressSelection() {
     const advanced = maximizeGoldCombinations("Advanced", prefix, 10, true);
     const excellent = maximizeGoldCombinations("Excellent", prefix, 10, true);
     lastSelection = selectProgressionCombinations(advanced, excellent, "ch");
-    if (honourTrial && Number(honourTrial[1]) === Number(group.trial)) return lastSelection;
-    if (lastSelection.met) return lastSelection;
+    if (honourTrial) {
+      if (Number(honourTrial[1]) === Number(group.trial)) return lastSelection;
+    } else if (lastSelection.met) {
+      return lastSelection;
+    }
   }
   return lastSelection;
 }
