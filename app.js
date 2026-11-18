@@ -954,9 +954,8 @@ function progressionHistoryMarkup(level) {
     }
   } else if (level === "Elite") progressionEliteTitleCutoffs(groups).forEach((label, trial) => cutoffs.set(trial, label));
 
-  // A level may have no score in the exact trial that earned MACH. Add an
-  // empty history group at that trial's chronological position so its shared
-  // cutoff is still visible, without showing the other level's score rows.
+  // If this level has no score in the exact MACH title trial, add an empty
+  // group at the same chronological position so its shared cutoff is visible.
   const historyGroups = [...groups];
   if (level === "Advanced" || level === "Excellent") {
     const allMachGroups = machTrialGroups() || [];
@@ -973,37 +972,20 @@ function progressionHistoryMarkup(level) {
     }
   }
   if (!historyGroups.length) return '<p class="run-empty">No ' + esc(level) + ' score history is available.</p>';
-  const columns = level === "Elite"
-    ? '<div class="elite-history-grid"><div class="elite-history-header"><b>Trial</b>' +
-      COMPONENTS.map((component) => '<b>' + esc(component) + '</b>').join("") + '</div>' +
-      historyGroups.map((group) => {
-        const cells = COMPONENTS.map((component) => {
-          const rows = group.rows.filter((row) => row.component === component);
-          return '<div class="elite-history-cell">' + (rows.length
-            ? rows.map((row) => '<div class="history-score"><span>' + esc(row.score) + '</span></div>').join("")
-            : '<span class="elite-history-empty" aria-hidden="true">&nbsp;</span>') + '</div>';
-        }).join("");
-        const cutoff = cutoffs.has(String(group.trial))
-          ? '<div class="history-cutoff elite-history-cutoff"><b>' + esc(cutoffs.get(String(group.trial))) +
-            '</b><small>Trial ' + esc(group.trial) + ' · scores through this title date/trial are not carried forward</small></div>'
-          : "";
-        return '<div class="elite-history-row"><b class="elite-history-trial">Trial ' + esc(group.trial || "—") +
-          '</b>' + cells + cutoff + '</div>';
-      }).join("") + '</div>'
-    : COMPONENTS.map((component) => {
-        let output = "";
-        for (const group of historyGroups) {
-          const rows = group.rows.filter((row) => row.component === component);
-          output += rows.map((row) => '<div class="history-score ' + (lockedRows.has(row.sourceRow) ? 'is-title-lock' : '') +
-            '"><span>' + esc(row.score) + '</span><small>(' + esc(row.trial || "—") + ')</small>' +
-            (lockedRows.has(row.sourceRow) ? '<b>Title lock</b>' : '') + '</div>').join("");
-          if (cutoffs.has(String(group.trial))) output += '<div class="history-cutoff"><b>' +
-            esc(cutoffs.get(String(group.trial))) + '</b><small>Trial ' + esc(group.trial) +
-            ' · scores through this title date/trial are not carried forward</small></div>';
-        }
-        return '<section class="history-component"><h4>' + esc(component) + '</h4>' +
-          (output || '<p class="run-empty">No scores</p>') + '</section>';
-      }).join("");
+  const columns = COMPONENTS.map((component) => {
+    let output = "";
+    for (const group of historyGroups) {
+      const rows = group.rows.filter((row) => row.component === component);
+      output += rows.map((row) => '<div class="history-score ' + (lockedRows.has(row.sourceRow) ? 'is-title-lock' : '') +
+        '"><span>' + esc(row.score) + '</span><small>(' + esc(row.trial || "—") + ')</small>' +
+        (lockedRows.has(row.sourceRow) ? '<b>Title lock</b>' : '') + '</div>').join("");
+      if (cutoffs.has(String(group.trial))) output += '<div class="history-cutoff"><b>' +
+        esc(cutoffs.get(String(group.trial))) + '</b><small>Trial ' + esc(group.trial) +
+        ' · scores through this title date/trial are not carried forward</small></div>';
+    }
+    return '<section class="history-component"><h4>' + esc(component) + '</h4>' +
+      (output || '<p class="run-empty">No scores</p>') + '</section>';
+  }).join("");
   const lockSummary = lock ? '<div class="history-title-lock"><b>' + esc(level) +
     ' title-lock combination</b><div class="history-lock-parts">' + COMPONENTS.map((component) => {
       const part = lock.parts[component];
