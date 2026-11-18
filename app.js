@@ -1341,12 +1341,15 @@ function render() {
   cards.push(progressCard("SD-MACH", mach ? "Achieved" : machSelection.met ? "Requirements shown as met" : "In progress", machRequirements,
     mach ? (machSelectionVerified ? `Historical progress reconstructed through the recorded award trial.` : "Recorded by SDDA; historical score counts could not be reconstructed.") : "The ten selected combinations preserve the Excellent and Gold requirements while favoring high totals."));
 
-  const elSets = eliteSets(), elGolds = elSets.filter((set) => set.gold), elch = championshipTitle("elch");
-  const elchScoresMet = elSets.length >= 5 && elGolds.length >= 2;
-  cards.push(progressCard("SD-ELCH", elch ? "Achieved" : elchScoresMet ? "Score requirements met · title not recorded in Titles file" : "In progress", [
-    { done: elSets.length >= 5, text: `${elSets.length}/5 complete same-trial Elite scores` },
-    { done: elGolds.length >= 2, text: `${elGolds.length}/2 calculated Elite Gold scores` },
-  ], elch ? `Recorded ${dateLabel(elch.date)}.` : "Trial numbers are used to group Elite components."));
+  const allElSets = eliteSets(), eliteTitleEarned = !!findTitle(titlePattern("Elite")) || allElSets.length > 0;
+  const elSets = eliteTitleEarned ? allElSets.slice(1) : [];
+  const elGolds = elSets.filter((set) => set.gold), elch = championshipTitle("elch");
+  const elchScoresMet = eliteTitleEarned && elSets.length >= 5 && elGolds.length >= 2;
+  cards.push(progressCard("SD-ELCH", elch ? "Achieved" : !eliteTitleEarned ? "Elite title required" : elchScoresMet ? "Score requirements met · title not recorded in Titles file" : "In progress", [
+    { done: eliteTitleEarned, text: eliteTitleEarned ? "Elite title achieved" : "Elite title required before SD-ELCH progression begins" },
+    { done: elSets.length >= 5, text: `${elSets.length}/5 additional complete same-trial Elite scores` },
+    { done: elGolds.length >= 2, text: `${elGolds.length}/2 additional calculated Elite Gold scores` },
+  ], elch ? `Recorded ${dateLabel(elch.date)}.` : eliteTitleEarned ? "Only Elite scores after the score that earned the Elite title count toward SD-ELCH." : "SD-ELCH progression begins after the Elite title is achieved."));
   const machScoresMet = totalSets >= 10 && excellentSets >= 3 && golds.length >= 3;
   const gmch = championshipTitle("gmch");
   const gmchScoresMet = (!!mach || machScoresMet) && (!!elch || elchScoresMet);
