@@ -946,11 +946,15 @@ function progressionHistoryMarkup(level) {
   const lock = level === "Advanced" || level === "Excellent" ? titleLockForLevel(level) : null;
   const lockedRows = new Set(lock ? COMPONENTS.map((component) => lock.parts[component].sourceRow) : []);
   const cutoffs = new Map();
+  const cutoffDates = new Map();
   if (level === "Advanced" || level === "Excellent") {
     for (const stage of [{key:"mach",label:"MACH cutoff"},{key:"mach2",label:"MACH2 cutoff"},{key:"mach3",label:"MACH3 cutoff"},{key:"mach4",label:"MACH4 cutoff"}]) {
       if (!championshipTitle(stage.key)) continue;
       const cutoff = machCutoffRowForTitle(stage.key);
-      if (cutoff) cutoffs.set(String(cutoff.trial), stage.label);
+      if (cutoff) {
+        cutoffs.set(String(cutoff.trial), stage.label);
+        cutoffDates.set(String(cutoff.trial), cutoff.date);
+      }
     }
   } else if (level === "Elite") progressionEliteTitleCutoffs(groups).forEach((label, trial) => cutoffs.set(trial, label));
 
@@ -980,7 +984,7 @@ function progressionHistoryMarkup(level) {
         '"><span>' + esc(row.score) + '</span><small>(' + esc(row.trial || "—") + ')</small>' +
         (lockedRows.has(row.sourceRow) ? '<b>Title lock</b>' : '') + '</div>').join("");
       if (cutoffs.has(String(group.trial))) output += '<div class="history-cutoff"><b>' +
-        esc(cutoffs.get(String(group.trial))) + '</b><small>Trial ' + esc(group.trial) +
+        esc(cutoffs.get(String(group.trial))) + '</b><small>Trial ' + esc(group.trial) + ' · ' + esc(dateLabel(cutoffDates.get(String(group.trial)))) +
         ' · scores through this title date/trial are not carried forward</small></div>';
     }
     return '<section class="history-component"><h4>' + esc(component) + '</h4>' +
