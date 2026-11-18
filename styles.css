@@ -97,3 +97,39 @@ body,.mobile-ledger,.desktop-ledger{background:#f1f0eb!important;color:#202a25}
 .history-cutoff b,.history-cutoff small{display:block}
 .history-cutoff small{font-size:10px;line-height:1.3}
 @media(max-width:780px){.current-score-ledger{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.current-level-card{padding:7px}.current-level-card>header{display:block}.current-level-card>header h3{font-size:13px}.current-level-card>header span{display:block;text-align:left;font-size:10px}.current-level-card .run-row{font-size:10px;padding:5px}.history-component-columns{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.history-component{padding:5px}.history-component h4{font-size:11px}.history-score{gap:2px;font-size:11px;flex-wrap:wrap}.history-score.is-title-lock{padding:3px}.history-score.is-title-lock b{font-size:8px}.history-cutoff{font-size:10px}}
+
+
+/* Three equal-width Title Progression columns: current combinations above their own history. */
+.progression-score-columns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:stretch;width:100%}
+.progression-score-column{min-width:0;display:flex;flex-direction:column;gap:10px}
+.progression-score-column .current-level-card{width:100%;min-width:0}
+.progression-score-column .current-level-card>header{display:flex;align-items:baseline;justify-content:space-between;gap:6px}
+.progression-score-column .current-level-card>header h3{font-size:16px}
+.progression-score-column .current-level-card>header span{font-size:10px;text-align:right}
+.progression-history{min-width:0;padding:10px;background:#fff;border:1px solid var(--line,#d5d8d2)}
+.progression-history>h4{margin:0 0 8px;font-size:14px}
+.progression-history .history-component-columns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.progression-history .history-component{min-width:0;padding:5px}
+.progression-history .history-component h4{font-size:11px;overflow-wrap:anywhere}
+.progression-history .history-score{font-size:11px;gap:2px;flex-wrap:wrap;padding:4px 2px}
+.progression-history .history-score.is-title-lock{border:2px solid #d62828!important;border-radius:999px!important;background:#fff!important;color:#202a25;padding:3px 5px}
+.progression-history .history-score.is-title-lock b{display:none}
+.progression-history .history-cutoff{border-top:3px solid #e6b800;border-bottom:1px solid #e6b800;color:#705700;background:#fff9dc;margin:7px -2px;padding:5px 3px}
+.progression-history .history-cutoff small{font-size:9px}
+.progression-score-column .history-title-lock{display:none}
+@media(max-width:780px){
+ .progression-score-columns{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+ .progression-score-column{gap:6px}
+ .progression-score-column .current-level-card{padding:6px}
+ .progression-score-column .current-level-card>header{display:block}
+ .progression-score-column .current-level-card>header h3{font-size:12px}
+ .progression-score-column .current-level-card>header span{display:block;text-align:left;font-size:9px}
+ .progression-score-column .current-level-card .run-row{font-size:9px;padding:5px;overflow-wrap:anywhere}
+ .progression-history{padding:5px}
+ .progression-history>h4{font-size:11px}
+ .progression-history .history-component-columns{gap:3px}
+ .progression-history .history-component{padding:3px}
+ .progression-history .history-component h4{font-size:9px}
+ .progression-history .history-score{font-size:9px;gap:1px}
+ .progression-history .history-cutoff{font-size:9px}
+}
