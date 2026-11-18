@@ -1261,13 +1261,73 @@ function renderMobileDashboard() {
     if (!qualifying.length) return `<p class="run-empty">No qualifying combinations yet.</p>`;
     return `<div class="run-grid">${qualifying.map((set, index) => { const container = isElite ? set.parts?.Container : set.container, exterior = isElite ? set.parts?.Exterior : set.exterior, interior = isElite ? set.parts?.Interior : set.interior; const show = (part) => part ? `${esc(part.score)} (${esc(part.trial || "-")})` : "—"; return `<div class="run-row ${set.gold ? "gold" : runClass(set.total).toLowerCase()}"><b>${isElite ? `Trial ${esc(set.trial || "—")}` : set.special ? "SP" : set.titleLocked ? "Title" : `#${index + 1}`}</b><span>Container: ${show(container)}</span><span>Exterior: ${show(exterior)}</span><span>Interior: ${show(interior)}</span><strong>Total: ${esc(set.total)} · ${runClass(set.total)}</strong></div>`; }).join("")}</div>`;
   };
-  $("mobile-scent-runs").innerHTML = `<p class="sp-definition"><strong>SP = Special.</strong> Its three title-earning components stay together as one locked combination.</p><p class="level-note">${esc(activeLedger.message)}</p>` + (activeLedger.verified ? [
-    accordion({ name: "Advanced combinations", subtitle: `${advanced.filter((set) => set.total >= 100).length} qualifying · ${advanced.filter((set) => set.gold && set.total >= 100).length} Gold · ${advanced.filter((set) => set.total >= 172 && set.total < 192).length} Silver · ${advanced.filter((set) => set.total >= 142 && set.total < 172).length} Bronze · ${advanced.filter((set) => set.total >= 100 && set.total < 142).length} Satisfactory`, body: `<p class="run-legend"><strong>SP = Special.</strong> Its three title-earning Advanced components stay together as one locked combination.</p>${runRows(advanced)}`, accent: "level-accent-silver" }),
-    accordion({ name: "Excellent combinations", subtitle: `${excellent.filter((set) => set.total >= 100).length} qualifying · ${excellent.filter((set) => set.gold && set.total >= 100).length} Gold · ${excellent.filter((set) => set.total >= 172 && set.total < 192).length} Silver · ${excellent.filter((set) => set.total >= 142 && set.total < 172).length} Bronze · ${excellent.filter((set) => set.total >= 100 && set.total < 142).length} Satisfactory`, body: `<p class="run-legend"><strong>SP = Special.</strong> Its three title-earning Excellent components stay together as one locked combination.</p>${runRows(excellent)}`, accent: "level-accent-gold" }),
-    accordion({ name: "Elite runs", subtitle: `${elite.length} same-trial scores · ${elite.filter((set) => set.gold).length} Gold`, body: runRows(elite, true), accent: "level-accent-elite" })
-  ].join("") : `<p class="run-empty">Combination list unavailable until the recorded MACH cutoff can be verified.</p>`);
-
-
+  const storyPart = (part) => part
+    ? `<span class="story-component-picked"><b>${esc(part.component)}</b> ${esc(part.score)} <small>(Trial ${esc(part.trial || "—")})</small></span>`
+    : "";
+  const storyCombination = (set, index) => `<div class="story-combination">
+    <strong>${set.special ? "SP" : `#${index + 1}`}</strong>
+    <div class="story-parts">${storyPart(set.container)}${storyPart(set.exterior)}${storyPart(set.interior)}</div>
+    <b class="story-total">${esc(set.total)} · ${runClass(set.total)}</b>
+  </div>`;
+  const storyColumns = (selection) => `<div class="story-columns">
+    <section><h5>Advanced</h5>${selection.advanced.length ? selection.advanced.map(storyCombination).join("") : '<p class="run-empty">No Advanced combinations selected for this stage.</p>'}</section>
+    <section><h5>Excellent</h5>${selection.excellent.length ? selection.excellent.map(storyCombination).join("") : '<p class="run-empty">No Excellent combinations selected for this stage.</p>'}</section>
+  </div>`;
+  const titleStory = (level) => {
+    const locked = titleLockForLevel(level);
+    if (!locked) return "";
+    return `<div class="story-title-lock"><b>${esc(level)} title combination · Trial ${esc(locked.trial || "—")}</b>
+      <div class="story-parts">${COMPONENTS.map((component) => storyPart(locked.parts[component])).join("")}</div>
+      <strong>Total ${esc(locked.total)} · ${runClass(locked.total)}</strong>
+      <p>These circled component scores are the exact records used for the title combination. The completing component comes from the completion trial; the other components may come from earlier trials. SP keeps all three components from the same trial.</p>
+    </div>`;
+  };
+  const stageStory = (stageKey, label, previousKey) => {
+    const cutoff = machCutoffRowForTitle(stageKey);
+    if (!cutoff) return "";
+    const groups = machTrialGroups();
+    if (!groups || !groups[cutoff.index]) return "";
+    const previous = previousKey ? machCutoffRowForTitle(previousKey) : null;
+    const firstIndex = previous ? previous.index + 1 : 0;
+    const stageRows = groups.slice(firstIndex, cutoff.index + 1).flatMap((group) => group.rows);
+    const advancedRows = stageRows.filter((row) => row.level === "Advanced");
+    const excellentRows = stageRows.filter((row) => row.level === "Excellent");
+    const advancedSets = maximizeGoldCombinations("Advanced", advancedRows, stageKey === "mach2" ? 3 : 10, !previous);
+    const excellentSets = maximizeGoldCombinations("Excellent", excellentRows, 10, !previous);
+    const selection = selectProgressionCombinations(advancedSets, excellentSets, stageKey);
+    const cutoffGroup = groups[cutoff.index];
+    return `<section class="story-stage">
+      <div class="story-stage-heading"><h4>${esc(label)}</h4><span>Completed in Trial ${esc(cutoff.trial)}</span></div>
+      <p>${stageKey === "mach"
+        ? "MACH requires 10 qualifying combinations from Advanced and Excellent, including at least 3 Excellent and 3 Gold."
+        : "MACH2 starts fresh after the MACH cutoff. It requires 10 additional combinations: at least 7 Excellent, no more than 3 Advanced, and at least 3 Gold at Excellent level."}</p>
+      ${storyColumns(selection)}
+      <div class="story-cutoff"><b>──────── Trial ${esc(cutoff.trial)} cutoff ────────</b>
+        <span>The entire completion trial is excluded from the next stage.</span>
+        <small>${esc(cutoffGroup.rows.length)} score-file rows from this trial are excluded.</small>
+      </div>
+    </section>`;
+  };
+  const historicalStory = `<section class="score-combination-story">
+    <h3>How the Advanced and Excellent combinations build each title</h3>
+    <p>Each combination uses three class components: <b>Container</b>, <b>Exterior</b>, and <b>Interior</b>. Scores are matched within the same level; they do not have to come from the same trial unless marked SP. The circled component pills identify the exact score records selected for a title.</p>
+    <div class="story-level-locks">${titleStory("Advanced")}${titleStory("Excellent")}</div>
+    ${stageStory("mach", "MACH championship", null)}
+    ${stageStory("mach2", "MACH2 championship", "mach")}
+    <p class="story-optimization-note"><b>Why a combination may not use the highest score in every class:</b> The current calculation pairs each component's available scores from highest to lowest; it does not test every possible reassignment. This history makes the selected components visible so we can identify where a different pairing could create more passing combinations. A lower score may be worth using if it allows more complete combinations to pass the total and Gold/Excellent requirements. Scores from a completed MACH stage are not carried into the next stage.</p>
+  </section>`;
+  const combinationCard = (name, sets, accent) => accordion({
+    name,
+    subtitle: `${sets.filter((set) => set.total >= 100).length} qualifying · ${sets.filter((set) => set.gold && set.total >= 100).length} Gold · ${sets.filter((set) => set.total >= 172 && set.total < 192).length} Silver · ${sets.filter((set) => set.total >= 142 && set.total < 172).length} Bronze · ${sets.filter((set) => set.total >= 100 && set.total < 142).length} Satisfactory`,
+    body: `<p class="run-legend">Each row combines one Container, one Exterior, and one Interior score. SP is a same-trial locked combination.</p>${runRows(sets)}`,
+    accent
+  });
+  $("mobile-scent-runs").innerHTML = historicalStory +
+    `<p class="level-note">${esc(activeLedger.message)}</p>` +
+    (activeLedger.verified
+      ? `<div class="scent-combination-columns">${combinationCard("Advanced combinations", advanced, "level-accent-silver")}${combinationCard("Excellent combinations", excellent, "level-accent-gold")}</div>` +
+        accordion({ name: "Elite runs", subtitle: `${elite.length} same-trial scores · ${elite.filter((set) => set.gold).length} Gold`, body: runRows(elite, true), accent: "level-accent-elite" })
+      : `<p class="run-empty">Combination list unavailable until the recorded MACH cutoff can be verified.</p>`);
 const gameCounts = gamePassCounts(), gameTargets = [];
 
 $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {

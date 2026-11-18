@@ -108,3 +108,32 @@ button { min-height: 48px; border-radius: 12px; font-size: 15px; }
   td::before { display: none; }
   #print-button { position: static; width: auto; box-shadow: none; }
 }
+
+/* Historical Scent score-combination story */
+.score-combination-story{margin:14px 0 18px;padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--paper);color:var(--ink)}
+.score-combination-story h3{margin:0 0 8px;font-size:1.12rem}
+.score-combination-story h4{margin:0;font-size:1rem}
+.score-combination-story p{line-height:1.5}
+.story-level-locks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:14px 0}
+.story-title-lock,.story-stage{min-width:0;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.story-title-lock>strong{display:block;margin-top:8px}
+.story-title-lock p{margin:8px 0 0;font-size:.88rem;color:var(--muted)}
+.story-stage{margin:14px 0}
+.story-stage-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.story-stage-heading span{font-size:.88rem;font-weight:700;color:var(--muted)}
+.story-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}
+.story-columns>section{min-width:0}
+.story-columns h5{margin:0 0 8px;font-size:.95rem}
+.story-combination{display:grid;grid-template-columns:30px minmax(0,1fr);gap:6px;align-items:start;padding:8px 0;border-top:1px solid var(--line)}
+.story-combination>strong{padding-top:5px}
+.story-parts{display:flex;flex-wrap:wrap;gap:6px}
+.story-component-picked{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border:2px solid var(--gold);border-radius:999px;background:var(--goldbg);font-size:.82rem;white-space:nowrap}
+.story-component-picked small{font-size:.72rem;color:var(--muted)}
+.story-total{grid-column:2;font-size:.84rem}
+.story-cutoff{display:flex;flex-direction:column;gap:4px;margin-top:14px;padding:12px 8px;border-top:3px dashed var(--gold);border-bottom:1px solid var(--line);text-align:center}
+.story-cutoff span{font-weight:700}
+.story-cutoff small{color:var(--muted)}
+.story-optimization-note{padding:10px 12px;border-left:4px solid var(--gold);background:var(--cream);border-radius:6px}
+.scent-combination-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
+.scent-combination-columns>.title-accordion{min-width:0}
+@media(max-width:680px){.story-level-locks,.story-columns,.scent-combination-columns{grid-template-columns:1fr}.score-combination-story{padding:12px}.story-stage-heading{align-items:flex-start}}
