@@ -52,7 +52,7 @@ function dogId(){const first=scores[0]||games[0]||{};const number=String(first.d
 function currentProfile(){
  const first=scores[0]||games[0]||{};
  if(!first.dogNumber&&!first.dog)return null;
- return {id:dogId(),dogNumber:String(first.dogNumber||""),dog:String(first.dog||""),scores,games,titles,titlesFileLoaded:!!titlesFileLoaded,judgeVerification:window.sddaJudgeVerification||{elch:false,gmch:false},updatedAt:new Date().toISOString()};
+ return {id:dogId(),dogNumber:String(first.dogNumber||""),dog:String(first.dog||""),scores,games,titles,titlesFileLoaded:!!titlesFileLoaded,updatedAt:new Date().toISOString()};
 }
 async function putProfile(profile){
  const db=await openDb();
@@ -80,7 +80,7 @@ async function refreshProfiles(selected){
 }
 async function saveCurrent(){
  const profile=currentProfile();if(!profile)return;
- profile.judgeVerification=window.sddaJudgeVerification||{elch:false,gmch:false};
+
  await putProfile(profile);await refreshProfiles(profile.id);
  const msg=document.getElementById("message");if(msg)msg.textContent="Saved "+(profile.dog||("SDDA dog #"+profile.dogNumber))+" on this device. Your imported records are saved here; the original downloads can be deleted after both imports succeed.";
 }
@@ -88,9 +88,7 @@ async function loadSelected(){
  const select=document.getElementById("sdda-saved-dogs"),id=select&&select.value;if(!id)return;
  const p=await getProfile(id);if(!p)return;
  scores=p.scores||[];games=p.games||[];titles=p.titles||[];titlesFileLoaded=typeof p.titlesFileLoaded==="boolean"?p.titlesFileLoaded:titles.length>0;
- window.sddaJudgeVerification=p.judgeVerification||{elch:false,gmch:false};
- const elch=document.getElementById("judge-elch"),gmch=document.getElementById("judge-gmch");
- if(elch)elch.checked=!!window.sddaJudgeVerification.elch;if(gmch)gmch.checked=!!window.sddaJudgeVerification.gmch;
+
  const sn=document.getElementById("scores-name"),tn=document.getElementById("titles-name");
  if(sn)sn.textContent="Loaded saved dog scores · "+scores.length+" scored components · "+games.length+" Games passes";
  if(tn)tn.textContent="Loaded saved dog titles · "+titles.length+" recorded titles";
@@ -108,9 +106,9 @@ async function restoreBackup(file){
  for(const p of data.dogs){if(!p.id||!Array.isArray(p.scores)||!Array.isArray(p.titles))continue;await putProfile(p);}
  await refreshProfiles();const msg=document.getElementById("message");if(msg)msg.textContent="Backup restored. Select a saved dog to open its records.";
 }
-window.sddaJudgeVerification={elch:false,gmch:false};
+
 const originalLoadScores=loadScores,originalLoadTitles=loadTitles;
-loadScores=async function(file){const previousId=scores.length?dogId():null;await originalLoadScores(file);const nextId=scores.length?dogId():null;if(previousId&&nextId&&previousId!==nextId){titles=[];window.sddaJudgeVerification={elch:false,gmch:false};const e=document.getElementById("judge-elch"),g=document.getElementById("judge-gmch");if(e)e.checked=false;if(g)g.checked=false;const t=document.getElementById("titles-name");if(t)t.textContent="Choose the Titles file for this dog, if available.";render();}await saveCurrent();};
+loadScores=async function(file){const previousId=scores.length?dogId():null;await originalLoadScores(file);const nextId=scores.length?dogId():null;if(previousId&&nextId&&previousId!==nextId){titles=[];const e=document.getElementById("judge-elch"),g=document.getElementById("judge-gmch");if(e)e.checked=false;if(g)g.checked=false;const t=document.getElementById("titles-name");if(t)t.textContent="Choose the Titles file for this dog, if available.";render();}await saveCurrent();};
 loadTitles=async function(file){await originalLoadTitles(file);await saveCurrent();};
 document.addEventListener("DOMContentLoaded",()=>{});
 const select=document.getElementById("sdda-saved-dogs");
@@ -120,12 +118,5 @@ document.getElementById("sdda-save-dog")?.addEventListener("click",()=>saveCurre
 document.getElementById("sdda-delete-dog")?.addEventListener("click",async()=>{const id=document.getElementById("sdda-saved-dogs")?.value;if(!id)return;if(!confirm("Delete this saved dog and its locally stored records?"))return;await deleteProfile(id);await refreshProfiles();});
 document.getElementById("sdda-backup")?.addEventListener("click",downloadBackup);
 document.getElementById("sdda-restore-file")?.addEventListener("change",e=>{if(e.target.files[0])restoreBackup(e.target.files[0]).catch(err=>alert(err.message));});
-const elchBox=document.getElementById("judge-elch"),gmchBox=document.getElementById("judge-gmch");
-function updateJudgeAttestation(){
- window.sddaJudgeVerification={elch:!!elchBox?.checked,gmch:!!gmchBox?.checked};
- if(typeof render==="function"&&scores.length)render();
- if(scores.length)saveCurrent().catch(e=>{const msg=document.getElementById("message");if(msg)msg.textContent=e.message;});
-}
-elchBox?.addEventListener("change",updateJudgeAttestation);gmchBox?.addEventListener("change",updateJudgeAttestation);
 })();
 </script><script>(function(){let installPrompt=null;const button=document.getElementById("install-app");window.addEventListener("beforeinstallprompt",event=>{event.preventDefault();installPrompt=event;if(button)button.hidden=false;});button?.addEventListener("click",async()=>{if(!installPrompt)return;installPrompt.prompt();await installPrompt.userChoice;installPrompt=null;button.hidden=true;});window.addEventListener("appinstalled",()=>{if(button)button.hidden=true;});if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(error=>console.warn("Offline install support unavailable",error)));}})();</script></body></html>
