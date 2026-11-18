@@ -1540,7 +1540,10 @@ async function downloadPdfReport() {
   }
 
   heading("What is needed next");
-  for (const card of document.querySelectorAll("#progress .progress-card")) {
+  // Titles already listed in the achieved section do not belong in the remaining-work summary.
+  const remainingProgressCards = [...document.querySelectorAll("#progress .progress-card")]
+    .filter((card) => (card.querySelector(".status")?.textContent || "").trim().toLowerCase() !== "achieved");
+  for (const card of remainingProgressCards) {
     const name = card.querySelector("h3")?.textContent || "Title";
     const status = card.querySelector(".status")?.textContent || "";
     const requirements = [...card.querySelectorAll("li:not(.info)")];
