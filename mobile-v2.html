@@ -58,7 +58,7 @@ function dogId(){const first=scores[0]||games[0]||{};const number=String(first.d
 function currentProfile(){
  const first=scores[0]||games[0]||{};
  if(!first.dogNumber&&!first.dog)return null;
- return {id:dogId(),dogNumber:String(first.dogNumber||""),dog:String(first.dog||""),scores,games,titles,judgeVerification:window.sddaJudgeVerification||{elch:false,gmch:false},updatedAt:new Date().toISOString()};
+ return {id:dogId(),dogNumber:String(first.dogNumber||""),dog:String(first.dog||""),scores,games,titles,titlesFileLoaded:!!titlesFileLoaded,judgeVerification:window.sddaJudgeVerification||{elch:false,gmch:false},updatedAt:new Date().toISOString()};
 }
 async function putProfile(profile){
  const db=await openDb();
@@ -93,7 +93,7 @@ async function saveCurrent(){
 async function loadSelected(){
  const select=document.getElementById("sdda-saved-dogs"),id=select&&select.value;if(!id)return;
  const p=await getProfile(id);if(!p)return;
- scores=p.scores||[];games=p.games||[];titles=p.titles||[];
+ scores=p.scores||[];games=p.games||[];titles=p.titles||[];titlesFileLoaded=typeof p.titlesFileLoaded==="boolean"?p.titlesFileLoaded:titles.length>0;
  window.sddaJudgeVerification=p.judgeVerification||{elch:false,gmch:false};
  const elch=document.getElementById("judge-elch"),gmch=document.getElementById("judge-gmch");
  if(elch)elch.checked=!!window.sddaJudgeVerification.elch;if(gmch)gmch.checked=!!window.sddaJudgeVerification.gmch;
