@@ -1158,12 +1158,14 @@ function render() {
     { done: chTotal >= 5, text: `${chTotal}/5 selected Advanced or Excellent titling scores` },
     { done: chExcellentCount >= 2, text: `${chExcellentCount}/2 must be Excellent` }
   ], ch ? `Recorded ${dateLabel(ch.date)}.` : "Advanced components are combined only with Advanced; Excellent components only with Excellent. Initial SP titles remain locked."));
-  cards.push(progressCard("SD-MACH", mach ? "Achieved" : machSelection.met ? "Requirements shown as met" : "In progress", [
-    { done: totalSets >= 10, text: `${totalSets}/10 selected Advanced or Excellent titling scores` },
-    { done: excellentSets >= 3, text: `${excellentSets}/3 must be Excellent` },
-    { done: golds.length >= 3, text: `${golds.length}/3 Gold combinations (Silver combinations count toward the 10 total)` },
-    { done: totalSets >= 10, text: `${Math.min(10, totalSets)}/10 composition: ${excellentSets} Excellent + ${machAdvancedCount} Advanced` }
-  ], mach ? `Recorded ${dateLabel(mach.date)}.` : "The ten selected combinations preserve the Excellent and Gold requirements while favoring high totals."));
+  cards.push(progressCard("SD-MACH", mach ? "Achieved" : machSelection.met ? "Requirements shown as met" : "In progress", mach
+    ? [{ done: true, text: `Recorded by SDDA on ${dateLabel(mach.date)}. The title requirements are satisfied.` }]
+    : [
+        { done: totalSets >= 10, text: `${totalSets}/10 selected Advanced or Excellent titling scores` },
+        { done: excellentSets >= 3, text: `${excellentSets}/3 must be Excellent` },
+        { done: golds.length >= 3, text: `${golds.length}/3 Gold combinations (Silver combinations count toward the 10 total)` },
+        { done: totalSets >= 10, text: `${Math.min(10, totalSets)}/10 composition: ${excellentSets} Excellent + ${machAdvancedCount} Advanced` }
+      ], mach ? `Recorded ${dateLabel(mach.date)}.` : "The ten selected combinations preserve the Excellent and Gold requirements while favoring high totals."));
 
   const elSets = eliteSets(), elGolds = elSets.filter((set) => set.gold), elch = championshipTitle("elch");
   const elchScoresMet = elSets.length >= 5 && elGolds.length >= 2;
@@ -1267,7 +1269,9 @@ function renderMobileDashboard() {
   const elchScoresMet = elite.length >= 5 && elite.filter((set) => set.gold).length >= 2;
   const championCards = [
     { name: "SD-CH", found: championshipTitle("ch"), met: chSelection.met, items: [{ done: chSelection.total >= 5, text: `${chSelection.total}/5 selected Advanced or Excellent scores` }, { done: chSelection.excellent.length >= 2, text: `${chSelection.excellent.length}/2 must be Excellent` }] },
-    { name: "SD-MACH", found: championshipTitle("mach"), met: machSelection.met, items: [{ done: total >= 10, text: `${total}/10 selected Advanced or Excellent scores` }, { done: machExcellentCount >= 3, text: `${machExcellentCount}/3 must be Excellent` }, { done: gold >= 3, text: `${gold}/3 Gold combinations (Silver combinations count toward the 10 total)` }, { done: total >= 10, text: `${Math.min(10,total)}/10 composition: ${machExcellentCount} Excellent + ${machAdvancedCount} Advanced` }] },
+    { name: "SD-MACH", found: championshipTitle("mach"), met: machSelection.met, items: championshipTitle("mach")
+      ? [{ done: true, text: `Recorded by SDDA on ${dateLabel(championshipTitle("mach").date)}. The title requirements are satisfied.` }]
+      : [{ done: total >= 10, text: `${total}/10 selected Advanced or Excellent scores` }, { done: machExcellentCount >= 3, text: `${machExcellentCount}/3 must be Excellent` }, { done: gold >= 3, text: `${gold}/3 Gold combinations (Silver combinations count toward the 10 total)` }, { done: total >= 10, text: `${Math.min(10,total)}/10 composition: ${machExcellentCount} Excellent + ${machAdvancedCount} Advanced` }] },
     { name: "SD-ELCH", found: championshipTitle("elch"), met: elite.length >= 5 && elite.filter((set) => set.gold).length >= 2, verificationRequired: true, items: [{ done: elite.length >= 5, text: `${elite.length}/5 complete Elite scores` }, { done: elite.filter((set) => set.gold).length >= 2, text: `${elite.filter((set) => set.gold).length}/2 Elite Gold scores` }, { done: !!window.sddaJudgeVerification.elch, pending: !!window.sddaJudgeVerification.elch, text: window.sddaJudgeVerification.elch ? "Handler confirms at least 2 different judges for qualifying Elite scores" : "Handler confirmation needed: at least 2 different judges for qualifying Elite scores" }] },
     { name: "SD-GMCH", found: championshipTitle("gmch"), met: (!!championshipTitle("mach") || machScoresMet) && (!!championshipTitle("elch") || elchScoresMet), verificationRequired: true, items: [{ done: !!championshipTitle("mach") || machScoresMet, text: championshipTitle("mach") ? "SD-MACH recorded" : machScoresMet ? "SD-MACH score requirements met" : "SD-MACH required" }, { done: !!championshipTitle("elch") || elchScoresMet, pending: !championshipTitle("elch") && elchScoresMet, text: championshipTitle("elch") ? "SD-ELCH recorded by SDDA" : elchScoresMet ? "SD-ELCH score requirements met · judge minimum awaiting SDDA confirmation" : "SD-ELCH required" }, { done: !!window.sddaJudgeVerification.gmch, pending: !!window.sddaJudgeVerification.gmch, text: window.sddaJudgeVerification.gmch ? "Handler confirms at least 3 different judges for qualifying Scent scores" : "Handler confirmation needed: at least 3 different judges for qualifying Scent scores" }] }
   ];
@@ -1322,74 +1326,47 @@ function renderMobileDashboard() {
     if (!qualifying.length) return `<p class="run-empty">No qualifying combinations yet.</p>`;
     return `<div class="run-grid">${qualifying.map((set, index) => { const container = isElite ? set.parts?.Container : set.container, exterior = isElite ? set.parts?.Exterior : set.exterior, interior = isElite ? set.parts?.Interior : set.interior; const show = (part) => part ? `${esc(part.score)} (${esc(part.trial || "-")})` : "—"; return `<div class="run-row ${set.gold ? "gold" : runClass(set.total).toLowerCase()}"><b>${isElite ? `Trial ${esc(set.trial || "—")}` : set.special ? "SP" : set.titleLocked ? "Title" : `#${index + 1}`}</b><span>Container: ${show(container)}</span><span>Exterior: ${show(exterior)}</span><span>Interior: ${show(interior)}</span><strong>Total: ${esc(set.total)} · ${runClass(set.total)}</strong></div>`; }).join("")}</div>`;
   };
-  const storyPart = (part) => part
-    ? `<span class="story-component-picked"><b>${esc(part.component)}</b> ${esc(part.score)} <small>(Trial ${esc(part.trial || "—")})</small></span>`
-    : "";
-  const storyCombination = (set, index) => `<div class="story-combination">
-    <strong>${set.special ? "SP" : `#${index + 1}`}</strong>
-    <div class="story-parts">${storyPart(set.container)}${storyPart(set.exterior)}${storyPart(set.interior)}</div>
-    <b class="story-total">${esc(set.total)} · ${runClass(set.total)}</b>
-  </div>`;
-  const storyColumns = (selection) => `<div class="story-columns">
-    <section><h5>Advanced</h5>${selection.advanced.length ? selection.advanced.map(storyCombination).join("") : '<p class="run-empty">No Advanced combinations selected for this stage.</p>'}</section>
-    <section><h5>Excellent</h5>${selection.excellent.length ? selection.excellent.map(storyCombination).join("") : '<p class="run-empty">No Excellent combinations selected for this stage.</p>'}</section>
-  </div>`;
-  const titleStory = (level) => {
-    const locked = titleLockForLevel(level);
-    if (!locked) return "";
-    return `<div class="story-title-lock"><b>${esc(level)} title combination · Trial ${esc(locked.trial || "—")}</b>
-      <div class="story-parts">${COMPONENTS.map((component) => storyPart(locked.parts[component])).join("")}</div>
-      <strong>Total ${esc(locked.total)} · ${runClass(locked.total)}</strong>
-      <p>These circled component scores are the exact records used for the title combination. The completing component comes from the completion trial; the other components may come from earlier trials. SP keeps all three components from the same trial.</p>
-    </div>`;
+  const historyPanel = (level) => {
+    const lock = titleLockForLevel(level);
+    const groups = chronologicalTrialGroups(level, scores);
+    if (!groups.length) return `<p class="run-empty">No ${esc(level)} score history is available.</p>`;
+    const lockedRows = new Set(lock ? COMPONENTS.map((component) => lock.parts[component].sourceRow) : []);
+    const cutoffTrial = lock?.completionTrial || lock?.trial || "";
+    const summary = lock ? `<div class="history-title-lock"><b>${esc(level)} title combination</b><div class="history-lock-parts">${COMPONENTS.map((component) => {
+      const part = lock.parts[component];
+      return `<span><strong>${esc(component)}</strong><em>${esc(part.score)} (${esc(part.trial || "—")})</em></span>`;
+    }).join("")}</div><strong>Total ${esc(lock.total)} · ${runClass(lock.total)}</strong></div>` : '<p class="run-empty">The exact title-lock combination could not be reconstructed from the available scores and title date.</p>';
+    const columns = COMPONENTS.map((component) => {
+      let output = "";
+      for (const group of groups) {
+        const groupRows = group.rows.filter((row) => row.component === component);
+        if (groupRows.length) output += groupRows.map((row) => `<div class="history-score ${lockedRows.has(row.sourceRow) ? "is-title-lock" : ""}"><span>${esc(row.score)}</span><small>(${esc(row.trial || "—")})</small>${lockedRows.has(row.sourceRow) ? '<b>Title lock</b>' : ""}</div>`).join("");
+        if (cutoffTrial && String(group.trial) === String(cutoffTrial)) output += `<div class="history-cutoff"><b>Title cutoff</b><small>Trial ${esc(group.trial)} · all scores through this trial are before the next stage</small></div>`;
+      }
+      return `<section class="history-component"><h4>${esc(component)}</h4>${output || '<p class="run-empty">No scores</p>'}</section>`;
+    }).join("");
+    return `<div class="history-panel-intro">${summary}<p>Scores stay in score-file order. Trial numbers in brackets identify the source trial; they are not used to sort chronology. Circled entries are the three exact component records locked for the title.</p></div><div class="history-component-columns">${columns}</div>`;
   };
-  const stageStory = (stageKey, label, previousKey) => {
-    const cutoff = machCutoffRowForTitle(stageKey);
-    if (!cutoff) return "";
-    const groups = machTrialGroups();
-    if (!groups || !groups[cutoff.index]) return "";
-    const previous = previousKey ? machCutoffRowForTitle(previousKey) : null;
-    const firstIndex = previous ? previous.index + 1 : 0;
-    const stageRows = groups.slice(firstIndex, cutoff.index + 1).flatMap((group) => group.rows);
-    const advancedRows = stageRows.filter((row) => row.level === "Advanced");
-    const excellentRows = stageRows.filter((row) => row.level === "Excellent");
-    const advancedSets = maximizeGoldCombinations("Advanced", advancedRows, stageKey === "mach2" ? 3 : 10, !previous);
-    const excellentSets = maximizeGoldCombinations("Excellent", excellentRows, 10, !previous);
-    const selection = selectProgressionCombinations(advancedSets, excellentSets, stageKey);
-    const cutoffGroup = groups[cutoff.index];
-    return `<section class="story-stage">
-      <div class="story-stage-heading"><h4>${esc(label)}</h4><span>Completed in Trial ${esc(cutoff.trial)}</span></div>
-      <p>${stageKey === "mach"
-        ? "MACH requires 10 qualifying combinations from Advanced and Excellent, including at least 3 Excellent and 3 Gold."
-        : "MACH2 starts fresh after the MACH cutoff. It requires 10 additional combinations: at least 7 Excellent, no more than 3 Advanced, and at least 3 Gold at Excellent level."}</p>
-      ${storyColumns(selection)}
-      <div class="story-cutoff"><b>──────── Trial ${esc(cutoff.trial)} cutoff ────────</b>
-        <span>The entire completion trial is excluded from the next stage.</span>
-        <small>${esc(cutoffGroup.rows.length)} score-file rows from this trial are excluded.</small>
-      </div>
-    </section>`;
-  };
-  const historicalStory = `<section class="score-combination-story">
-    <h3>How the Advanced and Excellent combinations build each title</h3>
-    <p>Each combination uses three class components: <b>Container</b>, <b>Exterior</b>, and <b>Interior</b>. Scores are matched within the same level; they do not have to come from the same trial unless marked SP. The circled component pills identify the exact score records selected for a title.</p>
-    <div class="story-level-locks">${titleStory("Advanced")}${titleStory("Excellent")}</div>
-    ${stageStory("mach", "MACH championship", null)}
-    ${stageStory("mach2", "MACH2 championship", "mach")}
-    <p class="story-optimization-note"><b>Why a combination may not use the highest score in every class:</b> The checker searches valid Container, Exterior, and Interior pairings together. It maximizes qualifying combinations first, then Gold combinations, then combined totals. No component score is reused. This history makes the selected components visible so we can identify where a different pairing could create more passing combinations. A lower score may be worth using if it allows more complete combinations to pass the total and Gold/Excellent requirements. Scores from a completed MACH stage are not carried into the next stage.</p>
-  </section>`;
-  const combinationCard = (name, sets, accent) => accordion({
-    name,
-    subtitle: `${sets.filter((set) => set.total >= 100).length} qualifying · ${sets.filter((set) => set.gold && set.total >= 100).length} Gold · ${sets.filter((set) => set.total >= 172 && set.total < 192).length} Silver · ${sets.filter((set) => set.total >= 142 && set.total < 172).length} Bronze · ${sets.filter((set) => set.total >= 100 && set.total < 142).length} Satisfactory`,
-    body: `<p class="run-legend">Each row combines one Container, one Exterior, and one Interior score. SP is a same-trial locked combination.</p>${runRows(sets)}`,
-    accent
-  });
-  $("mobile-scent-runs").innerHTML = historicalStory +
-    `<p class="level-note">${esc(activeLedger.message)}</p>` +
+  const combinationCard = (name, sets, accent) => `<article class="current-level-card ${accent}"><header><h3>${esc(name)}</h3><span>${sets.filter((set) => set.total >= 100).length} qualifying · ${sets.filter((set) => set.gold && set.total >= 100).length} Gold</span></header>${runRows(sets)}</article>`;
+  const eliteCurrentCard = `<article class="current-level-card level-accent-elite"><header><h3>Elite</h3><span>${elite.length} complete same-trial · ${elite.filter((set) => set.gold).length} Gold</span></header>${runRows(elite, true)}</article>`;
+  const historyMarkup = `<section class="ledger-history"><h3>Score history</h3><div class="ledger-history-buttons"><button type="button" class="history-toggle" data-history="advanced-history" aria-expanded="false">Advanced history</button><button type="button" class="history-toggle" data-history="excellent-history" aria-expanded="false">Excellent history</button></div><div id="advanced-history" class="history-panel" hidden>${historyPanel("Advanced")}</div><div id="excellent-history" class="history-panel" hidden>${historyPanel("Excellent")}</div></section>`;
+  $("mobile-scent-runs").innerHTML =
+    `<p class="level-note current-cutoff-announcement">${esc(activeLedger.message)}</p>` +
     (activeLedger.verified
-      ? `<div class="scent-combination-columns">${combinationCard("Advanced combinations", advanced, "level-accent-silver")}${combinationCard("Excellent combinations", excellent, "level-accent-gold")}</div>` +
-        accordion({ name: "Elite runs", subtitle: `${elite.length} same-trial scores · ${elite.filter((set) => set.gold).length} Gold`, body: runRows(elite, true), accent: "level-accent-elite" })
-      : `<p class="run-empty">Combination list unavailable until the recorded MACH cutoff can be verified.</p>`);
-const gameCounts = gamePassCounts(), gameTargets = [];
+      ? `<div class="current-score-ledger">${combinationCard("Advanced", advanced, "level-accent-silver")}${combinationCard("Excellent", excellent, "level-accent-gold")}${eliteCurrentCard}</div>`
+      : `<p class="run-empty">Current combinations are withheld until the recorded title cutoff can be verified.</p>`) +
+    historyMarkup;
+  $("mobile-scent-runs").querySelectorAll("[data-history]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const panel = $(button.dataset.history);
+      if (!panel) return;
+      const opening = panel.hidden;
+      panel.hidden = !opening;
+      button.setAttribute("aria-expanded", String(opening));
+      button.textContent = (button.dataset.history === "advanced-history" ? "Advanced" : "Excellent") + (opening ? " history −" : " history +");
+    });
+  });
+  const gameCounts = gamePassCounts(), gameTargets = [];
 
 $("mobile-game-titles").innerHTML = GAME_NAMES.map((game) => {
     const title = gameTitleRecord(game);
