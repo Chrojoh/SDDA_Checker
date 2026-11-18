@@ -1699,9 +1699,34 @@ async function downloadPdfReport() {
   heading("Score classifications by level");
   text("Score columns: the number in brackets after each component score is its trial number. Advanced and Excellent components are calculated separately; Elite components are grouped by trial.", { size: 9, color: rgb(.35, .42, .38), after: 5 });
   const componentWithTrial = (component) => component ? `${component.score} (${component.trial || "-"})` : "-";
+  // Keep the live post-cutoff scores at the top of each level. Historical
+  // championship blocks below show the exact combinations selected at each
+  // verified MACH cutoff, in chronological order.
+  const activePdfLedger = currentMachLedgerRows();
+  const historicalMachStages = chronologicalMachStory().stages || [];
+  const pdfRowsForSets = (sets) => sets.map((set, index) => [
+    set.special ? "SP" : set.titleLocked ? "Title" : `Combination ${set.rank || index + 1}`,
+    componentWithTrial(set.container),
+    componentWithTrial(set.exterior),
+    componentWithTrial(set.interior),
+    set.total,
+    classification(set.total)
+  ]);
+
   for (const level of ["Advanced", "Excellent"]) {
-    const combinations = maximizeGoldCombinations(level);
-    scoreTable(level, combinations.map((set) => [set.special ? "SP" : set.titleLocked ? "Title" : `Combination ${set.rank}`, componentWithTrial(set.container), componentWithTrial(set.exterior), componentWithTrial(set.interior), set.total, classification(set.total)]));
+    const currentCombinations = activePdfLedger.verified
+      ? maximizeGoldCombinations(level, activePdfLedger.rows)
+      : [];
+    scoreTable(`${level} — Current scores`, pdfRowsForSets(currentCombinations));
+
+    for (const stage of historicalMachStages) {
+      if (!stage.completion || !machCutoffRowForTitle(stage.key)) continue;
+      const historicalSets = level === "Advanced"
+        ? stage.completion.advanced
+        : stage.completion.excellent;
+      if (!historicalSets.length) continue;
+      scoreTable(`${level} — ${stage.name} historical block`, pdfRowsForSets(historicalSets));
+    }
   }
   const eliteCombinations = eliteSets();
   scoreTable("Elite - same-trial sets", eliteCombinations.map((set, index) => [`Elite ${index + 1}`, componentWithTrial(set.parts.Container), componentWithTrial(set.parts.Exterior), componentWithTrial(set.parts.Interior), set.total, classification(set.total)]));
