@@ -240,16 +240,12 @@ function titleLockForLevel(level, list = scores) {
 }
 
 function maximizeGoldCombinations(level, list = scores, maximum = 10, includeTitleLock = true) {
-  // Fast deterministic baseline: lock title/SP rows, then pair remaining
-  // component scores high-to-low. No combinatorial search is performed.
+  // Exact three-component matching. At most ten combinations are needed for
+  // any title stage, so only the best N scores per component can matter:
+  // replacing a selected score with a higher unused score cannot reduce the
+  // number of qualifying (>=100) combinations.
   const titleLock = includeTitleLock ? titleLockForLevel(level, list) : null;
   const lockedRows = new Set(titleLock ? COMPONENTS.map((component) => titleLock.parts[component].sourceRow) : []);
-  const eligible = list.filter((score) => score.level === level && !lockedRows.has(score.sourceRow));
-  const ranked = Object.fromEntries(COMPONENTS.map((component) => [
-    component,
-    eligible.filter((score) => score.component === component)
-      .sort((a, b) => b.score - a.score || a.sourceRow - b.sourceRow)
-  ]));
   const locked = titleLock ? [{
     rank: titleLock.special ? "SP" : 1,
     container: titleLock.parts.Container, interior: titleLock.parts.Interior, exterior: titleLock.parts.Exterior,
@@ -257,22 +253,87 @@ function maximizeGoldCombinations(level, list = scores, maximum = 10, includeTit
     titleLocked: !titleLock.special, titleRecorded: !!titleLock.recorded, titleDate: titleLock.date || "",
     level, trial: titleLock.trial || titleLock.parts.Container.trial || ""
   }] : [];
-  const remainingLimit = Math.max(0, maximum - locked.length);
-  const count = Math.min(remainingLimit, ...COMPONENTS.map((component) => ranked[component].length));
-  const combinations = Array.from({ length: count }, (_, index) => {
-    const container = ranked.Container[index], interior = ranked.Interior[index], exterior = ranked.Exterior[index];
-    const total = container.score + interior.score + exterior.score;
-    return { level, container, interior, exterior, total, gold: total >= 192 };
-  });
-  const result = [...locked, ...combinations.filter((set) => set.total >= 100)
-    .sort((a, b) => b.total - a.total)
-    .map((set, index) => ({ ...set, rank: index + 1 }))];
+  const remainingLimit = Math.max(0, Math.min(10, Number(maximum) - locked.length));
+  const eligible = list.filter((score) => score.level === level && !lockedRows.has(score.sourceRow));
+  const ranked = Object.fromEntries(COMPONENTS.map((component) => [
+    component,
+    eligible.filter((score) => score.component === component)
+      .sort((a, b) => b.score - a.score || a.sourceRow - b.sourceRow)
+      .slice(0, remainingLimit)
+  ]));
+  const containers = ranked.Container, exteriors = ranked.Exterior, interiors = ranked.Interior;
+  const memo = new Map();
+  let searchNodes = 0;
+  const bitCount = (value) => {
+    let count = 0;
+    while (value) { value &= value - 1; count++; }
+    return count;
+  };
+  const better = (candidate, current) => {
+    if (!current) return true;
+    if (candidate.count !== current.count) return candidate.count > current.count;
+    if (candidate.gold !== current.gold) return candidate.gold > current.gold;
+    if (candidate.total !== current.total) return candidate.total > current.total;
+    return candidate.tie < current.tie;
+  };
+  const solve = (index, exteriorMask, interiorMask) => {
+    const key = index + "|" + exteriorMask + "|" + interiorMask;
+    if (memo.has(key)) return memo.get(key);
+    searchNodes++;
+    if (index >= containers.length || remainingLimit === 0) {
+      const empty = { count: 0, gold: 0, total: 0, tie: "", sets: [] };
+      memo.set(key, empty);
+      return empty;
+    }
+    const remainingContainers = containers.length - index;
+    const maximumAdditional = Math.min(remainingContainers,
+      exteriors.length - bitCount(exteriorMask),
+      interiors.length - bitCount(interiorMask),
+      remainingLimit);
+    let best = null;
+    for (let e = 0; e < exteriors.length; e++) {
+      if (exteriorMask & (1 << e)) continue;
+      for (let i = 0; i < interiors.length; i++) {
+        if (interiorMask & (1 << i)) continue;
+        const container = containers[index], exterior = exteriors[e], interior = interiors[i];
+        const total = container.score + exterior.score + interior.score;
+        if (total < 100) continue;
+        const tail = solve(index + 1, exteriorMask | (1 << e), interiorMask | (1 << i));
+        const set = { level, container, exterior, interior, total, gold: total >= 192 };
+        const candidate = {
+          count: tail.count + 1,
+          gold: tail.gold + Number(set.gold),
+          total: tail.total + total,
+          tie: [container.sourceRow, exterior.sourceRow, interior.sourceRow].join(":") + "|" + tail.tie,
+          sets: [set, ...tail.sets]
+        };
+        if (better(candidate, best)) best = candidate;
+      }
+    }
+    // Since Container scores are descending, skipping this record cannot
+    // improve Gold count or total when the best possible number is already met.
+    if (!best || best.count < maximumAdditional) {
+      const skipped = solve(index + 1, exteriorMask, interiorMask);
+      if (better(skipped, best)) best = skipped;
+    }
+    if (!best) best = { count: 0, gold: 0, total: 0, tie: "", sets: [] };
+    memo.set(key, best);
+    return best;
+  };
+  const optimized = solve(0, 0, 0);
+  const combinations = optimized.sets
+    .sort((a, b) => b.total - a.total ||
+      a.container.sourceRow - b.container.sourceRow ||
+      a.exterior.sourceRow - b.exterior.sourceRow ||
+      a.interior.sourceRow - b.interior.sourceRow)
+    .map((set, index) => ({ ...set, rank: index + 1 }));
+  const result = [...locked, ...combinations];
   result.optimizationComplete = true;
-  result.searchNodes = 0;
-  result.pairChecks = 0;
+  result.searchNodes = searchNodes;
+  result.pairChecks = searchNodes;
+  result.optimization = "exact-three-component-matching";
   return result;
 }
-
 function eliteSets(list = scores) {
   const trials = new Map();
   list.filter((score) => score.level === "Elite").forEach((score) => {
@@ -1314,7 +1375,7 @@ function renderMobileDashboard() {
     <div class="story-level-locks">${titleStory("Advanced")}${titleStory("Excellent")}</div>
     ${stageStory("mach", "MACH championship", null)}
     ${stageStory("mach2", "MACH2 championship", "mach")}
-    <p class="story-optimization-note"><b>Why a combination may not use the highest score in every class:</b> The current calculation pairs each component's available scores from highest to lowest; it does not test every possible reassignment. This history makes the selected components visible so we can identify where a different pairing could create more passing combinations. A lower score may be worth using if it allows more complete combinations to pass the total and Gold/Excellent requirements. Scores from a completed MACH stage are not carried into the next stage.</p>
+    <p class="story-optimization-note"><b>Why a combination may not use the highest score in every class:</b> The checker searches valid Container, Exterior, and Interior pairings together. It maximizes qualifying combinations first, then Gold combinations, then combined totals. No component score is reused. This history makes the selected components visible so we can identify where a different pairing could create more passing combinations. A lower score may be worth using if it allows more complete combinations to pass the total and Gold/Excellent requirements. Scores from a completed MACH stage are not carried into the next stage.</p>
   </section>`;
   const combinationCard = (name, sets, accent) => accordion({
     name,
