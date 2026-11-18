@@ -176,3 +176,22 @@ body,.mobile-ledger,.desktop-ledger{background:#f1f0eb!important;color:#202a25}
  .progression-history .history-score{font-size:10px;gap:1px}
  .progression-history .history-cutoff{font-size:9px}
 }
+
+/* Score ledger: three equal run columns across the available page width. */
+.progression-score-scroll{width:100%;min-width:0;overflow:visible;padding:0}
+.progression-score-columns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;width:100%;min-width:0;align-items:start}
+.progression-score-column{min-width:0}
+.progression-score-column.title-accordion{min-width:0}
+.progression-score-column .progression-card-header .summary-action{display:none}
+.progression-card-body{min-width:0;padding:12px}
+.progression-current-combinations{min-width:0}
+.progression-current-combinations .run-grid{min-width:0}
+@media(max-width:780px){
+ .progression-score-columns{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+ .progression-score-column>.progression-card-header{min-height:0;padding:9px 6px}
+ .progression-score-column .progression-card-header .summary-copy strong{font-size:12px}
+ .progression-score-column .progression-card-header .summary-copy small{font-size:9px;line-height:1.2}
+ .progression-card-body{padding:6px}
+ .progression-current-combinations .run-row{display:flex;flex-direction:column;gap:3px;padding:6px 4px;font-size:9px;overflow-wrap:anywhere}
+ .progression-current-combinations .run-row strong{font-size:9px}
+}
