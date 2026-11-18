@@ -1074,16 +1074,19 @@ function renderProgressionScoreColumns(activeLedger = currentMachLedgerRows()) {
     cards.map((card) => {
       const completeCount = card.elite ? card.sets.length : card.sets.filter((set) => set.total >= 100).length;
       const goldCount = card.sets.filter((set) => set.gold && (card.elite || set.total >= 100)).length;
-      const count = card.rows.length + ' component scores · ' + completeCount + ' complete ' +
-        (card.elite ? 'same-trial sets' : 'combinations') + ' · ' + goldCount + ' Gold';
-      const current = card.level !== "Elite" && !activeLedger.verified
-        ? '<p class="run-empty">Current scores are withheld until the recorded MACH cutoff can be verified.</p>'
-        : progressionCurrentScoreRows(card.rows, card.level);
+      const count = card.elite
+        ? card.sets.length + ' complete same-trial · ' + goldCount + ' Gold'
+        : card.rows.length + ' component scores · ' + completeCount + ' complete combinations · ' + goldCount + ' Gold';
+      const current = card.elite
+        ? progressionRunRows(card.sets, true)
+        : !activeLedger.verified
+          ? '<p class="run-empty">Current scores are withheld until the recorded MACH cutoff can be verified.</p>'
+          : progressionCurrentScoreRows(card.rows, card.level);
       return '<details class="progression-score-column title-accordion ' + card.accent + '">' +
         '<summary class="progression-card-header"><span class="summary-copy"><strong>' + card.level +
         '</strong><small>' + count + '</small></span><span class="summary-action">Details</span></summary>' +
         '<div class="progression-expanded-body"><section class="progression-current-combinations">' +
-        '<h4>Current scores</h4>' + current + '</section>' +
+        '<h4>' + (card.elite ? 'Current combinations' : 'Current scores') + '</h4>' + current + '</section>' +
         '<section class="progression-history"><h4>' + card.level + ' history</h4>' +
         progressionHistoryMarkup(card.level) + '</section></div></details>';
     }).join("") + '</div>';
