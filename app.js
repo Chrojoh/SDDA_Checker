@@ -541,6 +541,54 @@ function machStageUpperBounds(rows, level, includeTitleLock) {
   };
 }
 
+
+function selectProgressionCombinations(advanced, excellent, stageKey) {
+  const target = stageKey === "ch" ? 5 : 10;
+  const minExcellent = stageKey === "ch" ? 2 : stageKey === "mach" ? 3 : stageKey === "mach2" ? 7 : 10;
+  const minGold = stageKey === "ch" ? 0 : stageKey === "mach" ? 3 : stageKey === "mach2" || stageKey === "mach3" ? 3 : 4;
+  const candidates = [...advanced, ...excellent].filter((set) => set.total >= 100)
+    .sort((a, b) => b.total - a.total ||
+      Number(a.container?.sourceRow || 0) - Number(b.container?.sourceRow || 0) ||
+      Number(a.exterior?.sourceRow || 0) - Number(b.exterior?.sourceRow || 0) ||
+      Number(a.interior?.sourceRow || 0) - Number(b.interior?.sourceRow || 0));
+  const excellentCandidates = candidates.filter((set) => set.level === "Excellent");
+  let selected;
+  if (stageKey === "mach3" || stageKey === "mach4") {
+    selected = excellentCandidates.slice(0, target);
+  } else if (stageKey === "mach2") {
+    selected = excellentCandidates.slice(0, 7);
+    const remaining = candidates.filter((set) => !selected.includes(set));
+    selected.push(...remaining.slice(0, Math.max(0, target - selected.length)));
+  } else {
+    selected = candidates.slice(0, target);
+  }
+  const selectedSet = new Set(selected);
+  const replaceFor = (predicate, preserveExcellent = false) => {
+    while (selected.filter(predicate).length < (predicate === isExcellent ? minExcellent : minGold)) {
+      const replacement = candidates.find((candidate) => !selectedSet.has(candidate) && predicate(candidate));
+      if (!replacement) break;
+      const removable = selected.filter((candidate) => !predicate(candidate) &&
+        (!preserveExcellent || candidate.level !== "Excellent" || selected.filter(isExcellent).length > minExcellent))
+        .sort((a, b) => a.total - b.total)[0];
+      if (!removable) break;
+      selected.splice(selected.indexOf(removable), 1, replacement);
+      selectedSet.delete(removable);
+      selectedSet.add(replacement);
+    }
+  };
+  const isExcellent = (set) => set.level === "Excellent";
+  const isGold = (set) => set.gold && (stageKey !== "mach2" || set.level === "Excellent");
+  if (stageKey !== "mach3" && stageKey !== "mach4") replaceFor(isExcellent);
+  if (minGold) replaceFor(isGold, true);
+  selected.sort((a, b) => b.total - a.total);
+  const excellentCount = selected.filter(isExcellent).length;
+  const goldCount = selected.filter(isGold).length;
+  const met = selected.length >= target && excellentCount >= minExcellent && goldCount >= minGold &&
+    (stageKey !== "mach2" || selected.filter((set) => set.level === "Advanced").length <= 3);
+  return { sets: selected, advanced: selected.filter((set) => set.level === "Advanced"),
+    excellent: selected.filter(isExcellent), total: selected.length, excellentCount, goldCount, met };
+}
+
 function machCutoffRowForTitle(title) {
   const stage = machTitleStage(title);
   if (!stage) return null;
@@ -582,14 +630,9 @@ function machCutoffRowForTitle(title) {
         ? maximizeGoldCombinations("Advanced", prefix, advancedLimit, includeTitleLock)
         : [];
       const excellent = maximizeGoldCombinations("Excellent", prefix, 10, includeTitleLock);
-      const combined = [...advanced, ...excellent];
-      const gold = combined.filter((set) => set.gold).length;
-      const excellentGold = excellent.filter((set) => set.gold).length;
-      let met = false;
-      if (currentStage === 1) met = combined.length >= 10 && excellent.length >= 3 && gold >= 3;
-      else if (currentStage === 2) met = excellent.length >= 7 && excellentGold >= 3 && excellent.length + advanced.length >= 10;
-      else if (currentStage === 3) met = excellent.length >= 10 && excellentGold >= 3;
-      else if (currentStage === 4) met = excellent.length >= 10 && excellentGold >= 4;
+      const stageKey = currentStage === 1 ? "mach" : currentStage === 2 ? "mach2" : currentStage === 3 ? "mach3" : "mach4";
+      const selection = selectProgressionCombinations(advanced, excellent, stageKey);
+      const met = selection.met;
       const searchComplete =
         advanced.optimizationComplete !== false &&
         excellent.optimizationComplete !== false;
@@ -931,12 +974,15 @@ function machExtensionProgress(rule, priorTitleOrStage) {
     ? maximizeGoldCombinations("Advanced", eligible, advancedLimit, false)
     : [];
   const excellent = maximizeGoldCombinations("Excellent", eligible, 10, false);
+  const selection = selectProgressionCombinations(advanced, excellent, rule.key);
   return {
     verified: true,
     cutoffTrial: cutoff.trial,
-    advanced: advanced.length,
-    excellent: excellent.length,
-    gold: excellent.filter((set) => set.gold).length
+    advanced: selection.advanced.length,
+    excellent: selection.excellent.length,
+    gold: selection.excellent.filter((set) => set.gold).length,
+    selected: selection.sets,
+    met: selection.met
   };
 }
 function scoreRowsAfterTitle(priorTitle) {
