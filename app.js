@@ -735,21 +735,24 @@ function machCutoffRowForTitle(title) {
 
 function historicalChProgressSelection() {
   const recorded = championshipTitle("ch");
-  const groups = machTrialGroups();
-  if (!recorded || !recorded.date || !groups) return null;
-  const honourTrial = String(recorded.honours || "").match(/trial\\s*#?\\s*(\\d+)/i);
+  const awardDate = workbookDate(recorded?.date);
+  if (!recorded || !awardDate) return null;
+  const orderedScores = scores.filter((row) => row.level === "Advanced" || row.level === "Excellent")
+    .sort((a, b) => a.sourceRow - b.sourceRow);
+  const groups = machTrialGroups() || orderedScores.map((row) => ({ trial: row.trial, rows: [row] }));
+  const honourTrial = String(recorded.honours || "").match(/trial\s*#?\s*(\d+)/i);
   const prefix = [];
   let lastSelection = null;
   for (const group of groups) {
+    const groupDates = group.rows.map((row) => workbookDate(row.date)).filter(Boolean);
+    const groupDate = groupDates.length ? groupDates[0] : "";
+    if (groupDate && groupDate > awardDate) break;
     prefix.push(...group.rows);
-    const groupDates = [...new Set(group.rows.map((row) => row.date).filter(Boolean))];
-    if (!groupDates.includes(recorded.date)) continue;
-    if (honourTrial && Number(honourTrial[1]) !== Number(group.trial)) continue;
     const advanced = maximizeGoldCombinations("Advanced", prefix, 10, true);
     const excellent = maximizeGoldCombinations("Excellent", prefix, 10, true);
-    const selection = selectProgressionCombinations(advanced, excellent, "ch");
-    lastSelection = selection;
-    if (selection.met) return selection;
+    lastSelection = selectProgressionCombinations(advanced, excellent, "ch");
+    if (honourTrial && Number(honourTrial[1]) === Number(group.trial)) return lastSelection;
+    if (lastSelection.met) return lastSelection;
   }
   return lastSelection;
 }
@@ -1191,6 +1194,11 @@ function scoreRowsAfterTitle(priorTitle) {
 
 function render() {
   if (!scores.length) { $("report").hidden = true; return; }
+  if (!titlesFileLoaded) {
+    $("report").hidden = true;
+    $("message").textContent = "Dog Titles file required. Upload the Dog Titles CSV or XLSX to calculate title progress and championship cutoff dates.";
+    return;
+  }
   const dogNumbers = [...new Set(scores.map((score) => score.dogNumber).filter(Boolean))];
   if (dogNumbers.length > 1) { $("message").textContent = "The score file contains more than one dog. Please download and upload one dog's history at a time."; $("report").hidden = true; return; }
   $("report").hidden = false;
@@ -1199,7 +1207,9 @@ function render() {
   const summaryInferred = inferredTitles();
   const summaryTitle = (pattern) => titles.find((title) => pattern.test(titleText(title))) || summaryInferred.find((title) => pattern.test(titleText(title)));
   const summaryAdvanced = maximizeGoldCombinations("Advanced"), summaryExcellent = maximizeGoldCombinations("Excellent"), summaryElite = eliteSets();
-  const summaryChSelection = selectProgressionCombinations(summaryAdvanced, summaryExcellent, "ch");
+  const summaryChSelection = championshipTitle("ch")
+    ? (historicalChProgressSelection() || { sets: [], advanced: [], excellent: [], total: 0, met: false })
+    : selectProgressionCombinations(summaryAdvanced, summaryExcellent, "ch");
   const summaryMachSelection = selectProgressionCombinations(summaryAdvanced, summaryExcellent, "mach");
   const scentAchieved = [
     !!summaryTitle(/^Started(?:\s|$)/i), !!summaryTitle(/^Advanced(?:\s|$)/i), !!summaryTitle(/^Excellent(?:\s|$)/i),
@@ -1251,9 +1261,11 @@ function render() {
   }
 
   const advancedSets = maximizeGoldCombinations("Advanced"), excellentSetsList = maximizeGoldCombinations("Excellent");
-  const chSelection = selectProgressionCombinations(advancedSets, excellentSetsList, "ch");
-  const machSelection = selectProgressionCombinations(advancedSets, excellentSetsList, "mach");
   const ch = championshipTitle("ch"), mach = championshipTitle("mach");
+  const chSelection = ch
+    ? (historicalChProgressSelection() || { sets: [], advanced: [], excellent: [], total: 0, met: false })
+    : selectProgressionCombinations(advancedSets, excellentSetsList, "ch");
+  const machSelection = selectProgressionCombinations(advancedSets, excellentSetsList, "mach");
   const chTotal = chSelection.total, chExcellentCount = chSelection.excellent.length;
   const totalSets = machSelection.total, excellentSets = machSelection.excellent.length;
   const machAdvancedCount = machSelection.advanced.length;
@@ -1363,7 +1375,10 @@ function renderMobileDashboard() {
   const advanced = activeLedger.verified ? maximizeGoldCombinations("Advanced", activeLedger.rows) : [];
   const excellent = activeLedger.verified ? maximizeGoldCombinations("Excellent", activeLedger.rows) : [];
   const elite = eliteSets();
-  const chSelection = selectProgressionCombinations(advanced, excellent, "ch");
+  const recordedCh = championshipTitle("ch");
+  const chSelection = recordedCh
+    ? (historicalChProgressSelection() || { sets: [], advanced: [], excellent: [], total: 0, met: false })
+    : selectProgressionCombinations(maximizeGoldCombinations("Advanced"), maximizeGoldCombinations("Excellent"), "ch");
   const machSelection = selectProgressionCombinations(advanced, excellent, "mach");
   const total = machSelection.total, gold = machSelection.sets.filter((set) => set.gold).length;
   const machExcellentCount = machSelection.excellent.length;
