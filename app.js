@@ -992,7 +992,7 @@ function renderProgressionScoreColumns(activeLedger = currentMachLedgerRows()) {
   const advanced = activeLedger.verified ? maximizeGoldCombinations("Advanced", activeLedger.rows) : [];
   const excellent = activeLedger.verified ? maximizeGoldCombinations("Excellent", activeLedger.rows) : [];
   const eliteTitle = [championshipTitle("elch4"), championshipTitle("elch3"), championshipTitle("elch2"),
-    championshipTitle("elch"), findTitle(/^Elite(?:\\s|$)/i)].find(Boolean);
+    championshipTitle("elch"), findTitle(/^Elite(?:\s|$)/i)].find(Boolean);
   const eliteRows = eliteTitle ? scoreRowsAfterTitle(eliteTitle) : scores.filter((row) => row.level === "Elite");
   const elite = eliteRows ? eliteSets(eliteRows) : [];
   const columns = [
@@ -1000,7 +1000,8 @@ function renderProgressionScoreColumns(activeLedger = currentMachLedgerRows()) {
     {level:"Excellent",sets:excellent,accent:"level-accent-gold",elite:false},
     {level:"Elite",sets:elite,accent:"level-accent-elite",elite:true}
   ];
-  return '<p class="level-note current-cutoff-announcement">' + esc(activeLedger.message) + '</p><div class="progression-score-scroll"><div class="progression-score-columns">' +
+  return '<p class="level-note current-cutoff-announcement">' + esc(activeLedger.message) +
+    '</p><div class="progression-score-scroll"><div class="progression-score-columns">' +
     columns.map((column) => {
       const count = column.elite
         ? column.sets.length + ' complete same-trial · ' + column.sets.filter((set) => set.gold).length + ' Gold'
@@ -1010,21 +1011,10 @@ function renderProgressionScoreColumns(activeLedger = currentMachLedgerRows()) {
         : progressionRunRows(column.sets,column.elite);
       return '<article class="progression-score-column title-accordion ' + column.accent + '">' +
         '<header class="progression-card-header"><span class="summary-copy"><strong>' + column.level +
-        '</strong><small>' + count + '</small></span><span class="summary-action">Current + history</span></header>' +
-        '<div class="progression-card-body"><section class="progression-current-combinations"><h4>Current score combinations</h4>' +
-        current + '</section><section class="progression-history"><h4>Historical score combinations</h4>' +
-        progressionHistoryMarkup(column.level) + '</section></div></article>';
+        '</strong><small>' + count + '</small></span></header>' +
+        '<div class="progression-card-body"><section class="progression-current-combinations">' +
+        current + '</section></div></article>';
     }).join("") + '</div></div>';
-}
-function renderFullProgressionExplanation() {
-  const host = $("progression-story");
-  if (!host) return;
-  if (!scores.length) {
-    host.innerHTML = '<p class="level-note">Upload the Dog Scores file to view the historical score combinations.</p>';
-    return;
-  }
-  host.innerHTML = '<p class="level-note"><strong>Score progression:</strong> current combinations appear first in each level. Historical scores remain in score-file order, with title-lock records circled and championship cutoffs marked between stages.</p>' +
-    renderProgressionScoreColumns(currentMachLedgerRows());
 }
 function currentMachLedgerRows() {
   const stages = [
