@@ -893,21 +893,34 @@ function renderFullProgressionExplanation() {
   const cards = titleCards.map(({ label, record: getRecord }) => {
     const record = getRecord();
     if (!record) return '';
+    const displayLabel = /special/i.test(record.description || '') ? label + ' · SP' : label;
     const details = [
       record.honours ? '<p><strong>Honours:</strong> ' + esc(record.honours) + '</p>' : '',
       record.score != null && record.score !== '' ? '<p><strong>Title score:</strong> ' + esc(record.score) + '</p>' : '',
       '<p class="level-note">This title and date are copied from the uploaded Dog Titles sheet. The checker does not calculate or award this title.</p>'
     ].join('');
-    return '<details class="progression-record-card"><summary><span><strong>' + esc(label) +
+    return '<details class="progression-record-card"><summary><span><strong>' + esc(displayLabel) +
       '</strong></span><span class="progression-record-date">Recorded ' + esc(dateLabel(record.date)) +
       '</span></summary><div class="progression-record-body">' + details + '</div></details>';
   }).join('');
 
-  const advancedCount = byLevel('Advanced').length;
-  const excellentCount = byLevel('Excellent').length;
-  const levelEvidence = '<div class="progression-level-evidence"><p><strong>Score records are separate from recorded awards.</strong> The score export contains ' +
-    esc(advancedCount) + ' Advanced component scores and ' + esc(excellentCount) +
-    ' Excellent component scores. These counts identify the level of each score; they do not create or confirm a title.</p></div>';
+  const scoreEvidenceCard = (level) => {
+    const combinations = maximizeGoldCombinations(level);
+    const rows = combinations.map((set, index) => {
+      const name = set.special ? level + ' SP' : set.titleLocked ? level + ' title-earning combination' : level + ' combination ' + (index + 1);
+      const part = (component) => set[component.toLowerCase()]?.score == null ? '—' :
+        esc(set[component.toLowerCase()].score) + ' (Trial ' + esc(set[component.toLowerCase()].trial || '—') + ')';
+      return '<li><strong>' + esc(name) + ':</strong> Container ' + part('Container') +
+        ' · Exterior ' + part('Exterior') + ' · Interior ' + part('Interior') +
+        ' · Total ' + esc(set.total) + ' (' + (set.gold ? 'Gold' : set.total >= 172 ? 'Silver' : set.total >= 142 ? 'Bronze' : set.total >= 100 ? 'Satisfactory' : 'Insufficient') + ')</li>';
+    }).join('');
+    return '<details class="progression-record-card"><summary><strong>' + esc(level) +
+      ' score combinations</strong><span class="progression-record-date">' + byLevel(level).length +
+      ' component scores</span></summary><div class="progression-record-body"><p>These are score pairings from the Dog Scores export, not title awards. They are kept separate from the recorded title cards above.</p>' +
+      (rows ? '<ol>' + rows + '</ol>' : '<p>No complete combinations available.</p>') + '</div></details>';
+  };
+  const levelEvidence = '<p class="level-note"><strong>Score evidence is separate from recorded awards.</strong> The cards below identify Advanced and Excellent pairings explicitly. They do not create or confirm a title.</p>' +
+    scoreEvidenceCard('Advanced') + scoreEvidenceCard('Excellent');
 
   host.innerHTML = '<p class="level-note"><strong>Recorded title history:</strong> the cards below show only titles found in this dog\'s Dog Titles sheet. Dates and honours are displayed as recorded. Score-based estimates are not presented as awarded titles.</p>' +
     (cards || '<p class="level-note">No recognized title records were found in the uploaded Dog Titles sheet.</p>') +
