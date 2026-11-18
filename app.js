@@ -408,7 +408,8 @@ function reportAchievedTitles() {
   const chSelection = championshipTitle("ch")
     ? (historicalChProgressSelection() || { sets: [], advanced: [], excellent: [], total: 0, met: false })
     : selectProgressionCombinations(advanced, excellent, "ch");
-  const machSelection = selectProgressionCombinations(advanced, excellent, "mach");
+  const historicalMachSelection = championshipTitle("mach") ? historicalMachProgressSelection() : null;
+  const machSelection = historicalMachSelection || selectProgressionCombinations(advanced, excellent, "mach");
   const elite = eliteSets();
   const eliteGold = elite.filter((set) => set.gold).length;
   const chMet = chSelection.met;
@@ -735,21 +736,63 @@ function machCutoffRowForTitle(title) {
 
 function historicalChProgressSelection() {
   const recorded = championshipTitle("ch");
-  const groups = machTrialGroups();
-  if (!recorded || !recorded.date || !groups) return null;
-  const honourTrial = String(recorded.honours || "").match(/trial\\s*#?\\s*(\\d+)/i);
+  const awardDate = workbookDate(recorded?.date);
+  if (!recorded || !awardDate) return null;
+  const orderedScores = scores.filter((row) => row.level === "Advanced" || row.level === "Excellent")
+    .sort((a, b) => a.sourceRow - b.sourceRow);
+  const groups = machTrialGroups() || orderedScores.map((row) => ({ trial: row.trial, rows: [row] }));
+  const honourTrial = String(recorded.honours || "").match(/trial\s*#?\s*(\d+)/i);
   const prefix = [];
   let lastSelection = null;
   for (const group of groups) {
+    const groupDates = group.rows.map((row) => workbookDate(row.date)).filter(Boolean);
+    const groupDate = groupDates.length ? groupDates[0] : "";
+    if (groupDate && groupDate > awardDate) break;
     prefix.push(...group.rows);
-    const groupDates = [...new Set(group.rows.map((row) => row.date).filter(Boolean))];
-    if (!groupDates.includes(recorded.date)) continue;
-    if (honourTrial && Number(honourTrial[1]) !== Number(group.trial)) continue;
     const advanced = maximizeGoldCombinations("Advanced", prefix, 10, true);
     const excellent = maximizeGoldCombinations("Excellent", prefix, 10, true);
-    const selection = selectProgressionCombinations(advanced, excellent, "ch");
-    lastSelection = selection;
-    if (selection.met) return selection;
+    lastSelection = selectProgressionCombinations(advanced, excellent, "ch");
+    if (honourTrial) {
+      if (Number(honourTrial[1]) === Number(group.trial)) return lastSelection;
+    } else if (lastSelection.met) {
+      return lastSelection;
+    }
+  }
+  return lastSelection;
+}
+
+
+function historicalMachProgressSelection() {
+  const recorded = championshipTitle("mach");
+  const awardDate = workbookDate(recorded?.date);
+  if (!recorded || !awardDate) return null;
+
+  // Rebuild the original SD-MACH qualification pool as it existed at the
+  // recorded award date. Do not use the active post-MACH ledger here.
+  const orderedScores = scores.filter((row) => row.level === "Advanced" || row.level === "Excellent")
+    .sort((a, b) => a.sourceRow - b.sourceRow);
+  const groups = machTrialGroups() || orderedScores.map((row) => ({ trial: row.trial, rows: [row] }));
+  const honourTrial = String(recorded.honours || "").match(/trial\s*#?\s*(\d+)/i);
+  const prefix = [];
+  let lastSelection = null;
+
+  for (const group of groups) {
+    const groupDates = group.rows.map((row) => workbookDate(row.date)).filter(Boolean);
+    const groupDate = groupDates.length ? groupDates[0] : "";
+    if (groupDate && groupDate > awardDate) break;
+
+    prefix.push(...group.rows);
+    const advanced = maximizeGoldCombinations("Advanced", prefix, 10, true);
+    const excellent = maximizeGoldCombinations("Excellent", prefix, 10, true);
+    lastSelection = selectProgressionCombinations(advanced, excellent, "mach");
+
+    // Honours may identify the exact title-earning trial when several trials
+    // occurred on the same award date. Otherwise stop at earliest completion.
+    if (honourTrial) {
+      if (Number(honourTrial[1]) === Number(group.trial)) return lastSelection;
+    } else if (lastSelection.met) {
+      return lastSelection;
+    }
   }
   return lastSelection;
 }
@@ -1043,15 +1086,17 @@ function progressionRunRows(sets, isElite = false) {
 function progressionCurrentScoreRows(rows, level) {
   const entries = rows.filter((row) => row.level === level)
     .sort((a, b) => a.sourceRow - b.sourceRow);
-  if (!entries.length) return '<p class="run-empty">No post-cutoff component scores recorded yet.</p>';
-  return '<div class="run-grid">' + entries.map((row) =>
-    '<div class="run-row">' +
-      '<b>Trial ' + esc(row.trial || "—") + '</b>' +
-      '<span>' + esc(dateLabel(row.date)) + '</span>' +
-      '<span>' + esc(row.component) + ': ' + esc(row.score) + '</span>' +
-      '<strong>Component score</strong>' +
-    '</div>'
-  ).join("") + '</div>';
+  // Match History: keep one component column per search area and list each
+  // score with its trial identifier in brackets. Empty components stay blank.
+  return '<div class="history-component-columns">' + COMPONENTS.map((component) => {
+    const componentRows = entries.filter((row) => row.component === component);
+    const output = componentRows.map((row) =>
+      '<div class="history-score"><span>' + esc(row.score) + '</span><small>(' +
+      esc(row.trial || "—") + ')</small></div>'
+    ).join("");
+    return '<section class="history-component"><h4>' + esc(component) + '</h4>' +
+      output + '</section>';
+  }).join("") + '</div>';
 }
 
 function renderProgressionScoreColumns(activeLedger = currentMachLedgerRows()) {
@@ -1189,6 +1234,11 @@ function scoreRowsAfterTitle(priorTitle) {
 
 function render() {
   if (!scores.length) { $("report").hidden = true; return; }
+  if (!titlesFileLoaded) {
+    $("report").hidden = true;
+    $("message").textContent = "Dog Titles file required. Upload the Dog Titles CSV or XLSX to calculate title progress and championship cutoff dates.";
+    return;
+  }
   const dogNumbers = [...new Set(scores.map((score) => score.dogNumber).filter(Boolean))];
   if (dogNumbers.length > 1) { $("message").textContent = "The score file contains more than one dog. Please download and upload one dog's history at a time."; $("report").hidden = true; return; }
   $("report").hidden = false;
@@ -1197,8 +1247,11 @@ function render() {
   const summaryInferred = inferredTitles();
   const summaryTitle = (pattern) => titles.find((title) => pattern.test(titleText(title))) || summaryInferred.find((title) => pattern.test(titleText(title)));
   const summaryAdvanced = maximizeGoldCombinations("Advanced"), summaryExcellent = maximizeGoldCombinations("Excellent"), summaryElite = eliteSets();
-  const summaryChSelection = selectProgressionCombinations(summaryAdvanced, summaryExcellent, "ch");
-  const summaryMachSelection = selectProgressionCombinations(summaryAdvanced, summaryExcellent, "mach");
+  const summaryChSelection = championshipTitle("ch")
+    ? (historicalChProgressSelection() || { sets: [], advanced: [], excellent: [], total: 0, met: false })
+    : selectProgressionCombinations(summaryAdvanced, summaryExcellent, "ch");
+  const summaryHistoricalMachSelection = championshipTitle("mach") ? historicalMachProgressSelection() : null;
+  const summaryMachSelection = summaryHistoricalMachSelection || selectProgressionCombinations(summaryAdvanced, summaryExcellent, "mach");
   const scentAchieved = [
     !!summaryTitle(/^Started(?:\s|$)/i), !!summaryTitle(/^Advanced(?:\s|$)/i), !!summaryTitle(/^Excellent(?:\s|$)/i),
     !!titles.find((title) => /^Elite(?:\s|$)/i.test(titleText(title))) || ((!!summaryTitle(/^Excellent(?:\s|$)/i) || COMPONENTS.every((component) => componentCounts("Excellent")[component] > 0)) && summaryElite.length > 0),
@@ -1249,9 +1302,13 @@ function render() {
   }
 
   const advancedSets = maximizeGoldCombinations("Advanced"), excellentSetsList = maximizeGoldCombinations("Excellent");
-  const chSelection = selectProgressionCombinations(advancedSets, excellentSetsList, "ch");
-  const machSelection = selectProgressionCombinations(advancedSets, excellentSetsList, "mach");
   const ch = championshipTitle("ch"), mach = championshipTitle("mach");
+  const chSelection = ch
+    ? (historicalChProgressSelection() || { sets: [], advanced: [], excellent: [], total: 0, met: false })
+    : selectProgressionCombinations(advancedSets, excellentSetsList, "ch");
+  const historicalMachSelection = mach ? historicalMachProgressSelection() : null;
+  const machSelectionVerified = !mach || !!historicalMachSelection;
+  const machSelection = historicalMachSelection || selectProgressionCombinations(advancedSets, excellentSetsList, "mach");
   const chTotal = chSelection.total, chExcellentCount = chSelection.excellent.length;
   const totalSets = machSelection.total, excellentSets = machSelection.excellent.length;
   const machAdvancedCount = machSelection.advanced.length;
@@ -1260,14 +1317,22 @@ function render() {
     { done: chTotal >= 5, text: `${chTotal}/5 selected Advanced or Excellent titling scores` },
     { done: chExcellentCount >= 2, text: `${chExcellentCount}/2 must be Excellent` }
   ], ch ? `Recorded ${dateLabel(ch.date)}.` : "Advanced components are combined only with Advanced; Excellent components only with Excellent. Initial SP titles remain locked."));
-  cards.push(progressCard("SD-MACH", mach ? "Achieved" : machSelection.met ? "Requirements shown as met" : "In progress", mach
-    ? [{ done: true, text: `Recorded by SDDA on ${dateLabel(mach.date)}. The title requirements are satisfied.` }]
+  const machRequirements = mach
+    ? [
+        { done: true, text: `Recorded by SDDA on ${dateLabel(mach.date)}.` },
+        { done: machSelectionVerified && totalSets >= 10, text: `${machSelectionVerified ? totalSets : "—"}/10 selected Advanced or Excellent titling scores at the award trial` },
+        { done: machSelectionVerified && excellentSets >= 3, text: `${machSelectionVerified ? excellentSets : "—"}/3 must be Excellent` },
+        { done: machSelectionVerified && golds.length >= 3, text: `${machSelectionVerified ? golds.length : "—"}/3 Gold combinations` },
+        { done: machSelectionVerified && totalSets >= 10, text: machSelectionVerified ? `${Math.min(10, totalSets)}/10 composition: ${excellentSets} Excellent + ${machAdvancedCount} Advanced` : "Historical combination counts could not be verified from the award date and trial information." }
+      ]
     : [
         { done: totalSets >= 10, text: `${totalSets}/10 selected Advanced or Excellent titling scores` },
         { done: excellentSets >= 3, text: `${excellentSets}/3 must be Excellent` },
         { done: golds.length >= 3, text: `${golds.length}/3 Gold combinations (Silver combinations count toward the 10 total)` },
         { done: totalSets >= 10, text: `${Math.min(10, totalSets)}/10 composition: ${excellentSets} Excellent + ${machAdvancedCount} Advanced` }
-      ], mach ? `Recorded ${dateLabel(mach.date)}.` : "The ten selected combinations preserve the Excellent and Gold requirements while favoring high totals."));
+      ];
+  cards.push(progressCard("SD-MACH", mach ? "Achieved" : machSelection.met ? "Requirements shown as met" : "In progress", machRequirements,
+    mach ? (machSelectionVerified ? `Historical progress reconstructed through the recorded award trial.` : "Recorded by SDDA; historical score counts could not be reconstructed.") : "The ten selected combinations preserve the Excellent and Gold requirements while favoring high totals."));
 
   const elSets = eliteSets(), elGolds = elSets.filter((set) => set.gold), elch = championshipTitle("elch");
   const elchScoresMet = elSets.length >= 5 && elGolds.length >= 2;
@@ -1361,7 +1426,10 @@ function renderMobileDashboard() {
   const advanced = activeLedger.verified ? maximizeGoldCombinations("Advanced", activeLedger.rows) : [];
   const excellent = activeLedger.verified ? maximizeGoldCombinations("Excellent", activeLedger.rows) : [];
   const elite = eliteSets();
-  const chSelection = selectProgressionCombinations(advanced, excellent, "ch");
+  const recordedCh = championshipTitle("ch");
+  const chSelection = recordedCh
+    ? (historicalChProgressSelection() || { sets: [], advanced: [], excellent: [], total: 0, met: false })
+    : selectProgressionCombinations(maximizeGoldCombinations("Advanced"), maximizeGoldCombinations("Excellent"), "ch");
   const machSelection = selectProgressionCombinations(advanced, excellent, "mach");
   const total = machSelection.total, gold = machSelection.sets.filter((set) => set.gold).length;
   const machExcellentCount = machSelection.excellent.length;
