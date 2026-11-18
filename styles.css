@@ -63,3 +63,6 @@ body,.mobile-ledger,.desktop-ledger{background:#f1f0eb!important;color:#202a25}
   margin:3px 0;
   border:1px solid #d2e2d4;
 }
+
+/* Recorded title history cards */
+.progression-record-card{background:var(--paper);border:1px solid var(--line);border-radius:14px;margin:10px 0;overflow:hidden}.progression-record-card>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;cursor:pointer;list-style:none}.progression-record-card>summary::-webkit-details-marker{display:none}.progression-record-card>summary:after{content:"＋";font-weight:700;color:var(--green);margin-left:8px}.progression-record-card[open]>summary:after{content:"−"}.progression-record-date{font-size:.88em;color:var(--muted);text-align:right}.progression-record-body{padding:0 16px 12px;border-top:1px solid var(--line)}.progression-level-evidence{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:10px 0}
