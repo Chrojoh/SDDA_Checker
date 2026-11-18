@@ -1043,15 +1043,17 @@ function progressionRunRows(sets, isElite = false) {
 function progressionCurrentScoreRows(rows, level) {
   const entries = rows.filter((row) => row.level === level)
     .sort((a, b) => a.sourceRow - b.sourceRow);
-  if (!entries.length) return '<p class="run-empty">No post-cutoff component scores recorded yet.</p>';
-  return '<div class="run-grid">' + entries.map((row) =>
-    '<div class="run-row">' +
-      '<b>Trial ' + esc(row.trial || "—") + '</b>' +
-      '<span>' + esc(dateLabel(row.date)) + '</span>' +
-      '<span>' + esc(row.component) + ': ' + esc(row.score) + '</span>' +
-      '<strong>Component score</strong>' +
-    '</div>'
-  ).join("") + '</div>';
+  // Match History: keep one component column per search area and list each
+  // score with its trial identifier in brackets. Empty components stay blank.
+  return '<div class="history-component-columns">' + COMPONENTS.map((component) => {
+    const componentRows = entries.filter((row) => row.component === component);
+    const output = componentRows.map((row) =>
+      '<div class="history-score"><span>' + esc(row.score) + '</span><small>(' +
+      esc(row.trial || "—") + ')</small></div>'
+    ).join("");
+    return '<section class="history-component"><h4>' + esc(component) + '</h4>' +
+      output + '</section>';
+  }).join("") + '</div>';
 }
 
 function renderProgressionScoreColumns(activeLedger = currentMachLedgerRows()) {
