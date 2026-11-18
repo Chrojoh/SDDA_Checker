@@ -7,19 +7,13 @@
  <div class="sdda-device-controls"><button type="button" id="sdda-backup">Export backup</button><label class="sdda-restore">Restore backup<input id="sdda-restore-file" type="file" accept=".json,application/json"></label></div>
  <p class="sdda-device-note">Records are stored privately in this browser on this device. Export a backup before clearing browser data or changing devices.</p>
 </section>
-<section class="sdda-judge-check" aria-label="Judge requirement confirmation">
- <strong>Judge-count confirmation (handler-reported)</strong>
- <label><input type="checkbox" id="judge-elch"> I confirm that the qualifying Elite scores for SD-ELCH were earned under at least 2 different judges.</label>
- <label><input type="checkbox" id="judge-gmch"> I confirm that the qualifying Scent scores for SD-GMCH were earned under at least 3 different judges.</label>
- <p>This is a handler attestation, not judge data extracted from SDDA. It helps assess likely eligibility but does not replace SDDA approval. The confirmation is saved with the dog on this device.</p>
-</section>
 <style>
-.sdda-device-records,.sdda-judge-check{border:1px solid #d8d2c7;border-radius:14px;padding:14px;margin:14px 0;background:#fff}
-.sdda-device-heading{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}.sdda-device-heading span,.sdda-device-note,.sdda-judge-check p{font-size:12px;color:#68635c}
+.sdda-device-records{border:1px solid #d8d2c7;border-radius:14px;padding:14px;margin:14px 0;background:#fff}
+.sdda-device-heading{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}.sdda-device-heading span,.sdda-device-note{font-size:12px;color:#68635c}
 .sdda-device-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
 .sdda-device-controls select{min-width:220px;flex:1;padding:10px;border:1px solid #bbb;border-radius:8px}
 .sdda-device-controls button,.sdda-restore{padding:9px 12px;border:1px solid #b9a98f;border-radius:8px;background:#f8f3e9;color:#332719;font:inherit;cursor:pointer}
-.sdda-restore input{display:block;max-width:210px;font-size:11px}.sdda-judge-check{display:grid;gap:9px}.sdda-judge-check label{display:flex;gap:8px;align-items:flex-start;font-size:13px}.sdda-judge-check input{margin-top:3px}
+.sdda-restore input{display:block;max-width:210px;font-size:11px}.sdda-judge-check label{display:flex;gap:8px;align-items:flex-start;font-size:13px}.sdda-judge-check input{margin-top:3px}
 @media(max-width:600px){.sdda-device-controls>*{flex:1 1 100%}.sdda-device-controls select{min-width:0}}
 </style><p class="privacy-line">Uploaded files are processed locally. Saved dog records remain on this device until you delete them; export a backup before clearing browser data.</p><div id="message" class="message">Upload the Dog Scores and Dog Titles files to begin.</div>
 <section id="report" class="mobile-report" hidden><header class="dog-head mobile-dog-head"><div><p class="eyebrow">Title and run summary</p><h2 id="dog-name"></h2><p id="dog-meta"></p></div></header>
