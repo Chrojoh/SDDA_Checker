@@ -610,23 +610,30 @@ function selectProgressionCombinations(advanced, excellent, stageKey) {
       Number(a.container?.sourceRow || 0) - Number(b.container?.sourceRow || 0) ||
       Number(a.exterior?.sourceRow || 0) - Number(b.exterior?.sourceRow || 0) ||
       Number(a.interior?.sourceRow || 0) - Number(b.interior?.sourceRow || 0));
-  const excellentCandidates = candidates.filter((set) => set.level === "Excellent");
+  // A recorded title-earning combination is mandatory in its historical
+  // block, even when its total is lower than the maximized combinations.
+  // Keep it selected; fill the remaining places by the existing score ranking.
+  const lockedCandidates = candidates.filter((set) => set.titleLocked);
+  const unlockedCandidates = candidates.filter((set) => !set.titleLocked);
+  const slots = Math.max(0, target - lockedCandidates.length);
+  const excellentCandidates = unlockedCandidates.filter((set) => set.level === "Excellent");
   let selected;
   if (stageKey === "mach3" || stageKey === "mach4") {
-    selected = excellentCandidates.slice(0, target);
+    selected = excellentCandidates.slice(0, slots);
   } else if (stageKey === "mach2") {
-    selected = excellentCandidates.slice(0, 7);
-    const remaining = candidates.filter((set) => !selected.includes(set));
-    selected.push(...remaining.slice(0, Math.max(0, target - selected.length)));
+    selected = excellentCandidates.slice(0, Math.min(7, slots));
+    const remaining = unlockedCandidates.filter((set) => !selected.includes(set));
+    selected.push(...remaining.slice(0, Math.max(0, slots - selected.length)));
   } else {
-    selected = candidates.slice(0, target);
+    selected = unlockedCandidates.slice(0, slots);
   }
+  selected = [...lockedCandidates, ...selected];
   const selectedSet = new Set(selected);
   const replaceFor = (predicate, preserveExcellent = false) => {
     while (selected.filter(predicate).length < (predicate === isExcellent ? minExcellent : minGold)) {
-      const replacement = candidates.find((candidate) => !selectedSet.has(candidate) && predicate(candidate));
+      const replacement = unlockedCandidates.find((candidate) => !selectedSet.has(candidate) && predicate(candidate));
       if (!replacement) break;
-      const removable = selected.filter((candidate) => !predicate(candidate) &&
+      const removable = selected.filter((candidate) => !candidate.titleLocked && !predicate(candidate) &&
         (!preserveExcellent || candidate.level !== "Excellent" || replacement.level === "Excellent" || selected.filter(isExcellent).length > minExcellent))
         .sort((a, b) => a.total - b.total)[0];
       if (!removable) break;
@@ -1775,7 +1782,7 @@ async function downloadPdfReport() {
 
   y -= 8;
   text("Limitations", { size: 11, bold: true, color: rgb(.61, .26, .24) });
-  text("The supplied Dog Scores download has no judge column. Judge-diversity requirements cannot be verified from this file and require handler confirmation. Event Date values are used for chronological calculations and title cutoffs. Titles calculated without the optional Dog Titles file are not official confirmation. Confirm eligibility with SDDA.", { size: 8, color: rgb(.35, .36, .34) });
+  text("This report is a handler’s aid. SDDA is the authority on all title progression.", { size: 8, color: rgb(.35, .36, .34) });
   const bytes = await pdf.save();
   const blob = new Blob([bytes], { type: "application/pdf" });
   const safeDog = dogDisplayName().replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
