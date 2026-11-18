@@ -772,7 +772,7 @@ function historicalMachProgressSelection() {
   const orderedScores = scores.filter((row) => row.level === "Advanced" || row.level === "Excellent")
     .sort((a, b) => a.sourceRow - b.sourceRow);
   const groups = machTrialGroups() || orderedScores.map((row) => ({ trial: row.trial, rows: [row] }));
-  const honourTrial = String(recorded.honours || "").match(/trial\\s*#?\\s*(\\d+)/i);
+  const honourTrial = String(recorded.honours || "").match(/trial\s*#?\s*(\d+)/i);
   const prefix = [];
   let lastSelection = null;
 
