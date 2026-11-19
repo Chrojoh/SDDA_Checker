@@ -173,3 +173,9 @@ button { min-height: 48px; border-radius: 12px; font-size: 15px; }
  .progression-history .history-score{font-size:9px;gap:1px}
  .progression-history .history-cutoff{font-size:9px}
 }
+
+/* Compact Current Scores accordion headers to fit their text. */
+.progression-score-column.title-accordion>summary.progression-card-header{min-height:0;padding:6px 7px;}
+.progression-score-column .progression-card-header .summary-copy{gap:1px;}
+.progression-score-column .progression-card-header .summary-copy strong{line-height:1.15;}
+.progression-score-column .progression-card-header .summary-copy small{margin-top:0;line-height:1.15;}
