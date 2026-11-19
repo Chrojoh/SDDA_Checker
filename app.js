@@ -1747,18 +1747,22 @@ async function downloadPdfReport() {
       const part = set[component.toLowerCase()];
       if (part && part.sourceRow != null) usedSourceRows.add(part.sourceRow);
     }));
-    sourceRows
+    const partialScores = sourceRows
       .filter((score) => score.level === level && !usedSourceRows.has(score.sourceRow))
-      .sort((a, b) => (Number(a.sourceRow) || 0) - (Number(b.sourceRow) || 0))
-      .forEach((score) => {
-        const cells = ["-", "-", "-", "-", "-", ""];
-        cells[0] = `Partial ${score.component}`;
-        const componentIndex = { Container: 1, Exterior: 2, Interior: 3 }[score.component];
-        if (componentIndex) cells[componentIndex] = componentWithTrial(score);
-        cells[4] = "—";
-        cells[5] = "—";
-        rows.push(cells);
+      .sort((a, b) => (Number(a.sourceRow) || 0) - (Number(b.sourceRow) || 0));
+    if (partialScores.length) {
+      const cells = ["Partial", "-", "-", "-", "—", "—"];
+      const componentIndexes = { Container: 1, Exterior: 2, Interior: 3 };
+      partialScores.forEach((score) => {
+        const componentIndex = componentIndexes[score.component];
+        if (componentIndex) {
+          cells[componentIndex] = cells[componentIndex] === "-"
+            ? componentWithTrial(score)
+            : `${cells[componentIndex]}, ${componentWithTrial(score)}`;
+        }
       });
+      rows.push(cells);
+    }
     return rows;
   };
 
