@@ -1147,23 +1147,37 @@ function progressionRunRows(sets, isElite = false) {
       ' · ' + classification(set.total) + '</strong></div>';
   }).join("") + '</div>';
 }
-function progressionCurrentScoreRows(sets, level) {
+function progressionCurrentScoreRows(sets, level, rows = []) {
   const qualifying = sets.filter((set) => set.total >= 100);
-  if (!qualifying.length) return '<p class="run-empty">No qualifying combinations yet.</p>';
+  const usedSourceRows = new Set();
+  qualifying.forEach((set) => COMPONENTS.forEach((component) => {
+    const part = component === "Container" ? set.container :
+      component === "Exterior" ? set.exterior : set.interior;
+    if (part && part.sourceRow != null) usedSourceRows.add(String(part.sourceRow));
+  }));
   const label = (set, index) => set.special ? "SP" : set.titleLocked ? "Title lock" : "#" + (set.rank || index + 1);
   const score = (part) => part ? esc(part.score) + ' <small>(' + esc(part.trial || "—") + ')</small>' : "—";
-  // One compact row per combination. The component initials are the column
-  // headers, so component names are not repeated inside every score row.
+  const combinationRows = qualifying.map((set, index) =>
+    '<tr class="' + (set.gold ? "gold" : "") + (set.titleLocked || set.special ? " locked-score-row" : "") + '">' +
+    '<th scope="row">' + label(set, index) + '</th>' +
+    '<td>' + score(set.container) + '</td><td>' + score(set.exterior) + '</td>' +
+    '<td>' + score(set.interior) + '</td><td><strong>' + esc(set.total) + '</strong></td></tr>'
+  );
+  // Scores that are not part of a qualifying three-component combination
+  // still belong in the current ledger. Show each once as a single-component row.
+  const individualRows = rows.filter((row) => row.level === level && !usedSourceRows.has(String(row.sourceRow)))
+    .sort((a, b) => a.sourceRow - b.sourceRow)
+    .map((row) => '<tr class="single-component-row">' +
+      '<th scope="row">Single score</th>' +
+      '<td>' + (row.component === "Container" ? score(row) : "—") + '</td>' +
+      '<td>' + (row.component === "Exterior" ? score(row) : "—") + '</td>' +
+      '<td>' + (row.component === "Interior" ? score(row) : "—") + '</td>' +
+      '<td><span class="single-score-note">Not yet combined</span></td></tr>');
+  if (!combinationRows.length && !individualRows.length) return '<p class="run-empty">No current component scores yet.</p>';
   return '<div class="progression-compact-table-wrap"><table class="progression-compact-table">' +
     '<thead><tr><th>Combination</th><th title="Container">C</th><th title="Exterior">E</th><th title="Interior">I</th><th>Total</th></tr></thead>' +
-    '<tbody>' + qualifying.map((set, index) =>
-      '<tr class="' + (set.gold ? "gold" : "") + (set.titleLocked || set.special ? " locked-score-row" : "") + '">' +
-      '<th scope="row">' + label(set, index) + '</th>' +
-      '<td>' + score(set.container) + '</td><td>' + score(set.exterior) + '</td>' +
-      '<td>' + score(set.interior) + '</td><td><strong>' + esc(set.total) + '</strong></td></tr>'
-    ).join("") + '</tbody></table></div>';
+    '<tbody>' + combinationRows.join("") + individualRows.join("") + '</tbody></table></div>';
 }
-
 function renderProgressionScoreColumns(activeLedger = currentMachLedgerRows()) {
   const advancedRows = activeLedger.verified ? activeLedger.rows.filter((row) => row.level === "Advanced") : [];
   const excellentRows = activeLedger.verified ? activeLedger.rows.filter((row) => row.level === "Excellent") : [];
@@ -1194,7 +1208,7 @@ function renderProgressionScoreColumns(activeLedger = currentMachLedgerRows()) {
         ? progressionRunRows(card.sets, true)
         : !activeLedger.verified
           ? '<p class="run-empty">Current scores are withheld until the recorded MACH cutoff can be verified.</p>'
-          : progressionCurrentScoreRows(card.sets, card.level);
+          : progressionCurrentScoreRows(card.sets, card.level, card.rows);
       return '<details class="progression-score-column title-accordion ' + card.accent + '">' +
         '<summary class="progression-card-header"><span class="summary-copy"><strong>' + card.level +
         '</strong><small>' + count + '</small></span><span class="summary-action">Details</span></summary>' +
