@@ -186,7 +186,7 @@ const $=id=>document.getElementById(id), install=$('pwa-install'), check=$('pwa-
 let promptEvent=null, registration=null, checking=false;
 const installed=()=>matchMedia('(display-mode:standalone)').matches||matchMedia('(display-mode:fullscreen)').matches||navigator.standalone===true;
 const say=(a,b)=>{status.textContent=a;details.textContent=b||'';};
-function updateInstall(){install.hidden=installed()||(!promptEvent&&!help.dataset.show);}
+function updateInstall(){install.hidden=installed();}
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();promptEvent=e;install.hidden=installed();});
 window.addEventListener('appinstalled',()=>{promptEvent=null;install.hidden=true;say('App installed.','Open it from your home screen or app list.');});
 install.addEventListener('click',async()=>{
