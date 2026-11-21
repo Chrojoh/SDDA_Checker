@@ -224,7 +224,9 @@ function titleLockForLevel(level, list = scores) {
       const description = String(title.description || "").trim().toLowerCase();
       return description === level.toLowerCase() || description.startsWith(level.toLowerCase() + " ");
     })
-    .filter((title) => !String(title.description || "").toLowerCase().includes("special"))
+    // Special-title records must also establish the date boundary. Whether
+    // the lock is a regular title lock or an SP lock is determined from the
+    // score rows: all three components in the same trial means SP.
     .sort((a, b) => String(a.date || "9999-99-99").localeCompare(String(b.date || "9999-99-99")));
   const recordedTitle = matchingTitles[0] || null;
   const eligibleHistory = recordedTitle?.date
