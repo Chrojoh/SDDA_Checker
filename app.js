@@ -1182,11 +1182,28 @@ function renderProgressionScoreColumns(activeLedger = currentMachLedgerRows()) {
       const count = card.elite
         ? card.sets.length + ' complete same-trial · ' + goldCount + ' Gold'
         : card.rows.length + ' component scores · ' + completeCount + ' complete combinations · ' + goldCount + ' Gold';
+      const currentTitleLock = !activeLedger.cutoffTrial && !card.elite
+        ? titleLockForLevel(card.level)
+        : null;
+      const titleLockMarkup = currentTitleLock
+        ? '<section class="progression-current-title-lock"><h4>Recorded title-earning combination</h4>' +
+          progressionRunRows([{
+            container: currentTitleLock.parts.Container,
+            exterior: currentTitleLock.parts.Exterior,
+            interior: currentTitleLock.parts.Interior,
+            total: currentTitleLock.total,
+            gold: currentTitleLock.gold,
+            special: currentTitleLock.special,
+            titleLocked: true,
+            level: card.level,
+            trial: currentTitleLock.trial
+          }]) + '</section>'
+        : '';
       const current = card.elite
         ? progressionRunRows(card.sets, true)
         : !activeLedger.verified
-          ? '<p class="run-empty">Current scores are withheld until the recorded MACH cutoff can be verified.</p>'
-          : progressionCurrentScoreRows(card.rows, card.level);
+          ? titleLockMarkup + '<p class="run-empty">Current scores are withheld until the recorded MACH cutoff can be verified.</p>'
+          : titleLockMarkup + progressionCurrentScoreRows(card.rows, card.level);
       return '<details class="progression-score-column title-accordion ' + card.accent + '">' +
         '<summary class="progression-card-header"><span class="summary-copy"><strong>' + card.level +
         '</strong><small>' + count + '</small></span><span class="summary-action">Details</span></summary>' +
