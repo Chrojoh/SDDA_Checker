@@ -251,3 +251,14 @@ body,.mobile-ledger,.desktop-ledger{background:#f1f0eb!important;color:#202a25}
  .progression-history .history-component h4{font-size:10px}
  .progression-history .history-score{font-size:10px;gap:2px;flex-wrap:wrap}
 }
+
+
+/* Compact current-score combinations: one row per combination, initials as headers. */
+.progression-compact-table-wrap{width:100%;overflow-x:auto}
+.progression-compact-table{width:100%;border-collapse:collapse;table-layout:auto;font-size:.88rem}
+.progression-compact-table th,.progression-compact-table td{padding:7px 5px;text-align:center;border-bottom:1px solid var(--line,#ddd);white-space:nowrap}
+.progression-compact-table thead th{font-weight:800;font-size:.78rem;opacity:.8}
+.progression-compact-table tbody th{font-weight:750;text-align:left}
+.progression-compact-table td small{font-size:.75em;opacity:.72}
+.progression-compact-table tr.gold{background:rgba(214,170,54,.12)}
+.progression-compact-table tr.locked-score-row{font-weight:750}
