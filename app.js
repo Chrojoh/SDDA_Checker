@@ -1085,6 +1085,21 @@ function progressionHistoryMarkup(level) {
       }
     }
   }
+  if (isMachLevel) {
+    // Historical combinations are rebuilt only from score rows through the
+    // latest verified MACH cutoff. The normal optimizer enforces component
+    // non-reuse, keeps the title-lock combination first, and sorts the rest
+    // from highest total to lowest.
+    const historicalRows = historyGroups.flatMap((group) => group.rows);
+    const historicalCombinations = maximizeGoldCombinations(level, historicalRows, 10, true);
+    const cutoffSummary = [...cutoffs.entries()].map(([trial, label]) =>
+      '<span class="history-cutoff"><b>' + esc(label) + '</b><small>Trial ' + esc(trial) +
+      (cutoffDates.has(String(trial)) ? ' · ' + esc(dateLabel(cutoffDates.get(String(trial)))) : '') +
+      '</small></span>').join('');
+    return '<div class="history-panel-intro"><p>Historical combinations through the latest verified MACH cutoff. The title-lock combination is shown first; remaining combinations are sorted by total score. Components are not reused.</p>' +
+      cutoffSummary + '</div>' +
+      '<div class="historical-combination-rows">' + progressionRunRows(historicalCombinations) + '</div>';
+  }
   if (!historyGroups.length) return '<p class="run-empty">No ' + esc(level) + ' score history is available.</p>';
   const columns = COMPONENTS.map((component) => {
     let output = "";
