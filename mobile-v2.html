@@ -1,4 +1,30 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>SDDA Achievement Ledger</title><link rel="manifest" href="./manifest.webmanifest"><meta name="theme-color" content="#315b49"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="SDDA Ledger"><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="games.css"><link rel="stylesheet" href="mobile-dashboard.css?v=20261027-3"><style>.sp-definition{margin:0 0 9px;padding:11px 13px;border-radius:8px;background:#eee9f5;color:#493c60;font-size:13px;line-height:1.4}.pdf-ready{display:block;margin:-14px 0 24px;padding:14px;border:2px solid #5d477b;border-radius:8px;background:#fff;color:#5d477b;text-align:center;font-weight:800;text-decoration:none}.pdf-ready[hidden]{display:none}.mobile-hero{background:#e8e5dc!important;color:#202a25!important;border-bottom:1px solid #c9c8c0!important}.mobile-hero h1,.mobile-hero p{color:#202a25!important}.mobile-hero a{color:#315f4d!important}.mobile-upload-stack{display:grid;gap:12px}.score-upload{border:1px solid #9b9181;border-radius:8px;background:linear-gradient(145deg,#fff,#f4f0e8);box-shadow:inset 1px 1px 0 #fff,inset -1px -1px 0 #d2c9ba,0 8px 18px #25352d26}.title-accordion,.next-card,.mobile-dog-head{border-radius:8px;background:linear-gradient(145deg,#fff,#f8f6f0);box-shadow:inset 1px 1px 0 #fff,inset -1px -1px 0 #d8d1c5,0 5px 13px #25352d1c}.tracker-tabs{background:#f6f2e9}.tracker-tab.active{background:#5d477b}.install-app{margin:8px 0;padding:9px 14px;border:1px solid #315b49;border-radius:8px;background:#315b49;color:#fff;font:inherit;font-weight:700;cursor:pointer}.install-app[hidden]{display:none}</style></head><body>
+<aside class="pwa-tools" id="pwa-tools" aria-label="App options">
+  <details open>
+    <summary>App options</summary>
+    <div class="pwa-tools-content">
+      <div class="pwa-tools-actions">
+        <button type="button" id="pwa-install" hidden>Install app</button>
+        <button type="button" id="pwa-check">Check for updates</button>
+      </div>
+      <p id="pwa-status" role="status" aria-live="polite">Checking offline support…</p>
+      <small id="pwa-details">Open this app while connected to prepare its files for offline use.</small>
+      <div id="pwa-help" hidden>
+        <p><strong>Android:</strong> Open the browser menu (⋮) and choose Install app or Add to Home screen.</p>
+        <p><strong>iPhone/iPad:</strong> In Safari, tap Share, then Add to Home Screen.</p>
+      </div>
+    </div>
+  </details>
+</aside>
+<style id="pwa-tools-style">
+.pwa-tools{padding:10px 18px;background:#edf4fa;border-bottom:1px solid #ccdbe8;color:#24374b;font:14px/1.5 Arial,sans-serif}
+.pwa-tools details{max-width:1100px;margin:auto}.pwa-tools summary{cursor:pointer;font-weight:700}
+.pwa-tools-content{padding-top:8px}.pwa-tools-actions{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+.pwa-tools button{background:#34495e;color:#fff;padding:9px 13px;border:0;border-radius:6px;font:inherit;cursor:pointer}
+.pwa-tools button:disabled{opacity:.55}.pwa-tools p{margin:6px 0}.pwa-tools small{display:block;color:#52657a}
+.pwa-tools [hidden]{display:none!important}
+</style><style id="pwa-legacy-hide">#install-bar,.install-header-btn,#pwa-install-btn,#install-app,.install-app{display:none!important}</style>
+
 <header class="mobile-hero"><div class="mobile-shell"><h1>SDDA Achievement Ledger</h1><button id="install-app" class="install-app" type="button">Install app</button><p>Download your dog’s <strong>Scores</strong> and <strong>Titles</strong> files from <a href="https://www.sdda.ca/login/" target="_blank" rel="noopener">your SDDA account</a>, then upload both here. The Score File supplies trial dates; the Titles file adds SDDA-recorded awards.</p></div></header>
 <main class="mobile-shell"><div class="mobile-upload-stack"><label class="score-upload"><span class="upload-icon">↑</span><span><strong>Upload Dog Scores</strong><small>XLSX or CSV · one dog at a time</small></span><input id="scores-file" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label><p id="scores-name" class="file-name">Choose the Scores file downloaded for your registered dog.</p><label class="score-upload"><span class="upload-icon">↑</span><span><strong>Upload Dog Titles</strong><small>XLSX or CSV · provides awards and title dates</small></span><input id="titles-file" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label><p id="titles-name" class="file-name">Choose the Titles file for the same dog.</p></div>
 <section class="sdda-device-records" aria-label="Saved dog records">
@@ -154,4 +180,47 @@ document.getElementById("sdda-restore-file")?.addEventListener("change",e=>{if(e
     });
   }
 })();
-</script></body></html>
+</script><script id="pwa-tools-script">
+(()=>{'use strict';
+const $=id=>document.getElementById(id), install=$('pwa-install'), check=$('pwa-check'), status=$('pwa-status'), details=$('pwa-details'), help=$('pwa-help');
+let promptEvent=null, registration=null, checking=false;
+const installed=()=>matchMedia('(display-mode:standalone)').matches||matchMedia('(display-mode:fullscreen)').matches||navigator.standalone===true;
+const say=(a,b)=>{status.textContent=a;details.textContent=b||'';};
+function updateInstall(){install.hidden=installed()||(!promptEvent&&!help.dataset.show);}
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();promptEvent=e;install.hidden=installed();});
+window.addEventListener('appinstalled',()=>{promptEvent=null;install.hidden=true;say('App installed.','Open it from your home screen or app list.');});
+install.addEventListener('click',async()=>{
+ if(promptEvent){promptEvent.prompt();await promptEvent.userChoice;promptEvent=null;install.hidden=true;return;}
+ help.hidden=!help.hidden;help.dataset.show=help.hidden?'':'1';install.hidden=installed();
+});
+async function inspect(){
+ if(!('serviceWorker'in navigator)){say('Offline support is not available in this browser.','Use a supported browser and open this app from its HTTPS website.');return;}
+ registration=await navigator.serviceWorker.getRegistration();
+ if(!registration){say('Offline setup has not started yet.','Keep this app open while connected to the internet, then check again.');return;}
+ const active=registration.active||registration.waiting||registration.installing;
+ if(!active){say('Offline setup is still starting.','Keep the app open and check again in a moment.');return;}
+ let entries=0,matching=false;
+ if('caches'in window){for(const key of await caches.keys()){const cache=await caches.open(key);const requests=await cache.keys();entries+=requests.length;if(requests.some(r=>new URL(r.url).origin===location.origin))matching=true;}}
+ if(navigator.onLine){say(matching?'Offline app files are saved on this device.':'Offline support is active; app files are still being prepared.',matching?entries+' cached files found. Open the app sections you use while online so they can be cached.':'Stay connected and leave this page open while files are cached.');}
+ else say(matching?'Offline mode is active; saved app files are available.':'You are offline, but no saved app files were found.','Reconnect and open the app to finish preparing offline use.');
+}
+check.addEventListener('click',async()=>{
+ if(checking)return;checking=true;check.disabled=true;
+ try{
+  registration=await navigator.serviceWorker.getRegistration();
+  if(!navigator.onLine){await inspect();return;}
+  if(!registration&&'serviceWorker'in navigator)registration=await navigator.serviceWorker.register('./sw.js');
+  if(registration){say('Checking for updates…','Please keep this app open.');await registration.update();await new Promise(r=>setTimeout(r,900));}
+  await inspect();
+  if(registration?.waiting){say('An app update is ready.','Reload the app to use the latest version.');}
+ }catch(e){say('Could not check for updates.',e.message||'Try again when connected.');}
+ finally{checking=false;check.disabled=false;}
+});
+window.addEventListener('online',inspect);window.addEventListener('offline',inspect);
+if(installed())install.hidden=true;
+if('serviceWorker'in navigator){navigator.serviceWorker.ready.then(r=>{registration=r;inspect();}).catch(inspect);}
+else inspect();
+updateInstall();
+})();
+</script>
+</body></html>
