@@ -646,7 +646,16 @@ function selectProgressionCombinations(advanced, excellent, stageKey) {
   const isGold = (set) => set.gold && (stageKey !== "mach2" || set.level === "Excellent");
   if (stageKey !== "mach3" && stageKey !== "mach4") replaceFor(isExcellent);
   if (minGold) replaceFor(isGold, true);
-  selected.sort((a, b) => b.total - a.total);
+  // Keep the levels visually separate. Within each level, the title-locked
+  // combination is always first, followed by the remaining combinations by score.
+  const levelOrder = { Advanced: 0, Excellent: 1 };
+  selected.sort((a, b) =>
+    (levelOrder[a.level] ?? 2) - (levelOrder[b.level] ?? 2) ||
+    Number(!!b.titleLocked) - Number(!!a.titleLocked) ||
+    b.total - a.total ||
+    Number(a.container?.sourceRow || 0) - Number(b.container?.sourceRow || 0) ||
+    Number(a.exterior?.sourceRow || 0) - Number(b.exterior?.sourceRow || 0) ||
+    Number(a.interior?.sourceRow || 0) - Number(b.interior?.sourceRow || 0));
   const excellentCount = selected.filter(isExcellent).length;
   const goldCount = selected.filter(isGold).length;
   const met = selected.length >= target && excellentCount >= minExcellent && goldCount >= minGold &&
