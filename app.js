@@ -251,7 +251,7 @@ function maximizeGoldCombinations(level, list = scores, maximum = 10, includeTit
     rank: titleLock.special ? "SP" : 1,
     container: titleLock.parts.Container, interior: titleLock.parts.Interior, exterior: titleLock.parts.Exterior,
     total: titleLock.total, gold: titleLock.gold, special: !!titleLock.special,
-    titleLocked: true, special: !!titleLock.special, lockType: titleLock.special ? "SP" : "Title lock", titleRecorded: !!titleLock.recorded, titleDate: titleLock.date || "",
+    titleLocked: true, lockType: titleLock.special ? "SP" : "Title lock", titleRecorded: !!titleLock.recorded, titleDate: titleLock.date || "",
     level, trial: titleLock.trial || titleLock.parts.Container.trial || ""
   }] : [];
   const remainingLimit = Math.max(0, Math.min(10, Number(maximum) - locked.length));
