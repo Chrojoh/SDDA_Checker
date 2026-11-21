@@ -124,7 +124,8 @@ document.getElementById("sdda-restore-file")?.addEventListener("change",e=>{if(e
   let installPrompt = null;
   const button = document.getElementById("install-app");
   if (!button) return;
-  button.hidden = false;
+  const isInstalledApp = () => window.matchMedia("(display-mode: standalone)").matches || window.matchMedia("(display-mode: fullscreen)").matches || navigator.standalone === true;
+  button.hidden = isInstalledApp();
   window.addEventListener("beforeinstallprompt", event => {
     event.preventDefault();
     installPrompt = event;
@@ -143,8 +144,8 @@ document.getElementById("sdda-restore-file")?.addEventListener("change",e=>{if(e
       : 'To install: open your browser menu (⋮) and choose “Install app” or “Add to Home screen”. If that option is not shown yet, reload this page while online, wait a minute, and check the menu again.');
   });
   window.addEventListener("appinstalled", () => {
-    button.textContent = "App installed";
-    button.disabled = true;
+    button.hidden = true;
+    installPrompt = null;
   });
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
