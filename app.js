@@ -1023,6 +1023,20 @@ function progressionEliteTitleCutoffs(groups) {
   }
   return cutoffs;
 }
+function progressionSingleComponentBlocks(rows, lockedRows = new Set()) {
+  return '<div class="history-component-columns">' + COMPONENTS.map((component) => {
+    const componentRows = rows.filter((row) => row.component === component)
+      .sort((a, b) => a.sourceRow - b.sourceRow);
+    const output = componentRows.map((row) =>
+      '<div class="history-score ' + (lockedRows.has(row.sourceRow) ? 'is-title-lock' : '') + '">' +
+      '<span>' + esc(row.score) + '</span><small>(' + esc(row.trial || "—") + ')</small>' +
+      (lockedRows.has(row.sourceRow) ? '<b>Title lock</b>' : '') + '</div>'
+    ).join("");
+    return '<section class="history-component"><h4>' + esc(component) + '</h4>' +
+      (output || '<p class="run-empty">No scores</p>') + '</section>';
+  }).join("") + '</div>';
+}
+
 function progressionHistoryMarkup(level) {
   // Keep each level's score rows separate. MACH requirements combine selected
   // Advanced and Excellent combinations, but the shared cutoff is only a
@@ -1100,23 +1114,13 @@ function progressionHistoryMarkup(level) {
       '</small></span>').join('');
     return '<div class="history-panel-intro"><p>Historical combinations through the latest verified MACH cutoff. The title-lock combination is shown first; remaining combinations are sorted by total score. Components are not reused.</p>' +
       cutoffSummary + '</div>' +
-      '<div class="historical-combination-rows">' + progressionRunRows(historicalCombinations) + '</div>';
+      '<div class="historical-combination-rows">' + progressionRunRows(historicalCombinations) + '</div>' +
+      '<h4 class="single-component-heading">All historical component scores</h4>' +
+      progressionSingleComponentBlocks(historicalRows, lockedRows);
   }
   if (!historyGroups.length) return '<p class="run-empty">No ' + esc(level) + ' score history is available.</p>';
-  const columns = COMPONENTS.map((component) => {
-    let output = "";
-    for (const group of historyGroups) {
-      const rows = group.rows.filter((row) => row.component === component);
-      output += rows.map((row) => '<div class="history-score ' + (lockedRows.has(row.sourceRow) ? 'is-title-lock' : '') +
-        '"><span>' + esc(row.score) + '</span><small>(' + esc(row.trial || "—") + ')</small>' +
-        (lockedRows.has(row.sourceRow) ? '<b>Title lock</b>' : '') + '</div>').join("");
-      if (cutoffs.has(String(group.trial))) output += '<div class="history-cutoff"><b>' +
-        esc(cutoffs.get(String(group.trial))) + '</b><small>Trial ' + esc(group.trial) + (cutoffDates.has(String(group.trial)) ? ' · ' + esc(dateLabel(cutoffDates.get(String(group.trial)))) : '') +
-        ' · scores through this title date/trial are not carried forward</small></div>';
-    }
-    return '<section class="history-component"><h4>' + esc(component) + '</h4>' +
-      (output || '<p class="run-empty">No scores</p>') + '</section>';
-  }).join("");
+  const historyRows = historyGroups.flatMap((group) => group.rows);
+  const columns = progressionSingleComponentBlocks(historyRows, lockedRows);
   const lockSummary = lock ? '<div class="history-title-lock"><b>' + esc(level) +
     ' title-lock combination</b><div class="history-lock-parts">' + COMPONENTS.map((component) => {
       const part = lock.parts[component];
@@ -1125,7 +1129,7 @@ function progressionHistoryMarkup(level) {
     }).join("") + '</div><strong>Total ' + esc(lock.total) + '</strong></div>' : "";
   return '<div class="history-panel-intro">' + lockSummary +
     '<p>Scores remain in score-file order. Trial numbers in brackets are identifiers, not sort order. Red circles mark the three records permanently locked together for the regular title. Yellow lines mark championship cutoffs only.</p></div>' +
-    '<div class="history-component-columns">' + columns + '</div>';
+    columns;
 }
 function progressionRunRows(sets, isElite = false) {
   const classification = (total) => total >= 192 ? "Gold" : total >= 172 ? "Silver" : total >= 142 ? "Bronze" : total >= 100 ? "Satisfactory" : "Insufficient";
@@ -1195,7 +1199,9 @@ function renderProgressionScoreColumns(activeLedger = currentMachLedgerRows()) {
         '<summary class="progression-card-header"><span class="summary-copy"><strong>' + card.level +
         '</strong><small>' + count + '</small></span><span class="summary-action">Details</span></summary>' +
         '<div class="progression-expanded-body"><section class="progression-current-combinations">' +
-        '<h4>' + (card.elite ? 'Current combinations' : 'Current scores') + '</h4>' + current + '</section>' +
+        '<h4>' + (card.elite ? 'Current combinations' : 'Current combinations') + '</h4>' + current +
+         '<h4 class="single-component-heading">All current component scores</h4>' +
+         progressionSingleComponentBlocks(card.rows) + '</section>' +
         '<section class="progression-history"><h4>' + card.level + ' history</h4>' +
         progressionHistoryMarkup(card.level) + '</section></div></details>';
     }).join("") + '</div>';
