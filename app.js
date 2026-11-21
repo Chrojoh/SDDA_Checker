@@ -1143,36 +1143,21 @@ function progressionRunRows(sets, isElite = false) {
       ' · ' + classification(set.total) + '</strong></div>';
   }).join("") + '</div>';
 }
-function progressionCurrentScoreRows(rows, level, titleLock = null) {
-  const lockedRows = new Set(titleLock
-    ? COMPONENTS.map((component) => titleLock.parts[component].sourceRow)
-    : []);
-  const entries = rows.filter((row) => row.level === level && !lockedRows.has(row.sourceRow))
-    .sort((a, b) => a.sourceRow - b.sourceRow);
-  // A title/SP lock is a complete, permanently reserved combination. Show it
-  // as the first score row, then list only component scores still available.
-  const lockRow = titleLock ? progressionRunRows([{
-    container: titleLock.parts.Container,
-    exterior: titleLock.parts.Exterior,
-    interior: titleLock.parts.Interior,
-    total: titleLock.total,
-    gold: titleLock.gold,
-    special: titleLock.special,
-    titleLocked: true,
-    level,
-    trial: titleLock.trial
-  }]) : "";
-  // Keep one component column per search area and retain score-file order.
-  const columns = '<div class="history-component-columns">' + COMPONENTS.map((component) => {
-    const componentRows = entries.filter((row) => row.component === component);
-    const output = componentRows.map((row) =>
-      '<div class="history-score"><span>' + esc(row.score) + '</span><small>(' +
-      esc(row.trial || "—") + ')</small></div>'
-    ).join("");
-    return '<section class="history-component"><h4>' + esc(component) + '</h4>' +
-      output + '</section>';
-  }).join("") + '</div>';
-  return lockRow + columns;
+function progressionCurrentScoreRows(sets, level) {
+  const qualifying = sets.filter((set) => set.total >= 100);
+  if (!qualifying.length) return '<p class="run-empty">No qualifying combinations yet.</p>';
+  const label = (set, index) => set.special ? "SP" : set.titleLocked ? "Title lock" : "#" + (set.rank || index + 1);
+  const score = (part) => part ? esc(part.score) + ' <small>(' + esc(part.trial || "—") + ')</small>' : "—";
+  // One compact row per combination. The component initials are the column
+  // headers, so component names are not repeated inside every score row.
+  return '<div class="progression-compact-table-wrap"><table class="progression-compact-table">' +
+    '<thead><tr><th>Combination</th><th title="Container">C</th><th title="Exterior">E</th><th title="Interior">I</th><th>Total</th></tr></thead>' +
+    '<tbody>' + qualifying.map((set, index) =>
+      '<tr class="' + (set.gold ? "gold" : "") + (set.titleLocked || set.special ? " locked-score-row" : "") + '">' +
+      '<th scope="row">' + label(set, index) + '</th>' +
+      '<td>' + score(set.container) + '</td><td>' + score(set.exterior) + '</td>' +
+      '<td>' + score(set.interior) + '</td><td><strong>' + esc(set.total) + '</strong></td></tr>'
+    ).join("") + '</tbody></table></div>';
 }
 
 function renderProgressionScoreColumns(activeLedger = currentMachLedgerRows()) {
@@ -1205,7 +1190,7 @@ function renderProgressionScoreColumns(activeLedger = currentMachLedgerRows()) {
         ? progressionRunRows(card.sets, true)
         : !activeLedger.verified
           ? '<p class="run-empty">Current scores are withheld until the recorded MACH cutoff can be verified.</p>'
-          : progressionCurrentScoreRows(card.rows, card.level, currentTitleLock);
+          : progressionCurrentScoreRows(card.sets, card.level);
       return '<details class="progression-score-column title-accordion ' + card.accent + '">' +
         '<summary class="progression-card-header"><span class="summary-copy"><strong>' + card.level +
         '</strong><small>' + count + '</small></span><span class="summary-action">Details</span></summary>' +
