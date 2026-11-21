@@ -1163,20 +1163,32 @@ function progressionCurrentScoreRows(sets, level, rows = []) {
     '<td>' + score(set.container) + '</td><td>' + score(set.exterior) + '</td>' +
     '<td>' + score(set.interior) + '</td><td><strong>' + esc(set.total) + '</strong></td></tr>'
   );
-  // Scores that are not part of a qualifying three-component combination
-  // still belong in the current ledger. Show each once as a single-component row.
-  const individualRows = rows.filter((row) => row.level === level && !usedSourceRows.has(String(row.sourceRow)))
+
+  // Pair remaining scores in score-export order. A new score fills the oldest
+  // partial row that is missing its component, even when the trials differ.
+  // A repeated component starts a new row instead of overwriting an older score.
+  const pendingRows = [];
+  rows.filter((row) => row.level === level && !usedSourceRows.has(String(row.sourceRow)))
     .sort((a, b) => a.sourceRow - b.sourceRow)
-    .map((row) => '<tr class="single-component-row">' +
-      '<th scope="row">Single score</th>' +
-      '<td>' + (row.component === "Container" ? score(row) : "—") + '</td>' +
-      '<td>' + (row.component === "Exterior" ? score(row) : "—") + '</td>' +
-      '<td>' + (row.component === "Interior" ? score(row) : "—") + '</td>' +
-      '<td><span class="single-score-note">Not yet combined</span></td></tr>');
-  if (!combinationRows.length && !individualRows.length) return '<p class="run-empty">No current component scores yet.</p>';
+    .forEach((row) => {
+      let target = pendingRows.find((partial) => !partial.parts[row.component]);
+      if (!target) {
+        target = { firstSourceRow: row.sourceRow, parts: {} };
+        pendingRows.push(target);
+      }
+      target.parts[row.component] = row;
+    });
+  const partialRows = pendingRows.sort((a, b) => a.firstSourceRow - b.firstSourceRow)
+    .map((partial) => '<tr class="single-component-row">' +
+      '<th scope="row">Partial</th>' +
+      '<td>' + score(partial.parts.Container) + '</td>' +
+      '<td>' + score(partial.parts.Exterior) + '</td>' +
+      '<td>' + score(partial.parts.Interior) + '</td>' +
+      '<td><span class="single-score-note">Waiting for component</span></td></tr>');
+  if (!combinationRows.length && !partialRows.length) return '<p class="run-empty">No current component scores yet.</p>';
   return '<div class="progression-compact-table-wrap"><table class="progression-compact-table">' +
     '<thead><tr><th>Combination</th><th title="Container">C</th><th title="Exterior">E</th><th title="Interior">I</th><th>Total</th></tr></thead>' +
-    '<tbody>' + combinationRows.join("") + individualRows.join("") + '</tbody></table></div>';
+    '<tbody>' + combinationRows.join("") + partialRows.join("") + '</tbody></table></div>';
 }
 function renderProgressionScoreColumns(activeLedger = currentMachLedgerRows()) {
   const advancedRows = activeLedger.verified ? activeLedger.rows.filter((row) => row.level === "Advanced") : [];
