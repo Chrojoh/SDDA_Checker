@@ -125,11 +125,7 @@ document.getElementById("sdda-restore-file")?.addEventListener("change",e=>{if(e
   const button = document.getElementById("install-app");
   if (!button) return;
   const isInstalledApp = () => window.matchMedia("(display-mode: standalone)").matches || window.matchMedia("(display-mode: fullscreen)").matches || navigator.standalone === true;
-  if (isInstalledApp()) {
-    button.hidden = true;
-    return;
-  }
-  button.hidden = false;
+  button.hidden = isInstalledApp();
   window.addEventListener("beforeinstallprompt", event => {
     event.preventDefault();
     installPrompt = event;
