@@ -1094,14 +1094,14 @@ function progressionHistoryMarkup(level) {
     }
   } else if (level === "Elite") progressionEliteTitleCutoffs(groups).forEach((label, trial) => cutoffs.set(trial, label));
 
-  // Advanced and Excellent scores become historical only once a MACH
-  // cutoff has actually been reconstructed and verified. Without a verified
-  // cutoff, every score remains current and this history panel stays empty.
+  // Advanced and Excellent scores become historical only after a verified
+  // MACH cutoff. An individual Advanced/Excellent title lock does not create
+  // a historical section; without a MACH cutoff, all scores remain current.
   const isMachLevel = level === "Advanced" || level === "Excellent";
   const allMachGroups = isMachLevel ? (machTrialGroups() || []) : [];
-  if (isMachLevel && !cutoffs.size && !lock) {
+  if (isMachLevel && !cutoffs.size) {
     return '<p class="run-empty">No historical ' + esc(level) +
-      ' scores yet. Scores remain current until a title lock or verified MACH cutoff is established.</p>';
+      ' scores yet. Scores remain current until a verified MACH cutoff is established.</p>';
   }
 
   // If this level has no score in the exact MACH title trial, add an empty
