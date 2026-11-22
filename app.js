@@ -186,25 +186,48 @@ function firstCompletedTitleSet(level, list = scores) {
     // Its locked records must therefore all carry this same trial number.
     const special = COMPONENTS.every((component) =>
       groupRows.some((row) => row.component === component && validComponentScore(level, component, row.score)));
-    const eligibleRows = special ? groupRows : historyThroughCompletion;
-    const parts = Object.fromEntries(COMPONENTS.map((component) => [
-      component,
-      eligibleRows.filter((row) => row.component === component)
-        .sort((a, b) => b.score - a.score || a.sourceRow - b.sourceRow)[0]
-    ]));
-    if (!COMPONENTS.every((component) => parts[component])) return null;
-
-    // A regular title is a cross-trial combination. Do not classify an
-    // all-same-trial set as regular.
-    const sameTrial = COMPONENTS.every((component) =>
-      String(parts[component].trial || "") === String(parts.Container.trial || ""));
-    if (!special && sameTrial) return null;
-
+    let parts;
+    if (special) {
+      // The SP title is tied to the completion trial: select its best passing
+      // score in each component so all three locked trial numbers match.
+      parts = Object.fromEntries(COMPONENTS.map((component) => [
+        component,
+        groupRows.filter((row) => row.component === component && validComponentScore(level, component, row.score))
+          .sort((a, b) => b.score - a.score || a.sourceRow - b.sourceRow)[0]
+      ]));
+    } else {
+      // Regular titles use the highest-scoring combination through the
+      // completion trial, but the three selected scores cannot all be from
+      // one trial. Pair Container/Exterior, then choose the best Interior
+      // that keeps the combination cross-trial.
+      const ranked = Object.fromEntries(COMPONENTS.map((component) => [
+        component,
+        historyThroughCompletion.filter((row) => row.component === component)
+          .sort((a, b) => b.score - a.score || a.sourceRow - b.sourceRow)
+      ]));
+      let best = null;
+      for (const container of ranked.Container) {
+        for (const exterior of ranked.Exterior) {
+          const interior = ranked.Interior.find((row) =>
+            String(row.trial || "") !== String(container.trial || "") ||
+            String(row.trial || "") !== String(exterior.trial || ""));
+          if (!interior) continue;
+          const candidate = { Container: container, Exterior: exterior, Interior: interior };
+          const total = container.score + exterior.score + interior.score;
+          if (!best || total > best.total ||
+              (total === best.total && [container.sourceRow, exterior.sourceRow, interior.sourceRow]
+                .join(":").localeCompare(best.tie) < 0)) {
+            best = { parts: candidate, total, tie: [container.sourceRow, exterior.sourceRow, interior.sourceRow].join(":") };
+          }
+        }
+      }
+      parts = best?.parts || null;
+    }
+    if (!parts || !COMPONENTS.every((component) => parts[component])) return null;
     const total = COMPONENTS.reduce((sum, component) => sum + parts[component].score, 0);
     return {
-      level, trial: special ? group.trial : group.trial, parts, total,
-      gold: total >= 192, special, completionTrial: group.trial,
-      eligibleRows: [...historyThroughCompletion]
+      level, trial: group.trial, parts, total, gold: total >= 192, special,
+      completionTrial: group.trial, eligibleRows: [...historyThroughCompletion]
     };
   }
   return null;
