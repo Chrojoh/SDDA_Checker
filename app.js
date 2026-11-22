@@ -173,26 +173,32 @@ function chronologicalTrialGroups(level, list = scores) {
 
 function firstCompletedTitleSet(level, list = scores) {
   if (level !== "Advanced" && level !== "Excellent") return null;
-  const groups = chronologicalTrialGroups(level, list), seen = [], passed = new Set();
+  const groups = chronologicalTrialGroups(level, list), historyThroughCompletion = [], passed = new Set();
   for (const group of groups) {
     const groupRows = [...group.rows].sort((a, b) => a.sourceRow - b.sourceRow);
-    const newlyPassedRows = groupRows.filter((row) => !passed.has(row.component));
     const componentsHere = new Set(groupRows.map((row) => row.component));
-    seen.push(...groupRows);
+    historyThroughCompletion.push(...groupRows);
     groupRows.forEach((row) => passed.add(row.component));
+    // The completion trial is the first trial which supplies the third
+    // previously unseen component. All scores through this trial are eligible.
     if (!COMPONENTS.every((component) => passed.has(component))) continue;
-    const completionRow = newlyPassedRows[newlyPassedRows.length - 1];
-    if (!completionRow) return null;
-    const special = COMPONENTS.every((component) => componentsHere.has(component));
-    const parts = Object.fromEntries(COMPONENTS.map((component) => {
-      const eligible = special || component === completionRow.component ? groupRows : seen;
-      return [component, eligible.filter((row) => row.component === component)
-        .sort((a, b) => b.score - a.score || a.sourceRow - b.sourceRow)[0]];
-    }));
+    const parts = Object.fromEntries(COMPONENTS.map((component) => [
+      component,
+      historyThroughCompletion
+        .filter((row) => row.component === component)
+        .sort((a, b) => b.score - a.score || a.sourceRow - b.sourceRow)[0]
+    ]));
     if (!COMPONENTS.every((component) => parts[component])) return null;
     const total = COMPONENTS.reduce((sum, component) => sum + parts[component].score, 0);
-    return { level, trial: group.trial, parts, total, gold: total >= 192, special,
-      completionComponent: completionRow.component, completionTrial: group.trial, eligibleRows: [...seen] };
+    // SP is determined by the completion trial itself: it must contain a
+    // passing score in every component. The locked score combination is still
+    // the highest-scoring combination available through that trial.
+    const special = COMPONENTS.every((component) =>
+      groupRows.some((row) => row.component === component));
+    return {
+      level, trial: group.trial, parts, total, gold: total >= 192, special,
+      completionTrial: group.trial, eligibleRows: [...historyThroughCompletion]
+    };
   }
   return null;
 }
@@ -372,7 +378,9 @@ function inferredTitles() {
         break;
       }
     }
-    const scoringRows = special ? completionGroup.rows : seen;
+    // The title score is the best combination available through the
+    // chronological completion trial, whether the award is regular or SP.
+    const scoringRows = seen;
     const best = Object.fromEntries(COMPONENTS.map((component) => [component, Math.max(...scoringRows.filter((row) => row.component === component).map((row) => row.score))]));
     const completed = completionGroup?.rows[completionGroup.rows.length - 1];
     inferred.push({
@@ -1062,9 +1070,9 @@ function progressionHistoryMarkup(level) {
   // cutoff, every score remains current and this history panel stays empty.
   const isMachLevel = level === "Advanced" || level === "Excellent";
   const allMachGroups = isMachLevel ? (machTrialGroups() || []) : [];
-  if (isMachLevel && !cutoffs.size) {
+  if (isMachLevel && !cutoffs.size && !lock) {
     return '<p class="run-empty">No historical ' + esc(level) +
-      ' scores yet. Scores remain current until a MACH cutoff is met and verified.</p>';
+      ' scores yet. Scores remain current until a title lock or verified MACH cutoff is established.</p>';
   }
 
   // If this level has no score in the exact MACH title trial, add an empty
