@@ -1060,14 +1060,14 @@ function progressionEliteTitleCutoffs(groups) {
   }
   return cutoffs;
 }
-function progressionSingleComponentBlocks(rows, lockedRows = new Set()) {
+function progressionSingleComponentBlocks(rows, lockedRows = new Set(), lockLabel = "Title lock") {
   return '<div class="history-component-columns">' + COMPONENTS.map((component) => {
     const componentRows = rows.filter((row) => row.component === component)
       .sort((a, b) => a.sourceRow - b.sourceRow);
     const output = componentRows.map((row) =>
       '<div class="history-score ' + (lockedRows.has(row.sourceRow) ? 'is-title-lock' : '') + '">' +
       '<span>' + esc(row.score) + '</span><small>(' + esc(row.trial || "—") + ')</small>' +
-      (lockedRows.has(row.sourceRow) ? '<b>Title lock</b>' : '') + '</div>'
+      (lockedRows.has(row.sourceRow) ? '<b>' + esc(lockLabel) + '</b>' : '') + '</div>'
     ).join("");
     return '<section class="history-component"><h4>' + esc(component) + '</h4>' +
       (output || '<p class="run-empty">No scores</p>') + '</section>';
@@ -1153,11 +1153,11 @@ function progressionHistoryMarkup(level) {
       cutoffSummary + '</div>' +
       '<div class="historical-combination-rows">' + progressionRunRows(historicalCombinations) + '</div>' +
       '<h4 class="single-component-heading">All historical component scores</h4>' +
-      progressionSingleComponentBlocks(historicalRows, lockedRows);
+      progressionSingleComponentBlocks(historicalRows, lockedRows, lock?.special ? "SP title" : "Regular title");
   }
   if (!historyGroups.length) return '<p class="run-empty">No ' + esc(level) + ' score history is available.</p>';
   const historyRows = historyGroups.flatMap((group) => group.rows);
-  const columns = progressionSingleComponentBlocks(historyRows, lockedRows);
+  const columns = progressionSingleComponentBlocks(historyRows, lockedRows, lock?.special ? "SP title" : "Regular title");
   const lockSummary = lock ? '<div class="history-title-lock"><b>' + esc(level) +
     ' title-lock combination</b><div class="history-lock-parts">' + COMPONENTS.map((component) => {
       const part = lock.parts[component];
@@ -1165,7 +1165,7 @@ function progressionHistoryMarkup(level) {
         ' (' + esc(part.trial || "—") + ')</em></span>';
     }).join("") + '</div><strong>Total ' + esc(lock.total) + '</strong></div>' : "";
   return '<div class="history-panel-intro">' + lockSummary +
-    '<p>Scores remain in score-file order. Trial numbers in brackets are identifiers, not sort order. Red circles mark the three records permanently locked together for the regular title. Yellow lines mark championship cutoffs only.</p></div>' +
+    '<p>Scores remain in score-file order. Trial numbers in brackets are identifiers, not sort order. Red circles mark the three records permanently locked together for the earned title (SP or regular). Yellow lines mark championship cutoffs only.</p></div>' +
     columns;
 }
 function progressionRunRows(sets, isElite = false) {
