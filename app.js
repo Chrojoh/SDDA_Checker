@@ -388,11 +388,28 @@ function eliteSets(list = scores) {
 function inferredTitles() {
   const inferred = [];
   for (const level of ["Started", "Advanced", "Excellent"]) {
+    // Advanced and Excellent use the same completion-trial selection as the
+    // historical title lock: SP takes all three passing scores from the
+    // trial that supplied the third component; regular titles use the best
+    // eligible cross-trial combination through that point.
+    if (level === "Advanced" || level === "Excellent") {
+      const completed = firstCompletedTitleSet(level);
+      if (!completed) continue;
+      const completionRows = chronologicalTrialGroups(level, scores)
+        .find((group) => String(group.trial) === String(completed.completionTrial))?.rows || [];
+      const completionRow = [...completionRows].sort((a, b) => a.sourceRow - b.sourceRow).at(-1);
+      inferred.push({
+        description: `${level}${completed.special ? " Special" : ""}`,
+        honours: completed.special && completed.trial ? `Same-trial completion · Trial ${completed.trial}` : "",
+        score: completed.total,
+        date: completionRow?.date || "",
+        calculated: true
+      });
+      continue;
+    }
+
     const rows = byLevel(level);
     if (!COMPONENTS.every((component) => rows.some((row) => row.component === component))) continue;
-    // Use the score export's top-to-bottom chronological order. Trial Number
-    // values are identifiers, not sortable timestamps; group repeated rows
-    // even when the same trial appears in non-adjacent rows.
     const groups = chronologicalTrialGroups(level, rows);
     const seen = [], passed = new Set();
     let completionGroup = null, special = false;
@@ -407,8 +424,6 @@ function inferredTitles() {
         break;
       }
     }
-    // The title score is the best combination available through the
-    // chronological completion trial, whether the award is regular or SP.
     const scoringRows = seen;
     const best = Object.fromEntries(COMPONENTS.map((component) => [component, Math.max(...scoringRows.filter((row) => row.component === component).map((row) => row.score))]));
     const completed = completionGroup?.rows[completionGroup.rows.length - 1];
@@ -424,7 +439,6 @@ function inferredTitles() {
   if (elite) inferred.push({ description: "Elite", honours: elite.trial ? `Same-trial set · Trial ${elite.trial}` : "Same-trial set", score: elite.total, date: elite.date || "", calculated: true });
   return inferred;
 }
-
 function displayedTitles() { return titles.length ? titles.map((title) => ({ ...title, calculated: false })) : inferredTitles(); }
 
 
