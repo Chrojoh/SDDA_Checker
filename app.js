@@ -1824,7 +1824,8 @@ async function downloadPdfReport() {
     const drawHeader = (continued = false) => {
       page.drawRectangle({ x: margin, y: y - sectionHeight, width: tableWidth, height: sectionHeight, color: rgb(.13, .37, .27), borderColor: rgb(.08, .24, .17), borderWidth: 1 });
       const label = `${title}${continued ? " (continued)" : ""}`;
-      page.drawText(label, { x: margin + 7, y: y - 16, size: 8.5, font: bold, color: rgb(1, 1, 1) });
+      const titleSize = Math.min(8.5, 520 / Math.max(1, bold.widthOfTextAtSize(label, 8.5)) * 8.5);
+      page.drawText(label, { x: margin + 7, y: y - 16, size: titleSize, font: bold, color: rgb(1, 1, 1) });
       y -= sectionHeight;
       drawCells(headers, headerHeight, rgb(.89, .92, .90), true);
     };
@@ -1901,7 +1902,7 @@ async function downloadPdfReport() {
   const activePdfLedger = currentMachLedgerRows();
     const pdfGrade = total => total >= 192 ? "Gold" : total >= 172 ? "Silver" :
     total >= 142 ? "Bronze" : total >= 100 ? "Satisfactory" : "Insufficient";
-  const pdfScore = part => part ? `${part.score} (${part.trial || "—"})` : "—";
+  const pdfScore = (part, fallbackTrial) => part ? `${part.score} (${part.trial || fallbackTrial || "—"})` : "—";
   const pdfMachStages = [
     { key: "mach", label: "MACH" },
     { key: "mach2", label: "MACH2" },
@@ -2001,7 +2002,7 @@ async function downloadPdfReport() {
     });
     const rows = sorted.map((set, index) => [
       lockTrial && Number(set.trial) === lockTrial ? "Title lock" : `Combination ${index + 1}`,
-      pdfScore(set.parts.Container), pdfScore(set.parts.Exterior), pdfScore(set.parts.Interior),
+      pdfScore(set.parts.Container, set.trial), pdfScore(set.parts.Exterior, set.trial), pdfScore(set.parts.Interior, set.trial),
       pdfGrade(set.total), set.total
     ]);
     const used = new Set(sorted.flatMap(set => COMPONENTS.map(component => String(set.parts[component].sourceRow))));
