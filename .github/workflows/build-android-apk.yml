@@ -1,0 +1,72 @@
+name: Build SDDA Ledger Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "mobile-v2.html"
+      - "app.js"
+      - "styles.css"
+      - "games.css"
+      - "mobile-dashboard.css"
+      - "manifest.webmanifest"
+      - "sw.js"
+      - "vendor/**"
+      - "icons/**"
+      - "package.json"
+      - "capacitor.config.json"
+      - "scripts/prepare-android-web.mjs"
+      - ".github/workflows/build-android-apk.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out mobile app
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Install Capacitor dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Prepare mobile app assets
+        run: npm run prepare:web
+
+      - name: Generate Android project
+        run: npx cap add android
+
+      - name: Sync bundled mobile app
+        run: npx cap sync android
+
+      - name: Build installable debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SDDA-Achievement-Ledger-Android-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
