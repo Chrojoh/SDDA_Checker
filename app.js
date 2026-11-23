@@ -1793,13 +1793,49 @@ async function downloadPdfReport() {
   }
   function heading(value, size = 15) { if (y < 90) newPage(); y -= 5; text(value, { size, bold: true, color: rgb(.13, .37, .27), leading: size + 4, after: 4 }); }
   function scoreTable(title, rows) {
-    const headers = ["Combination / Trial", "Container", "Exterior", "Interior", "Total", "Classification"];
-    const widths = [130, 70, 70, 70, 60, 120], tableWidth = widths.reduce((sum, width) => sum + width, 0), rowHeight = 19, sectionHeight = 23, headerHeight = 21;
-    const drawCells = (values, height, fill, header = false) => { let x = margin; values.forEach((value, index) => { page.drawRectangle({ x, y: y - height, width: widths[index], height, color: fill, borderColor: rgb(.42, .48, .44), borderWidth: .8 }); const cellFont = header ? bold : index === 0 || index === 5 ? bold : regular, size = header ? 7.5 : 8.5, safe = String(value ?? "").replace(/[^\x20-\x7E]/g, " "), textWidth = cellFont.widthOfTextAtSize(safe, size); page.drawText(safe, { x: index > 0 ? x + Math.max(4, (widths[index] - textWidth) / 2) : x + 6, y: y - height + 6, size, font: cellFont, color: rgb(.10, .14, .12) }); x += widths[index]; }); y -= height; };
-    const drawHeader = (continued = false) => { page.drawRectangle({ x: margin, y: y - sectionHeight, width: tableWidth, height: sectionHeight, color: rgb(.13, .37, .27), borderColor: rgb(.08, .24, .17), borderWidth: 1 }); page.drawText(`${title}${continued ? " (continued)" : ""}`, { x: margin + 7, y: y - 16, size: 10, font: bold, color: rgb(1, 1, 1) }); y -= sectionHeight; drawCells(headers, headerHeight, rgb(.89, .92, .90), true); };
-    if (y < 52 + sectionHeight + headerHeight + rowHeight) newPage(); drawHeader();
-    const tableRows = rows.length ? rows : [["No current scores", "-", "-", "-", "-", "-"]];
-    for (const row of tableRows) { if (y < 52 + rowHeight) { newPage(); drawHeader(true); } drawCells(row, rowHeight, row[5] === "Gold" ? rgb(1, .96, .84) : rgb(1, 1, 1)); }
+    const headers = ["Combination", "C", "E", "I", "Grade", "Total"];
+    const widths = [130, 70, 70, 70, 80, 100], tableWidth = widths.reduce((sum, width) => sum + width, 0), rowHeight = 25, sectionHeight = 23, headerHeight = 21;
+    const drawCells = (values, height, fill, header = false) => {
+      let x = margin;
+      values.forEach((value, index) => {
+        page.drawRectangle({ x, y: y - height, width: widths[index], height, color: fill, borderColor: rgb(.42, .48, .44), borderWidth: .8 });
+        const raw = String(value ?? "").replace(/[^\\x20-\\x7E]/g, " ");
+        if (!header && index >= 1 && index <= 3) {
+          const match = raw.match(/^(.*?)\\s*\\(([^)]+)\\)$/);
+          if (match) {
+            const score = match[1].trim(), trial = "(" + match[2].trim() + ")";
+            const scoreWidth = regular.widthOfTextAtSize(score, 8.5), trialWidth = regular.widthOfTextAtSize(trial, 7);
+            page.drawText(score, { x: x + Math.max(3, (widths[index] - scoreWidth) / 2), y: y - 11, size: 8.5, font: regular, color: rgb(.10, .14, .12) });
+            page.drawText(trial, { x: x + Math.max(3, (widths[index] - trialWidth) / 2), y: y - 20, size: 7, font: regular, color: rgb(.38, .42, .40) });
+          } else {
+            const w = regular.widthOfTextAtSize(raw, 8);
+            page.drawText(raw, { x: x + Math.max(3, (widths[index] - w) / 2), y: y - 16, size: 8, font: regular, color: rgb(.10, .14, .12) });
+          }
+        } else {
+          const font = header || index === 0 || index >= 4 ? bold : regular;
+          const size = header ? 7.5 : 8;
+          const w = font.widthOfTextAtSize(raw, size);
+          page.drawText(raw, { x: index > 0 ? x + Math.max(3, (widths[index] - w) / 2) : x + 6, y: y - height + 9, size, font, color: rgb(.10, .14, .12) });
+        }
+        x += widths[index];
+      });
+      y -= height;
+    };
+    const drawHeader = (continued = false) => {
+      page.drawRectangle({ x: margin, y: y - sectionHeight, width: tableWidth, height: sectionHeight, color: rgb(.13, .37, .27), borderColor: rgb(.08, .24, .17), borderWidth: 1 });
+      const label = `${title}${continued ? " (continued)" : ""}`;
+      page.drawText(label, { x: margin + 7, y: y - 16, size: 8.5, font: bold, color: rgb(1, 1, 1) });
+      y -= sectionHeight;
+      drawCells(headers, headerHeight, rgb(.89, .92, .90), true);
+    };
+    if (y < 52 + sectionHeight + headerHeight + rowHeight) newPage();
+    drawHeader();
+    const tableRows = rows.length ? rows : [["No scores in this block", "—", "—", "—", "—", "—"]];
+    for (const row of tableRows) {
+      if (y < 52 + rowHeight) { newPage(); drawHeader(true); }
+      const fill = row[4] === "Gold" ? rgb(1, .96, .84) : row[0] === "Unmatched" ? rgb(.95, .96, .95) : rgb(1, 1, 1);
+      drawCells(row, rowHeight, fill);
+    }
     y -= 10;
   }
   newPage();
@@ -1863,69 +1899,123 @@ async function downloadPdfReport() {
   // championship blocks below show the exact combinations selected at each
   // verified MACH cutoff, in chronological order.
   const activePdfLedger = currentMachLedgerRows();
-  const historicalMachStages = chronologicalMachStory().stages || [];
-  const pdfRowsForSets = (sets) => [...sets]
-    // Keep the recorded regular-title combination visibly locked at the top
-    // of its historical block; the remaining rows are the optimizer's
-    // maximized combinations in their selected order.
-    .sort((a, b) => Number(!!b.titleLocked) - Number(!!a.titleLocked))
-    .map((set, index) => [
-      set.titleLocked ? "Title locked" : set.special ? "SP" : `Combination ${set.rank || index + 1}`,
-      componentWithTrial(set.container),
-      componentWithTrial(set.exterior),
-      componentWithTrial(set.interior),
-      set.total,
-      classification(set.total)
-    ]);
-  // The combination optimizer only returns complete three-component sets.
-  // Keep every remaining current component visible as its own partial row,
-  // including components that cannot yet form a qualifying combination.
-  const pdfCurrentRows = (level, combinations, sourceRows) => {
-    const rows = pdfRowsForSets(combinations);
-    const usedSourceRows = new Set();
-    combinations.forEach((set) => COMPONENTS.forEach((component) => {
-      const part = set[component.toLowerCase()];
-      if (part && part.sourceRow != null) usedSourceRows.add(part.sourceRow);
-    }));
-    const partialScores = sourceRows
-      .filter((score) => score.level === level && !usedSourceRows.has(score.sourceRow))
-      .sort((a, b) => (Number(a.sourceRow) || 0) - (Number(b.sourceRow) || 0));
-    if (partialScores.length) {
-      const cells = ["Partial", "-", "-", "-", "—", "—"];
-      const componentIndexes = { Container: 1, Exterior: 2, Interior: 3 };
-      partialScores.forEach((score) => {
-        const componentIndex = componentIndexes[score.component];
-        if (componentIndex) {
-          cells[componentIndex] = cells[componentIndex] === "-"
-            ? componentWithTrial(score)
-            : `${cells[componentIndex]}, ${componentWithTrial(score)}`;
-        }
-      });
-      rows.push(cells);
+    const pdfGrade = total => total >= 192 ? "Gold" : total >= 172 ? "Silver" :
+    total >= 142 ? "Bronze" : total >= 100 ? "Satisfactory" : "Insufficient";
+  const pdfScore = part => part ? `${part.score} (${part.trial || "—"})` : "—";
+  const pdfMachStages = [
+    { key: "mach", label: "MACH" },
+    { key: "mach2", label: "MACH2" },
+    { key: "mach3", label: "MACH3" },
+    { key: "mach4", label: "MACH4" }
+  ];
+  function pdfMachBlock(level, stageIndex) {
+    const stage = pdfMachStages[stageIndex];
+    const groups = machTrialGroups();
+    if (!groups) return null;
+    const prior = stageIndex > 0 ? machCutoffRowForTitle(pdfMachStages[stageIndex - 1].key) : null;
+    const own = machCutoffRowForTitle(stage.key);
+    if (championshipTitle(stage.key) && !own) {
+      return { title: `${stage.label} — ${level} — cutoff unverified`, rows: [["Cutoff unverified", "—", "—", "—", "—", "—"]] };
     }
-    return rows;
-  };
-
+    if (stageIndex > 0 && !prior) return null;
+    const startIndex = stageIndex === 0 ? 0 : prior.index + 1;
+    const endIndex = own ? own.index : groups.length - 1;
+    const blockRows = endIndex >= startIndex
+      ? groups.slice(startIndex, endIndex + 1).flatMap(group => group.rows).filter(row => row.level === level)
+      : [];
+    const titleLock = stageIndex === 0 ? titleLockForLevel(level, blockRows) : null;
+    const lockedSources = new Set(titleLock ? COMPONENTS.map(component => String(titleLock.parts[component].sourceRow)) : []);
+    const columns = Object.fromEntries(COMPONENTS.map(component => [
+      component,
+      blockRows.filter(row => row.component === component && !lockedSources.has(String(row.sourceRow)))
+        .sort((a, b) => b.score - a.score || a.sourceRow - b.sourceRow)
+    ]));
+    const slots = 10 - (titleLock ? 1 : 0);
+    const rowCount = (titleLock ? 1 : 0) + Math.min(slots, Math.max(0, ...COMPONENTS.map(component => columns[component].length)));
+    const rows = [];
+    for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+      const isLock = !!titleLock && rowIndex === 0;
+      const position = isLock ? null : rowIndex - (titleLock ? 1 : 0);
+      const parts = isLock ? titleLock.parts : Object.fromEntries(COMPONENTS.map(component => [
+        component, position >= 0 && position < slots ? columns[component][position] || null : null
+      ]));
+      if (!COMPONENTS.some(component => !!parts[component])) continue;
+      const complete = COMPONENTS.every(component => !!parts[component]);
+      const total = complete ? COMPONENTS.reduce((sum, component) => sum + Number(parts[component].score || 0), 0) : null;
+      const label = isLock ? (titleLock.special ? "SP title lock" : "Title lock") :
+        complete ? `Combination ${position + (titleLock ? 2 : 1)}` : "Unmatched";
+      rows.push([label, pdfScore(parts.Container), pdfScore(parts.Exterior), pdfScore(parts.Interior),
+        complete ? pdfGrade(total) : "—", complete ? total : "—"]);
+    }
+    const extras = COMPONENTS.map(component => columns[component].slice(slots));
+    const extraRows = Math.max(0, ...extras.map(items => items.length));
+    for (let index = 0; index < extraRows; index++) {
+      rows.push(["Unmatched", ...COMPONENTS.map((component, componentIndex) => pdfScore(extras[componentIndex][index])), "—", "—"]);
+    }
+    const count = component => blockRows.filter(row => row.component === component).length;
+    const cutoff = stageIndex === 0 ? own : prior;
+    const cutoffText = cutoff ? `cutoff ${dateLabel(cutoff.date)} · Trial ${cutoff.trial}` : "in progress";
+    return { title: `${stage.label} · ${level} · C ${count("Container")} E ${count("Exterior")} I ${count("Interior")} · ${cutoffText}`, rows };
+  }
   for (const level of ["Advanced", "Excellent"]) {
-    const currentCombinations = activePdfLedger.verified
-      ? maximizeGoldCombinations(level, activePdfLedger.rows)
-      : [];
-    const currentRows = activePdfLedger.verified
-      ? pdfCurrentRows(level, currentCombinations, activePdfLedger.rows)
-      : [];
-    scoreTable(`${level} — Current scores`, currentRows);
-
-    for (const stage of historicalMachStages) {
-      if (!stage.completion || !machCutoffRowForTitle(stage.key)) continue;
-      const historicalSets = level === "Advanced"
-        ? stage.completion.advanced
-        : stage.completion.excellent;
-      if (!historicalSets.length) continue;
-      scoreTable(`${level} — ${stage.name} historical block`, pdfRowsForSets(historicalSets));
+    for (let stageIndex = 0; stageIndex < pdfMachStages.length; stageIndex++) {
+      const block = pdfMachBlock(level, stageIndex);
+      if (block) scoreTable(block.title, block.rows);
     }
   }
-  const eliteCombinations = eliteSets();
-  scoreTable("Elite - same-trial sets", eliteCombinations.map((set, index) => [`Elite ${index + 1}`, componentWithTrial(set.parts.Container), componentWithTrial(set.parts.Exterior), componentWithTrial(set.parts.Interior), set.total, classification(set.total)]));
+
+  const pdfEliteStages = [
+    { key: "elch", label: "ELCH" },
+    { key: "elch2", label: "ELCH2" },
+    { key: "elch3", label: "ELCH3" },
+    { key: "elch4", label: "ELCH4" }
+  ];
+  for (let stageIndex = 0; stageIndex < pdfEliteStages.length; stageIndex++) {
+    const stage = pdfEliteStages[stageIndex];
+    const baseTitle = stageIndex === 0 ? findTitle(/^Elite(?:\\s|$)/i) : championshipTitle(pdfEliteStages[stageIndex - 1].key);
+    if (!baseTitle) continue;
+    const available = scoreRowsAfterTitle(baseTitle) || [];
+    const recorded = championshipTitle(stage.key);
+    const honour = String(recorded?.honours || "").match(/trial\\s*#?\\s*(\\d+)/i);
+    const groups = chronologicalTrialGroups("Elite", available);
+    let blockRows = available;
+    if (recorded) {
+      let endIndex = honour ? groups.findIndex(group => Number(group.trial) === Number(honour[1])) : -1;
+      if (endIndex < 0 && recorded.date) {
+        groups.forEach((group, index) => {
+          if (group.rows.some(row => row.date && row.date <= recorded.date)) endIndex = index;
+        });
+      }
+      if (endIndex < 0) {
+        scoreTable(`${stage.label} — Elite — cutoff unverified`, [["Cutoff unverified", "—", "—", "—", "—", "—"]]);
+        continue;
+      }
+      blockRows = groups.slice(0, endIndex + 1).flatMap(group => group.rows);
+    }
+    const sets = eliteSets(blockRows);
+    const lockTrial = honour ? Number(honour[1]) : null;
+    const sorted = [...sets].sort((a, b) => {
+      if (lockTrial && Number(a.trial) === lockTrial) return -1;
+      if (lockTrial && Number(b.trial) === lockTrial) return 1;
+      return b.total - a.total || Number(a.trial) - Number(b.trial);
+    });
+    const rows = sorted.map((set, index) => [
+      lockTrial && Number(set.trial) === lockTrial ? "Title lock" : `Combination ${index + 1}`,
+      pdfScore(set.parts.Container), pdfScore(set.parts.Exterior), pdfScore(set.parts.Interior),
+      pdfGrade(set.total), set.total
+    ]);
+    const used = new Set(sorted.flatMap(set => COMPONENTS.map(component => String(set.parts[component].sourceRow))));
+    const unmatched = Object.fromEntries(COMPONENTS.map(component => [
+      component, blockRows.filter(row => row.component === component && !used.has(String(row.sourceRow)))
+        .sort((a, b) => b.score - a.score || a.sourceRow - b.sourceRow)
+    ]));
+    const unmatchedCount = Math.max(0, ...COMPONENTS.map(component => unmatched[component].length));
+    for (let index = 0; index < unmatchedCount; index++) {
+      rows.push(["Unmatched", ...COMPONENTS.map(component => pdfScore(unmatched[component][index])), "—", "—"]);
+    }
+    const counts = COMPONENTS.map(component => `${component[0]} ${blockRows.filter(row => row.component === component).length}`).join(" ");
+    scoreTable(`${stage.label} · Elite · ${counts}${recorded ? ` · cutoff ${dateLabel(recorded.date)}` : " · in progress"}`, rows);
+  }
 
   y -= 8;
   text("Limitations", { size: 11, bold: true, color: rgb(.61, .26, .24) });
