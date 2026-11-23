@@ -40,7 +40,14 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      - name: Accept Android SDK licenses
+      - name: Set up Android SDK tools
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 14742923
+          accept-android-sdk-licenses: false
+          packages: ''
+
+      - name: Accept Android SDK licenses non-interactively
         run: |
           set -o pipefail
           yes | sdkmanager --licenses
