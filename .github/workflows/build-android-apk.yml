@@ -48,7 +48,7 @@ jobs:
           packages: ''
 
       - name: Accept Android SDK licenses non-interactively
-        run: yes | sdkmanager --licenses
+        shell: bash\n        run: |\n          set +o pipefail\n          yes | sdkmanager --licenses
 
       - name: Install Android SDK packages
         run: |
