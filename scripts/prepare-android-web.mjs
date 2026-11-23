@@ -27,4 +27,20 @@ for (const directory of ["vendor", "icons"]) {
   await cp(join(root, directory), join(webDir, directory), { recursive: true });
 }
 
-console.log("Prepared the mobile SDDA Ledger web assets for Capacitor.");
+
+const { build } = await import("esbuild");
+await build({
+  entryPoints: [join(root, "scripts/android-pdf-bridge.js")],
+  bundle: true,
+  platform: "browser",
+  format: "iife",
+  target: ["es2020"],
+  outfile: join(webDir, "android-pdf-bridge.js")
+});
+const bundledHtml = mobileHtml.replace(
+  '<script src="app.js?v=20261118-vertical-collapsible-ledger"></script>',
+  '<script src="android-pdf-bridge.js"></script><script src="app.js?v=20261118-vertical-collapsible-ledger"></script>'
+);
+await writeFile(join(webDir, "index.html"), bundledHtml, "utf8");
+console.log("Prepared the mobile SDDA Ledger web assets and native PDF bridge for Capacitor.");
+
