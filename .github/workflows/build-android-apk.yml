@@ -16,7 +16,8 @@ on:
       - "icons/**"
       - "package.json"
       - "capacitor.config.json"
-      - "scripts/prepare-android-web.mjs"\n      - "scripts/android-pdf-bridge.js"
+      - "scripts/prepare-android-web.mjs"
+      - "scripts/android-pdf-bridge.js"
       - ".github/workflows/build-android-apk.yml"
 
 permissions:
@@ -48,7 +49,10 @@ jobs:
           packages: ''
 
       - name: Accept Android SDK licenses non-interactively
-        shell: bash\n        run: |\n          set +o pipefail\n          yes | sdkmanager --licenses
+        shell: bash
+        run: |
+          set +o pipefail
+          yes | sdkmanager --licenses
 
       - name: Install Android SDK packages
         run: |
