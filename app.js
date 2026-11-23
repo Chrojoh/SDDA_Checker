@@ -1954,9 +1954,10 @@ async function downloadPdfReport() {
       rows.push(["Unmatched", ...COMPONENTS.map((component, componentIndex) => pdfScore(extras[componentIndex][index])), "—", "—"]);
     }
     const count = component => blockRows.filter(row => row.component === component).length;
+    const combinationCount = Math.min(slots, ...COMPONENTS.map(component => columns[component].length)) + (titleLock ? 1 : 0);
     const cutoff = stageIndex === 0 ? own : prior;
     const cutoffText = cutoff ? `cutoff ${dateLabel(cutoff.date)} · Trial ${cutoff.trial}` : "in progress";
-    return { title: `${stage.label} · ${level} · C ${count("Container")} E ${count("Exterior")} I ${count("Interior")} · ${cutoffText}`, rows };
+    return { title: `${stage.label} · ${level} · C ${count("Container")} E ${count("Exterior")} I ${count("Interior")} · ${combinationCount} combinations · ${cutoffText}`, rows };
   }
   for (const level of ["Advanced", "Excellent"]) {
     for (let stageIndex = 0; stageIndex < pdfMachStages.length; stageIndex++) {
@@ -2015,7 +2016,7 @@ async function downloadPdfReport() {
       rows.push(["Unmatched", ...COMPONENTS.map(component => pdfScore(unmatched[component][index])), "—", "—"]);
     }
     const counts = COMPONENTS.map(component => `${component[0]} ${blockRows.filter(row => row.component === component).length}`).join(" ");
-    scoreTable(`${stage.label} · Elite · ${counts}${recorded ? ` · cutoff ${dateLabel(recorded.date)}` : " · in progress"}`, rows);
+    scoreTable(`${stage.label} · Elite · ${counts} · ${sets.length} combinations${recorded ? ` · cutoff ${dateLabel(recorded.date)}` : " · in progress"}`, rows);
   }
 
   y -= 8;
