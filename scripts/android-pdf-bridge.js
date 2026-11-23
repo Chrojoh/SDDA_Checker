@@ -52,7 +52,7 @@ async function saveAndOpen(bytes, filename) {
   await FileOpener.open({
     filePath: saved.uri,
     contentType: "application/pdf",
-    openWithDefault: true
+    openWithDefault: false
   });
 
   return { uri: saved.uri, filename, replaced: existing, opened: true };
