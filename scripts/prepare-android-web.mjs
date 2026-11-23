@@ -1,5 +1,5 @@
 import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 
 const root = process.cwd();
 const webDir = join(root, "www");
