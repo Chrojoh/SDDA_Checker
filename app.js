@@ -1938,8 +1938,14 @@ async function downloadPdfReport() {
     ready.hidden = false;
     ready.textContent = "Saving PDF to your device…";
     const saved = await window.SDDAAndroidPdf.saveAndOpen(bytes, filename);
-    ready.textContent = `${filename} — saved to Documents and opened`;
     ready.removeAttribute("href");
+    if (saved?.cancelled) {
+      ready.textContent = `${filename} — existing PDF kept; replacement cancelled`;
+      return "cancelled";
+    }
+    ready.textContent = saved?.opened
+      ? `${filename} — saved to Documents and sent to your PDF app`
+      : `${filename} — saved to Documents`;
     return "saved";
   }
   const blob = new Blob([bytes], { type: "application/pdf" });
@@ -1955,8 +1961,8 @@ $("print-button").addEventListener("click", async () => {
   const button = $("print-button"), previous = button.textContent;
   try {
     button.disabled = true; button.textContent = "Creating PDF…";
-    await downloadPdfReport();
-    button.textContent = "PDF created below";
+    const result = await downloadPdfReport();
+    button.textContent = result === "cancelled" ? "Kept existing PDF" : "PDF created below";
   } catch (error) {
     $("message").textContent = `PDF download failed: ${error.message}`;
     button.textContent = "Try PDF download again";
