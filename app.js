@@ -1799,9 +1799,9 @@ async function downloadPdfReport() {
       let x = margin;
       values.forEach((value, index) => {
         page.drawRectangle({ x, y: y - height, width: widths[index], height, color: fill, borderColor: rgb(.42, .48, .44), borderWidth: .8 });
-        const raw = String(value ?? "").replace(/[^\\x20-\\x7E]/g, " ");
+        const raw = String(value ?? "").replace(/[^\x20-\x7E]/g, " ");
         if (!header && index >= 1 && index <= 3) {
-          const match = raw.match(/^(.*?)\\s*\\(([^)]+)\\)$/);
+          const match = raw.match(/^(.*?)\s*\(([^)]+)\)$/);
           if (match) {
             const score = match[1].trim(), trial = "(" + match[2].trim() + ")";
             const scoreWidth = regular.widthOfTextAtSize(score, 8.5), trialWidth = regular.widthOfTextAtSize(trial, 7);
@@ -1972,11 +1972,11 @@ async function downloadPdfReport() {
   ];
   for (let stageIndex = 0; stageIndex < pdfEliteStages.length; stageIndex++) {
     const stage = pdfEliteStages[stageIndex];
-    const baseTitle = stageIndex === 0 ? findTitle(/^Elite(?:\\s|$)/i) : championshipTitle(pdfEliteStages[stageIndex - 1].key);
+    const baseTitle = stageIndex === 0 ? findTitle(/^Elite(?:\s|$)/i) : championshipTitle(pdfEliteStages[stageIndex - 1].key);
     if (!baseTitle) continue;
     const available = scoreRowsAfterTitle(baseTitle) || [];
     const recorded = championshipTitle(stage.key);
-    const honour = String(recorded?.honours || "").match(/trial\\s*#?\\s*(\\d+)/i);
+    const honour = String(recorded?.honours || "").match(/trial\s*#?\s*(\d+)/i);
     const groups = chronologicalTrialGroups("Elite", available);
     let blockRows = available;
     if (recorded) {
