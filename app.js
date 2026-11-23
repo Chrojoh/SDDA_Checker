@@ -1931,12 +1931,20 @@ async function downloadPdfReport() {
   text("Limitations", { size: 11, bold: true, color: rgb(.61, .26, .24) });
   text("This report is a handler’s aid. SDDA is the authority on all title progression.", { size: 8, color: rgb(.35, .36, .34) });
   const bytes = await pdf.save();
-  const blob = new Blob([bytes], { type: "application/pdf" });
   const safeDog = dogDisplayName().replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
   const filename = `${safeDog}-SDDA-title-report-${localDateStamp()}.pdf`;
+  const ready = $("pdf-ready");
+  if (window.SDDAAndroidPdf?.isNative()) {
+    ready.hidden = false;
+    ready.textContent = "Saving PDF to your device…";
+    const saved = await window.SDDAAndroidPdf.saveAndOpen(bytes, filename);
+    ready.textContent = `${filename} — saved to Documents and opened`;
+    ready.removeAttribute("href");
+    return "saved";
+  }
+  const blob = new Blob([bytes], { type: "application/pdf" });
   if (currentPdfUrl) URL.revokeObjectURL(currentPdfUrl);
   currentPdfUrl = URL.createObjectURL(blob);
-  const ready = $("pdf-ready");
   ready.href = currentPdfUrl; ready.download = filename; ready.target = "_blank"; ready.rel = "noopener"; ready.hidden = false;
   ready.textContent = `${filename} — tap to open or download`;
   ready.click();
