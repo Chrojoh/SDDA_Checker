@@ -16,7 +16,7 @@ on:
       - "icons/**"
       - "package.json"
       - "capacitor.config.json"
-      - "scripts/prepare-android-web.mjs"
+      - "scripts/prepare-android-web.mjs"\n      - "scripts/android-pdf-bridge.js"
       - ".github/workflows/build-android-apk.yml"
 
 permissions:
