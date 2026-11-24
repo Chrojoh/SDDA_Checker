@@ -725,6 +725,27 @@ function machCutoffRowForTitle(title) {
   const trialGroups = machTrialGroups();
   if (!trialGroups) return null;
 
+  // Without a Titles export, establish each stage cutoff directly from the
+  // first complete trial at which the score rules are met. The score export's
+  // row order is chronological; all rows for a trial stay together.
+  if (!titlesFileLoaded) {
+    const stageKey = ["", "mach", "mach2", "mach3", "mach4"][stage];
+    const calculated = chronologicalMachStory();
+    const completion = calculated.stages?.find((item) => item.key === stageKey)?.completion;
+    if (!completion) {
+      machCutoffCache.set(stage, null);
+      return null;
+    }
+    const index = trialGroups.findIndex((group) => Number(group.trial) === Number(completion.trial));
+    if (index < 0) {
+      machCutoffCache.set(stage, null);
+      return null;
+    }
+    const scoreOnlyCutoff = { trial: completion.trial, index, date: completion.date || "", scoreOnly: true };
+    machCutoffCache.set(stage, scoreOnlyCutoff);
+    return scoreOnlyCutoff;
+  }
+
   // The Dog Titles file supplies the award date. Reconstruct the actual
   // completion trial by checking each trial on that date in score-file order.
   // This matters when a dog runs multiple trials on the same calendar date.
@@ -936,11 +957,13 @@ function chronologicalMachStory() {
     const recorded = championshipTitle(stage.key);
     story.push({ ...stage, steps, completion, recorded });
     if (!completion) break;
-    // A repeat stage may only begin after the preceding title is confirmed in
-    // the uploaded Titles sheet and its recorded date agrees with the score history.
-    if (!titlesFileLoaded || !recorded || !recorded.date || recorded.date !== completion.date) break;
-    const honourTrial = String(recorded.honours || "").match(/trial\s*#?\s*(\d+)/i);
-    if (honourTrial && Number(honourTrial[1]) !== Number(completion.trial)) break;
+    // With both files present, preserve the official Titles-sheet cross-check.
+    // With scores alone, the chronological completion trial is the cutoff.
+    if (titlesFileLoaded) {
+      if (!recorded || !recorded.date || recorded.date !== completion.date) break;
+      const honourTrial = String(recorded.honours || "").match(/trial\s*#?\s*(\d+)/i);
+      if (honourTrial && Number(honourTrial[1]) !== Number(completion.trial)) break;
+    }
     previousCutoffIndex = completion.index;
   }
   return { stages: story, totalTrials: groups.length };
