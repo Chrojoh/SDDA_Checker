@@ -973,7 +973,7 @@ function renderChronologicalMachStory() {
   const host = $("progression-story");
   if (!host) return;
   if (!titlesFileLoaded) {
-    host.innerHTML = '<p class="level-note">Upload the Dog Titles file to compare calculated completion points with SDDA-recorded title dates. Score-only calculations can still be explored, but recorded title validation is unavailable.</p>';
+    host.innerHTML = '<p class="level-note">Score-only calculation: title cutoffs use the first qualifying trial in chronological score order. Judge-count requirements are assumed, not verified; upload the optional Titles file to confirm official awards, dates, and judge eligibility.</p>';
   }
   const result = chronologicalMachStory();
   if (result.unavailable) {
@@ -1428,7 +1428,7 @@ function render() {
   $("dog-name").textContent = dog; $("dog-meta").textContent = `SDDA #${number} · ${scores.length} qualifying component scores · ${scentAchieved} scent titles achieved · ${8 - scentAchieved} in progress`;
   $("message").textContent = titles.length
     ? "Scores and recorded titles loaded. Results are saved on this device."
-    : "Scores loaded. Achievements are calculated from score history and are not official SDDA confirmation.";
+    : "Scores loaded. Title cutoffs use chronological trial completion. Judge-count requirements are assumed, not verified; upload the optional Titles file to confirm official awards, dates, and judge eligibility.";
   window.sddaGoldOptimizationWarning = [summaryAdvanced, summaryExcellent].some((sets) => sets.optimizationComplete === false)
     ? "The Gold search reached its safety limit. Displayed combinations are the best found so far, not a proven maximum."
     : "";
