@@ -1949,14 +1949,16 @@ async function downloadPdfReport() {
       blockRows.filter(row => row.component === component && !lockedSources.has(String(row.sourceRow)))
         .sort((a, b) => b.score - a.score || a.sourceRow - b.sourceRow)
     ]));
-    const slots = 10 - (titleLock ? 1 : 0);
-    const rowCount = (titleLock ? 1 : 0) + Math.min(slots, Math.max(0, ...COMPONENTS.map(component => columns[component].length)));
+    // Include every score through the block cutoff, including surplus scores
+    // entered while waiting for the final title requirement to be met.
+    const slots = Math.max(0, ...COMPONENTS.map(component => columns[component].length));
+    const rowCount = (titleLock ? 1 : 0) + slots;
     const rows = [];
     for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
       const isLock = !!titleLock && rowIndex === 0;
       const position = isLock ? null : rowIndex - (titleLock ? 1 : 0);
       const parts = isLock ? titleLock.parts : Object.fromEntries(COMPONENTS.map(component => [
-        component, position >= 0 && position < slots ? columns[component][position] || null : null
+        component, position >= 0 ? columns[component][position] || null : null
       ]));
       if (!COMPONENTS.some(component => !!parts[component])) continue;
       const complete = COMPONENTS.every(component => !!parts[component]);
@@ -1966,13 +1968,8 @@ async function downloadPdfReport() {
       rows.push([label, pdfScore(parts.Container), pdfScore(parts.Exterior), pdfScore(parts.Interior),
         complete ? pdfGrade(total) : "—", complete ? total : "—"]);
     }
-    const extras = COMPONENTS.map(component => columns[component].slice(slots));
-    const extraRows = Math.max(0, ...extras.map(items => items.length));
-    for (let index = 0; index < extraRows; index++) {
-      rows.push(["Unmatched", ...COMPONENTS.map((component, componentIndex) => pdfScore(extras[componentIndex][index])), "—", "—"]);
-    }
     const count = component => blockRows.filter(row => row.component === component).length;
-    const combinationCount = Math.min(slots, ...COMPONENTS.map(component => columns[component].length)) + (titleLock ? 1 : 0);
+    const combinationCount = Math.min(...COMPONENTS.map(component => columns[component].length)) + (titleLock ? 1 : 0);
     const cutoff = stageIndex === 0 ? own : prior;
     const cutoffText = cutoff ? `cutoff ${dateLabel(cutoff.date)} · Trial ${cutoff.trial}` : "in progress";
     return { title: `${stage.label} · ${level} · C ${count("Container")} E ${count("Exterior")} I ${count("Interior")} · ${combinationCount} combinations · ${cutoffText}`, rows };
