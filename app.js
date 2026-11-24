@@ -984,7 +984,7 @@ function renderChronologicalMachStory() {
   const stagesHtml = result.stages.map((stage) => {
     const recordedText = stage.recorded
       ? 'SDDA title sheet: recorded ' + esc(dateLabel(stage.recorded.date)) + '.'
-      : (titlesFileLoaded ? 'No matching SDDA award record was found in the uploaded Titles file.' : 'No Titles file loaded; official award-date comparison is unavailable.');
+      : (titlesFileLoaded ? 'No matching SDDA award record was found in the uploaded Titles file.' : 'Score-only calculation: official award records and dates are unverified; judge-count requirements are assumed and cannot be checked without the Titles file.');
     const steps = stage.steps.map((step) =>
       '<li><strong>Trial ' + esc(step.trial) + (step.date ? ' · ' + esc(dateLabel(step.date)) : '') + '</strong>: ' +
       esc(step.advanced) + ' Advanced + ' + esc(step.excellent) + ' Excellent combinations; ' +
@@ -1404,11 +1404,6 @@ function scoreRowsAfterTitle(priorTitle) {
 
 function render() {
   if (!scores.length) { $("report").hidden = true; return; }
-  if (!titlesFileLoaded) {
-    $("report").hidden = true;
-    $("message").textContent = "Dog Titles file required. Upload the Dog Titles CSV or XLSX to calculate title progress and championship cutoff dates.";
-    return;
-  }
   const dogNumbers = [...new Set(scores.map((score) => score.dogNumber).filter(Boolean))];
   if (dogNumbers.length > 1) { $("message").textContent = "The score file contains more than one dog. Please download and upload one dog's history at a time."; $("report").hidden = true; return; }
   $("report").hidden = false;
