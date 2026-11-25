@@ -99,7 +99,7 @@ body,.mobile-ledger,.desktop-ledger{background:#f1f0eb!important;color:#202a25}
 @media(max-width:780px){.current-score-ledger{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.current-level-card{padding:7px}.current-level-card>header{display:block}.current-level-card>header h3{font-size:13px}.current-level-card>header span{display:block;text-align:left;font-size:10px}.current-level-card .run-row{font-size:10px;padding:5px}.history-component-columns{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.history-component{padding:5px}.history-component h4{font-size:11px}.history-score{gap:2px;font-size:11px;flex-wrap:wrap}.history-score.is-title-lock{padding:3px}.history-score.is-title-lock b{font-size:8px}.history-cutoff{font-size:10px}}
 
 
-/* Three equal-width Title Progression columns: current combinations above their own history. */
+/* Title progression: each level owns its current combinations and historical ledger. */
 .progression-score-columns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:stretch;width:100%}
 .progression-score-column{min-width:0;display:flex;flex-direction:column;gap:10px}
 .progression-score-column .current-level-card{width:100%;min-width:0}
@@ -234,6 +234,7 @@ body,.mobile-ledger,.desktop-ledger{background:#f1f0eb!important;color:#202a25}
 .progression-current-combinations{width:100%;min-width:0}
 .progression-current-combinations>h4,.progression-history>h4{margin:0 0 9px;font-size:14px;font-weight:800}
 .progression-current-combinations .run-grid{width:100%;min-width:0;margin:0}
+.progression-current-combinations .run-row.is-title-lock{border:3px solid #c62828!important;border-radius:999px!important;box-shadow:0 0 0 1px #c62828;}
 .progression-current-combinations .run-row{display:grid;grid-template-columns:100px repeat(3,minmax(0,1fr)) minmax(130px,auto);gap:8px;align-items:center;padding:9px 10px;font-size:12px;overflow-wrap:anywhere}
 .progression-history{width:100%;min-width:0;margin:14px 0 0;padding:13px 0 0;border:0;border-top:1px solid var(--line,#d5d8d2);background:transparent}
 .progression-history .history-component-columns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
@@ -252,17 +253,14 @@ body,.mobile-ledger,.desktop-ledger{background:#f1f0eb!important;color:#202a25}
  .progression-history .history-score{font-size:10px;gap:2px;flex-wrap:wrap}
 }
 
+/* Keep the Current Scores accordion bar proportional to its text. */
+.progression-score-column.title-accordion>summary.progression-card-header{min-height:0;padding:7px 12px;}
+.progression-score-column .progression-card-header .summary-copy strong{line-height:1.2;}
+.progression-score-column .progression-card-header .summary-copy small{margin-top:1px;line-height:1.2;}
+@media(max-width:780px){.progression-score-column.title-accordion>summary.progression-card-header{min-height:0;padding:6px 9px;}}
 
-/* Compact current-score combinations: one row per combination, initials as headers. */
-.progression-compact-table-wrap{width:100%;overflow-x:auto}
-.progression-compact-table{width:100%;border-collapse:collapse;table-layout:auto;font-size:.88rem}
-.progression-compact-table th,.progression-compact-table td{padding:7px 5px;text-align:center;border-bottom:1px solid var(--line,#ddd);white-space:nowrap}
-.progression-compact-table thead th{font-weight:800;font-size:.78rem;opacity:.8}
-.progression-compact-table tbody th{font-weight:750;text-align:left}
-.progression-compact-table td small{font-size:.75em;opacity:.72}
-.progression-compact-table tr.gold{background:rgba(214,170,54,.12)}
-.progression-compact-table tr.locked-score-row{font-weight:750}
 
-.progression-compact-table tr.single-component-row{background:rgba(80,100,120,.055)}
-.progression-compact-table tr.single-component-row th{font-weight:650;color:var(--muted,#667085)}
-.progression-compact-table .single-score-note{font-size:.72em;color:var(--muted,#667085);white-space:normal}
+/* Title-lock marker: circle each of the three locked component scores,
+   not the entire combination row. */
+.progression-current-combinations .run-row.is-title-lock{border:1px solid var(--line,#d5d8d2)!important;border-radius:8px!important;box-shadow:none!important}
+.title-lock-score{display:inline-flex;align-items:center;justify-content:center;min-width:2.15em;min-height:2.15em;padding:0 .28em;border:2px solid #d62828;border-radius:50%;color:inherit;font-weight:900;line-height:1}
