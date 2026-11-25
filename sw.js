@@ -1,4 +1,4 @@
-const CACHE_NAME = "sdda-ledger-offline-v8-mobile";
+const CACHE_NAME = "sdda-ledger-offline-v9-mobile-parity";
 const CORE_ASSETS = [
   "./",
   "./index.html",
