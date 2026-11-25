@@ -1,4 +1,4 @@
-const CACHE_NAME = "sdda-ledger-offline-v10-horizontal-scroll";
+const CACHE_NAME = "sdda-ledger-offline-v11-pdf-next-fix";
 const CORE_ASSETS = [
   "./",
   "./index.html",
