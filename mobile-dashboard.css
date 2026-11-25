@@ -141,3 +141,27 @@ body,.mobile-ledger,.desktop-ledger{background:#f1f0eb!important;color:#202a25}
  .mach-stage-table{font-size:10px}
  .mach-stage-table th,.mach-stage-table td{padding:5px 3px}
 }
+
+/* Keep wide score ledgers inside their cards, with native sideways touch scrolling on phones. */
+.progression-compact-table-wrap{
+  display:block;
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  overflow-x:auto;
+  overflow-y:hidden;
+  overscroll-behavior-x:contain;
+  -webkit-overflow-scrolling:touch;
+  touch-action:pan-x pan-y;
+  scrollbar-width:thin;
+  scrollbar-color:#82958a #edf1ee;
+  padding:2px 1px 9px;
+}
+.progression-compact-table-wrap::-webkit-scrollbar{height:7px}
+.progression-compact-table-wrap::-webkit-scrollbar-track{background:#edf1ee;border-radius:8px}
+.progression-compact-table-wrap::-webkit-scrollbar-thumb{background:#82958a;border-radius:8px}
+.progression-compact-table{width:max-content;min-width:100%;border-collapse:collapse}
+.progression-compact-table.mach-stage-table{min-width:560px}
+@media(max-width:620px){
+  .progression-compact-table.mach-stage-table{min-width:560px}
+}
