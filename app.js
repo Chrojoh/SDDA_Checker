@@ -2173,18 +2173,27 @@ async function downloadPdfReport() {
   }
 
   heading("What is needed next");
-  // Titles already listed in the achieved section do not belong in the remaining-work summary.
+  // Only include titles with genuinely outstanding requirements. A title can
+  // have its score requirements satisfied without its official award being
+  // recorded; that is not remaining score work and should not appear as needed.
   const remainingProgressCards = [...document.querySelectorAll("#progress .progress-card")]
-    .filter((card) => (card.querySelector(".status")?.textContent || "").trim().toLowerCase() !== "achieved");
-  for (const card of remainingProgressCards) {
-    const name = card.querySelector("h3")?.textContent || "Title";
-    const status = card.querySelector(".status")?.textContent || "";
-    const requirements = [...card.querySelectorAll("li:not(.info)")];
-    text(`${name} - ${status}`, { size: 11, bold: true });
-    // Keep every requirement in the PDF, including completed have / need
-    // fractions, so the report shows the full component requirement at a glance.
-    for (const item of card.querySelectorAll("li")) text(`${item.classList.contains("info") ? "[rule]" : item.classList.contains("done") ? "[met]" : "[needed]"} ${item.textContent}`, { indent: 12, size: 9 });
-    const note = card.querySelector("p")?.textContent; if (note) text(note, { indent: 12, size: 8, color: rgb(.38, .43, .4), after: 5 });
+    .filter((card) => {
+      const status = (card.querySelector(".status")?.textContent || "").trim().toLowerCase();
+      if (status === "achieved") return false;
+      return [...card.querySelectorAll("li:not(.info)")].some((item) => !item.classList.contains("done"));
+    });
+  if (!remainingProgressCards.length) {
+    text("All requirements shown in this report have been met. Any calculated titles not yet listed as SDDA-recorded still require official SDDA recognition.", { size: 9, color: rgb(.25, .38, .29), after: 5 });
+  } else {
+    for (const card of remainingProgressCards) {
+      const name = card.querySelector("h3")?.textContent || "Title";
+      const status = card.querySelector(".status")?.textContent || "";
+      text(`${name} - ${status}`, { size: 11, bold: true });
+      // Show completed and outstanding items together for context, but only
+      // cards with at least one outstanding item reach this section.
+      for (const item of card.querySelectorAll("li")) text(`${item.classList.contains("info") ? "[rule]" : item.classList.contains("done") ? "[met]" : item.classList.contains("pending") ? "[pending verification]" : "[needed]"} ${item.textContent}`, { indent: 12, size: 9 });
+      const note = card.querySelector("p")?.textContent; if (note) text(note, { indent: 12, size: 8, color: rgb(.38, .43, .4), after: 5 });
+    }
   }
 
   const classification = (total) => total >= 192 ? "Gold" : total >= 172 ? "Silver" : total >= 142 ? "Bronze" : total >= 100 ? "Satisfactory" : "Insufficient";
