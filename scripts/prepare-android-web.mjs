@@ -38,9 +38,12 @@ await build({
   outfile: join(webDir, "android-pdf-bridge.js")
 });
 const bundledHtml = mobileHtml.replace(
-  '<script src="app.js?v=20261118-vertical-collapsible-ledger"></script>',
-  '<script src="android-pdf-bridge.js"></script><script src="app.js?v=20261118-vertical-collapsible-ledger"></script>'
+  /<script src="app\\.js(?:\\?[^"]*)?"><\\/script>/,
+  match => '<script src="android-pdf-bridge.js"></script>' + match
 );
+if (bundledHtml === mobileHtml) {
+  throw new Error("Could not inject the Android PDF bridge before app.js.");
+}
 await writeFile(join(webDir, "index.html"), bundledHtml, "utf8");
 console.log("Prepared the mobile SDDA Ledger web assets and native PDF bridge for Capacitor.");
 
