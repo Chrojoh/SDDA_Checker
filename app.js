@@ -1376,7 +1376,7 @@ function progressionMachBlockMarkup(level, stageIndex) {
     '<summary><span><strong>' + esc(stage.label) + '</strong><small>' + cutoffText + completedLabel +
     '</small></span><span class="mach-stage-counts">Container ' + count("Container") +
     ' · Exterior ' + count("Exterior") + ' · Interior ' + count("Interior") +
-    ' · ' + (combinationCount + (titleLock ? 1 : 0)) + ' combinations</span></summary>' +
+    ' · ' + combinationCount + ' combinations</span></summary>' +
     '<div class="mach-stage-content"><div class="progression-compact-table-wrap"><table class="progression-compact-table mach-stage-table">' +
     '<thead><tr><th>Row</th><th>Container</th><th>Exterior</th><th>Interior</th><th>Grade</th><th>Total</th></tr></thead>' +
     '<tbody>' + (rows.length ? rows.join("") : '<tr><td colspan="6">No component scores in this block yet.</td></tr>') +
