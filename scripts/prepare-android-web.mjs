@@ -38,7 +38,7 @@ await build({
   outfile: join(webDir, "android-pdf-bridge.js")
 });
 const bundledHtml = mobileHtml.replace(
-  /<script src="app\\.js(?:\\?[^"]*)?"><\\/script>/,
+  /<script src="app\.js(?:\?[^"]*)?"><\/script>/,
   match => '<script src="android-pdf-bridge.js"></script>' + match
 );
 if (bundledHtml === mobileHtml) {
