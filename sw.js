@@ -1,4 +1,4 @@
-const CACHE_NAME = "sdda-ledger-offline-v11-pdf-next-fix";
+const CACHE_NAME = "sdda-ledger-offline-ledger-brand-20261126";
 const CORE_ASSETS = [
   "./",
   "./index.html",
@@ -10,7 +10,9 @@ const CORE_ASSETS = [
   "./vendor/xlsx.full.min.js",
   "./vendor/pdf-lib.min.js",
   "./manifest.webmanifest",
-  "./icons/icon.svg"
+  "./icons/icon.svg",
+  "./icons/ledger-192.png",
+  "./icons/ledger-512.png"
 ];
 
 self.addEventListener("install", event => {
