@@ -69,8 +69,8 @@
 <section class="sdda-device-records" aria-label="Saved dog records">
  <div class="sdda-device-heading"><strong>Saved dogs on this device</strong><span>Choose a dog already imported, or save the dog you just uploaded.</span></div>
  <div class="sdda-device-controls"><select id="sdda-saved-dogs" aria-label="Select saved dog"><option value="">Select a saved dog…</option></select><button type="button" id="sdda-load-dog">Load dog</button><button type="button" id="sdda-save-dog">Save now</button><button type="button" id="sdda-delete-dog">Delete saved dog</button></div>
- <div class="sdda-device-controls"><button type="button" id="sdda-backup">Export backup</button><label class="sdda-restore">Restore backup<input id="sdda-restore-file" type="file" accept=".json,application/json"></label></div>
- <p class="sdda-device-note">Records are stored privately in this browser on this device. Export a backup before clearing browser data or changing devices.</p>
+ <div class="sdda-device-controls"><button type="button" id="sdda-backup">Export backup</button><button type="button" id="sdda-phone-backup">Export text backup for phone</button><label class="sdda-restore">Restore backup<input id="sdda-restore-file" type="file" accept=".txt,.json,text/plain,application/json"></label></div>
+ <p class="sdda-device-note">For a phone transfer, export a text backup and send the file as an attachment. On your phone, save the attachment to Files or Downloads, then open Ledger and choose <strong>Restore backup</strong>.</p><p class="sdda-device-note">Records are stored privately in this browser on this device. Export a backup before clearing browser data or changing devices.</p>
 </section>
 <style>
 .sdda-device-records{border:1px solid #d8d2c7;border-radius:14px;padding:14px;margin:14px 0;background:#fff}
@@ -159,10 +159,10 @@ async function loadSelected(){
  if(typeof render==="function")render();
  const msg=document.getElementById("message");if(msg)msg.textContent="Loaded "+labelFor(p)+" from this device.";
 }
-function downloadBackup(){
+function downloadBackup(forPhone = false){
  allProfiles().then(list=>{
-  const blob=new Blob([JSON.stringify({format:"SDDA-Ledger-Backup",version:1,dogs:list},null,2)],{type:"application/json"});
-  const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="SDDA-Dog-Records-Backup.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  const blob=new Blob([JSON.stringify({format:"SDDA-Ledger-Backup",version:1,dogs:list},null,2)],{type:forPhone ? "text/plain;charset=utf-8" : "application/json"});
+  const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=forPhone ? "SDDA-Dog-Records-Backup.txt" : "SDDA-Dog-Records-Backup.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
  });
 }
 async function restoreBackup(file){
@@ -260,7 +260,8 @@ if(select)refreshProfiles();
 document.getElementById("sdda-load-dog")?.addEventListener("click",()=>loadSelected().catch(e=>alert(e.message)));
 document.getElementById("sdda-save-dog")?.addEventListener("click",()=>saveCurrent().catch(e=>alert(e.message)));
 document.getElementById("sdda-delete-dog")?.addEventListener("click",async()=>{const id=document.getElementById("sdda-saved-dogs")?.value;if(!id)return;if(!confirm("Delete this saved dog and its locally stored records?"))return;await deleteProfile(id);await refreshProfiles();});
-document.getElementById("sdda-backup")?.addEventListener("click",downloadBackup);
+document.getElementById("sdda-backup")?.addEventListener("click", () => downloadBackup());
+document.getElementById("sdda-phone-backup")?.addEventListener("click", () => downloadBackup(true));
 document.getElementById("sdda-restore-file")?.addEventListener("change",e=>{if(e.target.files[0])restoreBackup(e.target.files[0]).catch(err=>alert(err.message));});
 })();
 </script><script>
