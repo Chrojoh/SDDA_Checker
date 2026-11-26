@@ -1294,55 +1294,42 @@ function progressionCurrentScoreRows(sets, level, rows = []) {
     '<thead><tr><th>Combination</th><th title="Container">C</th><th title="Exterior">E</th><th title="Interior">I</th><th>Total</th></tr></thead>' +
     '<tbody>' + combinationRows.join("") + partialRows.join("") + '</tbody></table></div>';
 }
-const machSwapStorage = "sdda-mach-component-order-v1";
-const machSwapOrders = new Map();
-
-function machSwapKey(level, stageIndex, columns) {
-  const dog = scores[0] || games[0] || {};
-  return JSON.stringify([dog.dogNumber || dog.dog || "", level, stageIndex,
-    ...COMPONENTS.map(component => columns[component].map(row =>
-      [row.sourceRow, row.trial, row.score]))]);
+function improveMachGoldPairs(columns) {
+  const count = Math.min(...COMPONENTS.map(component => columns[component].length));
+  const totals = Array.from({ length: count }, (_, index) =>
+    COMPONENTS.reduce((sum, component) => sum + Number(columns[component][index].score), 0));
+  let improved;
+  do {
+    improved = false;
+    for (let silver = 0; silver < count; silver++) {
+      if (totals[silver] < 172 || totals[silver] >= 192) continue;
+      let best = null;
+      for (let gold = 0; gold < count; gold++) {
+        if (totals[gold] < 192) continue;
+        for (const component of COMPONENTS) {
+          const gain = Number(columns[component][gold].score) - Number(columns[component][silver].score);
+          if (totals[silver] + gain < 192 || totals[gold] - gain < 192) continue;
+          if (!best || gain < best.gain) best = { gold, component, gain };
+        }
+      }
+      if (!best) continue;
+      const column = columns[best.component];
+      [column[silver], column[best.gold]] = [column[best.gold], column[silver]];
+      totals[silver] += best.gain;
+      totals[best.gold] -= best.gain;
+      improved = true;
+    }
+  } while (improved);
 }
 
-function machBlockColumns(level, stageIndex, blockRows, lockedSources) {
+function machBlockColumns(blockRows, lockedSources) {
   const columns = Object.fromEntries(COMPONENTS.map(component => [
     component,
     blockRows.filter(row => row.component === component && !lockedSources.has(String(row.sourceRow)))
       .sort((a, b) => b.score - a.score || a.sourceRow - b.sourceRow)
   ]));
-  const key = machSwapKey(level, stageIndex, columns);
-  let order = machSwapOrders.get(key);
-  if (!order) {
-    try { order = JSON.parse(localStorage.getItem(machSwapStorage) || "{}")[key]; } catch {}
-    if (order) machSwapOrders.set(key, order);
-  }
-  for (const component of COMPONENTS) {
-    const rows = columns[component];
-    const ids = order?.[component];
-    if (!Array.isArray(ids) || ids.length !== rows.length || new Set(ids).size !== rows.length) continue;
-    const byId = new Map(rows.map(row => [String(row.sourceRow), row]));
-    if (ids.every(id => byId.has(id))) columns[component] = ids.map(id => byId.get(id));
-  }
-  return { columns, key, customized: !!order };
-}
-
-function saveMachSwap(key, order) {
-  if (order) machSwapOrders.set(key, order);
-  else machSwapOrders.delete(key);
-  try {
-    const saved = JSON.parse(localStorage.getItem(machSwapStorage) || "{}");
-    if (order) saved[key] = order;
-    else delete saved[key];
-    localStorage.setItem(machSwapStorage, JSON.stringify(saved));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function swapMachComponent(order, component, from, to) {
-  const ids = order[component];
-  [ids[from], ids[to]] = [ids[to], ids[from]];
+  improveMachGoldPairs(columns);
+  return columns;
 }
 
 function progressionMachBlockMarkup(level, stageIndex) {
@@ -1375,22 +1362,16 @@ function progressionMachBlockMarkup(level, stageIndex) {
     : [];
   const titleLock = stageIndex === 0 ? titleLockForLevel(level, blockRows) : null;
   const lockedSources = new Set(titleLock ? COMPONENTS.map(component => String(titleLock.parts[component].sourceRow)) : []);
-  const { columns, key, customized } = machBlockColumns(level, stageIndex, blockRows, lockedSources);
+  const columns = machBlockColumns(blockRows, lockedSources);
   const titleParts = titleLock ? titleLock.parts : null;
   // Display every score accumulated before this stage's cutoff. The title
   // requirement may be met before the final trial in the block is entered;
   // later rows still belong in this block and should not be hidden as extras.
   const combinationCount = Math.min(...COMPONENTS.map(component => columns[component].length)) + (titleLock ? 1 : 0);
   const rowCount = (titleLock ? 1 : 0) + Math.max(0, ...COMPONENTS.map(component => columns[component].length));
-  const scoreCell = (part, isLock, position) => {
-    if (!part) return '<span class="mach-score-empty">—</span>';
-    const value = esc(part.score) + ' <small>(' + esc(part.trial || '—') + ')</small>';
-    if (isLock) return '<span class="mach-score-value">' + value + '</span>';
-    return '<button type="button" class="mach-swap-score" aria-pressed="false" aria-label="' +
-      esc(part.component + ' ' + part.score + ', trial ' + (part.trial || 'unknown')) +
-      '" data-mach-component="' + esc(part.component) + '" data-mach-source="' + esc(part.sourceRow) +
-      '" data-mach-position="' + position + '">' + value + '</button>';
-  };
+  const scoreCell = part => part
+    ? '<span class="mach-score-value">' + esc(part.score) + ' <small>(' + esc(part.trial || '—') + ')</small></span>'
+    : '<span class="mach-score-empty">—</span>';
   const classify = total => total >= 192 ? "Gold" : total >= 172 ? "Silver" :
     total >= 142 ? "Bronze" : total >= 100 ? "Satisfactory" : "Insufficient";
   const rows = [];
@@ -1410,9 +1391,9 @@ function progressionMachBlockMarkup(level, stageIndex) {
     const grade = complete ? classify(total) : "unmatched";
     rows.push('<tr class="' + (isLock ? 'title-lock-row ' : '') + grade.toLowerCase() + '">' +
       '<th scope="row">' + label + '</th>' +
-      '<td>' + scoreCell(parts.Container, isLock, position) + '</td>' +
-      '<td>' + scoreCell(parts.Exterior, isLock, position) + '</td>' +
-      '<td>' + scoreCell(parts.Interior, isLock, position) + '</td>' +
+      '<td>' + scoreCell(parts.Container) + '</td>' +
+      '<td>' + scoreCell(parts.Exterior) + '</td>' +
+      '<td>' + scoreCell(parts.Interior) + '</td>' +
       '<td>' + (complete ? '<strong>' + grade + '</strong>' : '—') + '</td>' +
       '<td>' + (complete ? '<strong>' + total + '</strong>' : '—') +
       '</td></tr>');
@@ -1425,68 +1406,17 @@ function progressionMachBlockMarkup(level, stageIndex) {
     : own ? 'Achieved · ' + esc(dateLabel(own.date)) + ' · Trial ' + esc(own.trial)
       : 'In progress · no title cutoff yet';
   const completedLabel = own ? ' · title achieved' : ' · in progress';
-  return '<details class="mach-stage-card" data-mach-swap-block="' + esc(key) +
-    '" data-mach-level="' + esc(level) + '" data-mach-stage="' + stageIndex + '">' +
+  return '<details class="mach-stage-card">' +
     '<summary><span><strong>' + esc(stage.label) + '</strong><small>' + cutoffText + completedLabel +
     '</small></span><span class="mach-stage-counts">Container ' + count("Container") +
     ' · Exterior ' + count("Exterior") + ' · Interior ' + count("Interior") +
     ' · ' + combinationCount + ' combinations</span></summary>' +
     '<div class="mach-stage-content">' +
-    '<p class="mach-swap-note">Select a score, then another score in the same column to swap. Locked scores stay fixed. Swaps update this table and its PDF breakdown.</p>' +
-    (customized ? '<button type="button" class="mach-swap-score" data-mach-reset>Reset swaps</button>' : '') +
-    '<p data-mach-swap-status role="status"></p><div class="progression-compact-table-wrap"><table class="progression-compact-table mach-stage-table">' +
+    '<p>Scores start high to low. The ledger then swaps scores in the same column when a Silver can become Gold and the other row stays Gold. Title locks stay fixed.</p><div class="progression-compact-table-wrap"><table class="progression-compact-table mach-stage-table">' +
     '<thead><tr><th>Row</th><th>Container</th><th>Exterior</th><th>Interior</th><th>Grade</th><th>Total</th></tr></thead>' +
     '<tbody>' + (rows.length ? rows.join("") : '<tr><td colspan="6">No component scores in this block yet.</td></tr>') +
     '</tbody></table></div></div></details>';
 }
-$("mobile-scent-runs")?.addEventListener("click", event => {
-  const button = event.target.closest("button[data-mach-component], button[data-mach-reset]");
-  if (!button) return;
-  const block = button.closest("[data-mach-swap-block]");
-  const status = block.querySelector("[data-mach-swap-status]");
-  const { machLevel, machStage, machSwapBlock } = block.dataset;
-  const selected = block.querySelector('button[data-mach-component][aria-pressed="true"]');
-  const announce = message => { status.textContent = message; };
-  if (!button.hasAttribute("data-mach-reset")) {
-    document.querySelectorAll('button[data-mach-component][aria-pressed="true"]').forEach(other => {
-      if (other !== selected) other.setAttribute("aria-pressed", "false");
-    });
-    if (button === selected) {
-      button.setAttribute("aria-pressed", "false");
-      announce("Selection cleared.");
-      return;
-    }
-    if (!selected || selected.dataset.machComponent !== button.dataset.machComponent) {
-      selected?.setAttribute("aria-pressed", "false");
-      button.setAttribute("aria-pressed", "true");
-      announce("Choose another " + button.dataset.machComponent + " score in this block to swap.");
-      return;
-    }
-  }
-  const reset = button.hasAttribute("data-mach-reset");
-  let order = null;
-  if (!reset) {
-    order = Object.fromEntries(COMPONENTS.map(component => [
-      component, Array.from(block.querySelectorAll('button[data-mach-component="' + component + '"]'),
-        cell => cell.dataset.machSource)
-    ]));
-    const component = button.dataset.machComponent;
-    swapMachComponent(order, component, Number(selected.dataset.machPosition), Number(button.dataset.machPosition));
-  }
-  const persisted = saveMachSwap(machSwapBlock, order);
-  const template = document.createElement("template");
-  template.innerHTML = progressionMachBlockMarkup(machLevel, Number(machStage));
-  const replacement = template.content.firstElementChild;
-  replacement.open = true;
-  block.replaceWith(replacement);
-  replacement.querySelector("[data-mach-swap-status]").textContent =
-    (reset ? "Default score order restored." : "Scores swapped. Totals and grades updated.")
-    + (persisted ? "" : " This change is available for this session only.");
-  const focus = reset ? replacement.querySelector("summary") : Array.from(replacement.querySelectorAll("button[data-mach-component]"))
-    .find(cell => cell.dataset.machSource === selected.dataset.machSource);
-  focus?.focus();
-});
-
 function progressionMachLevelMarkup(level) {
   return '<div class="mach-stage-list">' +
     [0,1,2,3].map(index => progressionMachBlockMarkup(level,index)).join('') +
@@ -2358,7 +2288,7 @@ async function downloadPdfReport() {
       : [];
     const titleLock = stageIndex === 0 ? titleLockForLevel(level, blockRows) : null;
     const lockedSources = new Set(titleLock ? COMPONENTS.map(component => String(titleLock.parts[component].sourceRow)) : []);
-    const { columns } = machBlockColumns(level, stageIndex, blockRows, lockedSources);
+    const columns = machBlockColumns(blockRows, lockedSources);
     const slots = Math.max(0, ...COMPONENTS.map(component => columns[component].length));
     const rowCount = (titleLock ? 1 : 0) + slots;
     const rows = [];

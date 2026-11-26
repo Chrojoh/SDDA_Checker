@@ -32,20 +32,6 @@
   @media print { #ledger-loading { display: none; } }
 </style>
 <noscript><style>#ledger-loading { display: none; }</style></noscript>
-<style>
-  .mach-swap-score {
-    padding: .3em .5em;
-    border: 1px solid #366b83;
-    border-radius: .35em;
-    background: #fff;
-    color: #174b65;
-    font: inherit;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-  .mach-swap-score[aria-pressed="true"] { background: #185f9a; color: #fff; }
-  .mach-swap-score:focus-visible { outline: 2px solid #185f9a; outline-offset: 2px; }
-</style>
 </head><body>
 <div id="ledger-loading" role="status" aria-label="Loading Ledger">Ledger</div>
 
@@ -102,7 +88,7 @@
 <button id="print-button" class="print-button" type="button">Create PDF report</button><a id="pdf-ready" class="pdf-ready" hidden>PDF created — tap here to open or download it</a>
 <div class="legacy-output" aria-hidden="true"><div id="achieved"></div><div id="progress"></div><div id="games-summary"></div><div id="games-grid"></div><div id="games-championships"></div><div id="advanced-gold-summary"></div><table><tbody id="advanced-gold-rows"></tbody></table><div id="excellent-gold-summary"></div><table><tbody id="excellent-gold-rows"></tbody></table><div id="elite-gold-summary"></div><table><tbody id="elite-gold-rows"></tbody></table><div id="limits"></div></div></section>
 </main>
-<footer class="mobile-footer">Planning aid only. SDDA remains the authority for official title approval.</footer><script src="vendor/xlsx.full.min.js"></script><script src="vendor/pdf-lib.min.js"></script><script src="app.js?v=20261126-mach-swaps"></script>
+<footer class="mobile-footer">Planning aid only. SDDA remains the authority for official title approval.</footer><script src="vendor/xlsx.full.min.js"></script><script src="vendor/pdf-lib.min.js"></script><script src="app.js?v=20261126-mach-gold-pairs"></script>
 <script>
 (function(){
 "use strict";

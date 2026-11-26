@@ -1,9 +1,9 @@
-const CACHE_NAME = "sdda-ledger-offline-mach-swaps-20261126";
+const CACHE_NAME = "sdda-ledger-offline-mach-gold-pairs-20261126";
 const CORE_ASSETS = [
   "./",
   "./index.html",
   "./mobile-v2.html",
-  "./app.js?v=20261126-mach-swaps",
+  "./app.js?v=20261126-mach-gold-pairs",
   "./styles.css",
   "./games.css",
   "./mobile-dashboard.css",
