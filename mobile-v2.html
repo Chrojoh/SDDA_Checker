@@ -59,9 +59,11 @@
 <header class="mobile-hero"><div class="mobile-shell"><p>Independent scoring aid. Not affiliated with SDDA.</p><h1>SDDA Achievement Ledger</h1><p>Download your dog’s <strong>Scores</strong> and <strong>Titles</strong> files from <a href="https://www.sdda.ca/login/" target="_blank" rel="noopener">your SDDA account</a>, then upload both here. The Score File supplies trial dates; the Titles file adds SDDA-recorded awards.</p></div></header>
 <main class="mobile-shell"><div class="mobile-upload-stack"><label class="score-upload"><span class="upload-icon">↑</span><span class="dog-scores-upload-copy"><strong>Click here to upload your Dog Scores file</strong><small>Choose the <b>XLSX</b> or <b>CSV</b> file you downloaded from your registered SDDA account.</small></span><input id="scores-file" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label><p id="scores-name" class="file-name">Choose the Scores file downloaded for your registered dog.</p><label class="score-upload"><span class="upload-icon">↑</span><span><strong>Optional — Upload Dog Titles</strong><small>Verifies official SDDA title records, award dates, and judge requirements</small></span><input id="titles-file" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label><p id="titles-name" class="file-name">Optional — choose the matching Titles file to verify official awards, dates, and judge eligibility.</p></div>
 <div class="sdda-device-records">
-  <p>Choose Scores, Titles, or both. For Titles only, load the saved dog first.</p>
+  <strong>Review your upload</strong>
+  <p>Use the upload buttons above to select your files. Review shows which dog will be updated before you save.</p>
+  <p>Uploading only Titles? Load the dog from Saved dogs below first.</p>
   <div class="sdda-device-controls">
-    <button type="button" id="sdda-review-update">Review update</button>
+    <button type="button" id="sdda-review-update">Review selected files</button>
     <button type="button" id="sdda-cancel-update" hidden>Cancel review</button>
   </div>
   <p id="sdda-update-status" role="status"></p>
@@ -182,7 +184,7 @@ let revision = 0;
 function clearReview(message = "") {
   revision++;
   pending = null;
-  reviewButton.textContent = "Review update";
+  reviewButton.textContent = "Review selected files";
   cancelButton.hidden = true;
   updateStatus.textContent = message;
 }
@@ -201,7 +203,7 @@ reviewButton.addEventListener("click", async () => {
   try {
     if (!pending) {
       const scoresFile = scoresInput.files[0], titlesFile = titlesInput.files[0];
-      if (!scoresFile && !titlesFile) throw new Error("Choose a Scores or Titles file first.");
+      if (!scoresFile && !titlesFile) throw new Error("Use an upload button above to select a file, then come back to review it.");
       if (!scoresFile && !current) throw new Error("Load the saved dog before replacing its Titles.");
       const [scoreData, titleData] = await Promise.all([
         scoresFile ? readDogScores(scoresFile) : null,
