@@ -98,7 +98,7 @@ function dateLabel(value) {
 function byLevel(level, list = scores) { return list.filter((score) => score.level === level); }
 function componentCounts(level, list = scores) { return Object.fromEntries(COMPONENTS.map((component) => [component, list.filter((score) => score.level === level && score.component === component).length])); }
 function gamePassCounts(){return Object.fromEntries(GAME_NAMES.map(g=>[g,Math.max(games.filter(r=>r.game===g&&r.pass!==false).length,gamesTitleRecorded(g)?3:0)]));}
-const GAME_CHAMPIONSHIP_RULES=[{key:"gch",name:"SD-GS",type:"base",target:0,text:"3 passes in each of any 3 Games"},{key:"gch2",name:"SD-GCH2",type:"three",target:4,text:"4 additional passes across any 3 Games (13 cumulative)"},{key:"gch3",name:"SD-GCH3",type:"three",target:9,text:"5 additional passes after GCH2 (18 cumulative)"},{key:"gch4",name:"SD-GCH4",type:"three",target:16,text:"7 additional passes after GCH3 (25 cumulative)"},{key:"gch5",name:"SD-GCH5",type:"four",target:26,text:"10 additional passes after GCH4 across all 4 Games (35 cumulative)"}];
+const GAME_CHAMPIONSHIP_RULES=[{key:"gch",name:"SD-GCH",type:"base",target:0,text:"3 passes in each of any 3 Games"},{key:"gch2",name:"SD-GCH2",type:"three",target:4,text:"4 additional passes across any 3 Games (13 cumulative)"},{key:"gch3",name:"SD-GCH3",type:"three",target:9,text:"5 additional passes after GCH2 (18 cumulative)"},{key:"gch4",name:"SD-GCH4",type:"three",target:16,text:"7 additional passes after GCH3 (25 cumulative)"},{key:"gch5",name:"SD-GCH5",type:"four",target:26,text:"10 additional passes after GCH4 across all 4 Games (35 cumulative)"}];
 function gameChampionshipProgress(counts, rule) {
   let best = null;
   for (let a = 0; a < 4; a++) for (let b = a + 1; b < 4; b++) for (let c = b + 1; c < 4; c++) {
@@ -145,7 +145,7 @@ function validComponentScore(level, component, value) {
 
 function renderGames() {
  const counts=gamePassCounts(),total=Object.values(counts).reduce((a,b)=>a+b,0),titled=GAME_NAMES.filter(g=>counts[g]>=3),progress=GAME_CHAMPIONSHIP_RULES.map(rule=>({rule,...gameChampionshipProgress(counts,rule)}));
- $("games-summary").innerHTML="<span>"+total+" banked Games passes</span><span>"+titled.length+"/4 individual Games titles</span><span>"+(progress[0].met?"SD-GS requirements met":progress[0].remaining+" more pass(es) needed for SD-GS")+"</span>";
+ $("games-summary").innerHTML="<span>"+total+" banked Games passes</span><span>"+titled.length+"/4 individual Games titles</span><span>"+(progress[0].met?progress[0].rule.name+" requirements met":progress[0].remaining+" more pass(es) needed for "+progress[0].rule.name)+"</span>";
  $("games-grid").innerHTML=GAME_NAMES.map(game=>{const passes=counts[game],entries=games.filter(r=>r.game===game&&r.pass!==false),recorded=gameTitleRecord(game),met=passes>=3,details=game==="Aerial"?"1 hide · 1 distractor · recommended 2 min; judge may adjust":game==="Distance"?"1 hide · no distractors · recommended 3 min; judge may adjust":game==="Speed"?"2–4 hides · 2–4 distractors · fixed 60 sec":"2–5 hides · 2–4 distractors · recommended 5 min; judge may adjust",rows=entries.map(r=>"<div class='game-attempt'><span>"+esc(dateLabel(r.date))+"</span><span>Trial "+esc(r.trial||"—")+"</span><strong>Q / PASS</strong></div>").join("");return "<article class='game-card'><h3>"+esc(game)+" <small>SD-G"+game[0]+"</small></h3><span class='status "+(met?"met":passes?"partial":"unknown")+"'>"+(met?"Individual title requirement met":passes?"In progress":"No pass data")+"</span><div class='game-count'><strong>"+passes+"</strong><span>/ 3 passes</span></div><p>"+details+"</p><div class='game-history'><h4>Games pass history</h4><div class='game-history-summary'><span>"+passes+" passes</span><span>"+entries.length+" listed entries</span></div><div class='game-attempt-header'><span>Date</span><span>Trial</span><span>Result</span></div>"+(rows||"<p>No Games pass entries recorded.</p>")+"</div>"+(recorded?"<p><strong>SDDA title record:</strong> "+esc(dateLabel(recorded.date))+"</p>":"")+"</article>";}).join("");
  $("games-championships").innerHTML="<h3>GCH titles</h3><div class='game-ladder'>"+progress.map(({rule,met,remaining})=>"<p><strong>"+rule.name+"</strong><span class='status "+(met?"met":"partial")+"'>"+(met?"Recorded / requirements met":remaining+" needed")+"</span></p>").join("")+"</div>";
 }
@@ -538,7 +538,7 @@ function reportAchievedTitles() {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, "");
-  const order = ["Started","Advanced","Excellent","Elite","SD-CH","SD-MACH","SD-MACH2","SD-MACH3","SD-MACH4","SD-ELCH","SD-ELCH2","SD-ELCH3","SD-ELCH4","SD-GMCH","Aerial","Distance","Speed","Team","SD-GS","SD-GCH2","SD-GCH3","SD-GCH4","SD-GCH5"];
+  const order = ["Started","Advanced","Excellent","Elite","SD-CH","SD-MACH","SD-MACH2","SD-MACH3","SD-MACH4","SD-ELCH","SD-ELCH2","SD-ELCH3","SD-ELCH4","SD-GMCH","Aerial","Distance","Speed","Team","SD-GCH","SD-GCH2","SD-GCH3","SD-GCH4","SD-GCH5"];
   const groupRank = (title) => {
     const value = normalizeReportTitle(title.description);
     if (/^(aerial|distance|speed|team)$/.test(value) || /^sd-gch(?:2|3|4|5)?$/.test(value)) return 2;
@@ -568,7 +568,7 @@ function championshipTitle(kind){
  elch:/(?:^|\b)(?:SD[- ]?)?ELCH(?!\s*[2-4]\b)(?:\b|$)|elite champion(?!\s*[2-4]\b)/i,
  elch2:/(?:^|\b)(?:SD[- ]?)?ELCH\s*2(?:\b|$)|elite champion\s*2\b/i,elch3:/(?:^|\b)(?:SD[- ]?)?ELCH\s*3(?:\b|$)|elite champion\s*3\b/i,elch4:/(?:^|\b)(?:SD[- ]?)?ELCH\s*4(?:\b|$)|elite champion\s*4\b/i,
  gmch:/(?:^|\b)(?:SD[- ]?)?GMCH(?:\b|$)|grand master champion/i,
- gch:/(?:^|\b)(?:SD[- ]?)?GS(?:\b|$)|games champion(?!\s*[2-5]\b)|^All Games$/i,
+ gch:/(?:^|\b)(?:SD[- ]?)?GCH(?!\s*[2-5]\b)(?:\b|$)|games champion(?!\s*[2-5]\b)|^All Games$/i,
  gch2:/(?:^|\b)(?:SD[- ]?)?GCH\s*2(?:\b|$)|games champion\s*2\b|^All Games\s*2$/i,gch3:/(?:^|\b)(?:SD[- ]?)?GCH\s*3(?:\b|$)|games champion\s*3\b|^All Games\s*3$/i,gch4:/(?:^|\b)(?:SD[- ]?)?GCH\s*4(?:\b|$)|games champion\s*4\b|^All Games\s*4$/i,gch5:/(?:^|\b)(?:SD[- ]?)?GCH\s*5(?:\b|$)|games champion\s*5\b|^All Games\s*5$/i
  };return findTitle(p[kind]);
 }
@@ -2131,7 +2131,7 @@ async function downloadPdfReport() {
     const value = String(description || "").trim().toUpperCase()
       .replace(/\s+SPECIAL$/, "")
       .replace(/\s*\(SD-G[ADST]\)\s*$/, "");
-    if (/^(AERIAL|DISTANCE|SPEED|TEAM)\b/.test(value) || /^SD-GS$|^SD-GCH(?:2|3|4|5)$/.test(value)) return "Games Titles and Championships";
+    if (/^(AERIAL|DISTANCE|SPEED|TEAM)\b/.test(value) || /^SD-GS$|^SD-GCH(?:2|3|4|5)?$/.test(value)) return "Games Titles and Championships";
     if (/^SD-(?:CH|MACH(?:2|3|4)?|ELCH(?:2|3|4)?|GMCH)$/.test(value)) return "Scent Championships";
     return "Scent Titles";
   };
