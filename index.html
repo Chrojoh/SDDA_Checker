@@ -13,6 +13,24 @@
   <link rel="stylesheet" href="mobile.css">
   <link rel="stylesheet" href="requirements.css">
   <style>.level-score-block{margin-top:20px}.level-score-block h3{margin:0 0 9px;color:var(--green);font-size:18px}.level-note{margin:-2px 0 10px;color:var(--muted);font-size:13px}</style>
+  <style>
+    .dog-scores-upload-copy {
+      flex: 1;
+      min-width: 0;
+    }
+    .dog-scores-upload-copy > strong {
+      display: block;
+      font-size: 1.35em;
+      font-weight: 800;
+      line-height: 1.2;
+    }
+    .dog-scores-upload-copy > small {
+      display: block;
+      margin-top: .3em;
+      font-size: 1em;
+      line-height: 1.35;
+    }
+  </style>
 </head>
 <body>
   <header class="hero">
@@ -42,7 +60,7 @@
       </div>
     </details>
     <section class="upload-grid" aria-label="Upload SDDA account downloads">
-      <label class="upload-card"><span>1</span><strong>Required — Dog Scores CSV or XLSX</strong><small>Expected columns include Dog Number, Trial Number, Description, Score, Maximum Score</small><input id="scores-file" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><em id="scores-name">Choose Dog_Scores_Table CSV or XLSX</em></label>
+      <label class="upload-card dog-scores-upload-copy"><span>1</span><strong>Click here to upload your Dog Scores file</strong><small>Choose the <b>XLSX</b> or <b>CSV</b> file you downloaded from your registered SDDA account.</small><input id="scores-file" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><em id="scores-name">No score file selected.</em></label>
       <label class="upload-card"><span>2</span><strong>Optional — Dog Titles CSV or XLSX</strong><small>Verifies official titles, award dates, and judge requirements. Expected: Description, Honours, Title Score, Title Date</small><input id="titles-file" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><em id="titles-name">Choose Dog_Titles_Table CSV or XLSX</em></label>
     </section>
     <details class="optional-date">
@@ -78,6 +96,6 @@
   <footer>Independent planning aid. Confirm title applications and official eligibility with the Sporting Detection Dogs Association.</footer>
   <script src="vendor/xlsx.full.min.js"></script>
   <script src="vendor/pdf-lib.min.js"></script>
-  <script src="app.js?v=20261117-title-batches1"></script>
+  <script src="app.js?v=20261125-games-title-fix"></script>
 </body>
 </html>
