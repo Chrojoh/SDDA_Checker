@@ -2010,14 +2010,27 @@ function renderMobileDashboard() {
 
 }
 
-async function loadTitles(file) {
+async function readDogTitles(file) {
   const parsed = await parseAccountFile(file, (headers) => headers.some((header) => /^description$/i.test(header)) && headers.some((header) => /title score/i.test(header)) && headers.some((header) => /title date/i.test(header)), "Dog Titles");
+  const records = parsed.data.map((row) => ({ description: String(row.Description || "").trim(), honours: String(row.Honours || "").trim(), score: String(row["Title Score"] || "").trim() === "" ? null : Number(row["Title Score"]), date: workbookDate(row["Title Date"]) })).filter((title) => title.description);
+  return {records, sheetName: parsed.sheetName};
+}
+async function loadTitles(file) {
+  const parsed = await readDogTitles(file);
+  titles = parsed.records;
   titlesFileLoaded = true;
-  titles = parsed.data.map((row) => ({ description: String(row.Description || "").trim(), honours: String(row.Honours || "").trim(), score: String(row["Title Score"] || "").trim() === "" ? null : Number(row["Title Score"]), date: workbookDate(row["Title Date"]) })).filter((title) => title.description);
   $("titles-name").textContent = `${file.name} · ${titles.length} titles${parsed.sheetName === "CSV" ? "" : ` · ${parsed.sheetName}`}`; render();
 }
-async function loadScores(file) {
+async function readDogScores(file) {
   const parsed = await parseAccountFile(file, (headers) => headers.some((header) => /^description$/i.test(header)) && headers.some((header) => /maximum score/i.test(header)) && headers.some((header) => /^score$/i.test(header)), "Dog Scores");
+  const numbers = new Set(parsed.data.map(row => String(row["Dog Number"] || "").trim()).filter(Boolean));
+  const names = parsed.data.map(row => String(row["Registered Name"] || "").trim()).filter(Boolean);
+  const dogNumber = [...numbers][0] || "", dog = names[0] || "";
+  const ambiguousNames = new Set(names.map(name => name.toLowerCase())).size > 1;
+  if (numbers.size > 1 || (ambiguousNames && parsed.data.some(row => !String(row["Dog Number"] || "").trim()))) {
+    throw new Error("The Scores file contains more than one dog. Choose one dog's file.");
+  }
+  if (!dogNumber && !dog) throw new Error("The Scores file has no dog number or registered name.");
   const standard = [], gameRows = [];
   parsed.data.forEach((row, index) => { const description = String(row.Description || "").trim(), game = gameFrom(description); const common = { sourceRow: index + 2, dogNumber: String(row["Dog Number"] || "").trim(), dog: String(row["Registered Name"] || "").trim(), trial: String(row["Trial Number"] || "").trim(), date: workbookDate(row["Event Date"]), description }; 
  if (game) {
@@ -2027,12 +2040,21 @@ async function loadScores(file) {
     gameRows.push({ ...common, game, pass: true, result: "Listed in Dog Scores" });
     return;
 } const level = levelFrom(description), component = componentFrom(description), score = Number(row.Score); if (level && component && validComponentScore(level, component, row.Score)) standard.push({ ...common, level, component, score, maximum: Number(row["Maximum Score"]) }); });
-  scores = standard; games = gameRows;
+  if (!standard.length && !gameRows.length) throw new Error("The Scores file has no usable score rows.");
+  for (const row of [...standard, ...gameRows]) {
+    row.dogNumber ||= dogNumber;
+    row.dog ||= dog;
+  }
+  return {dogNumber, dog, scores: standard, games: gameRows, sheetName: parsed.sheetName};
+}
+async function loadScores(file) {
+  const parsed = await readDogScores(file);
+  scores = parsed.scores; games = parsed.games;
   $("scores-name").textContent = `${file.name} · ${scores.length} component scores${games.length ? ` · ${games.filter((row) => row.pass).length} Games passes` : ""}${parsed.sheetName === "CSV" ? "" : ` · ${parsed.sheetName}`}`; render();
 }
 
-$("titles-file").addEventListener("change", async (event) => { try { if (event.target.files[0]) await loadTitles(event.target.files[0]); } catch (error) { $("message").textContent = error.message; } });
-$("scores-file").addEventListener("change", async (event) => { try { if (event.target.files[0]) await loadScores(event.target.files[0]); } catch (error) { $("message").textContent = error.message; } });
+$("titles-file").addEventListener("change", async (event) => { try { if (!document.getElementById("sdda-review-update") && event.target.files[0]) await loadTitles(event.target.files[0]); } catch (error) { $("message").textContent = error.message; } });
+$("scores-file").addEventListener("change", async (event) => { try { if (!document.getElementById("sdda-review-update") && event.target.files[0]) await loadScores(event.target.files[0]); } catch (error) { $("message").textContent = error.message; } });
 
 $("progression-story-button")?.addEventListener("click", () => { const panel = $("progression-story"); if (!panel) return; panel.hidden = !panel.hidden; if (!panel.hidden) renderFullProgressionExplanation(); });
 

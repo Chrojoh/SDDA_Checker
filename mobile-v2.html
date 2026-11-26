@@ -58,6 +58,14 @@
 
 <header class="mobile-hero"><div class="mobile-shell"><h1>SDDA Achievement Ledger</h1><p>Download your dog’s <strong>Scores</strong> and <strong>Titles</strong> files from <a href="https://www.sdda.ca/login/" target="_blank" rel="noopener">your SDDA account</a>, then upload both here. The Score File supplies trial dates; the Titles file adds SDDA-recorded awards.</p></div></header>
 <main class="mobile-shell"><div class="mobile-upload-stack"><label class="score-upload"><span class="upload-icon">↑</span><span class="dog-scores-upload-copy"><strong>Click here to upload your Dog Scores file</strong><small>Choose the <b>XLSX</b> or <b>CSV</b> file you downloaded from your registered SDDA account.</small></span><input id="scores-file" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label><p id="scores-name" class="file-name">Choose the Scores file downloaded for your registered dog.</p><label class="score-upload"><span class="upload-icon">↑</span><span><strong>Optional — Upload Dog Titles</strong><small>Verifies official SDDA title records, award dates, and judge requirements</small></span><input id="titles-file" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label><p id="titles-name" class="file-name">Optional — choose the matching Titles file to verify official awards, dates, and judge eligibility.</p></div>
+<div class="sdda-device-records">
+  <p>Choose Scores, Titles, or both. For Titles only, load the saved dog first.</p>
+  <div class="sdda-device-controls">
+    <button type="button" id="sdda-review-update">Review update</button>
+    <button type="button" id="sdda-cancel-update" hidden>Cancel review</button>
+  </div>
+  <p id="sdda-update-status" role="status"></p>
+</div>
 <section class="sdda-device-records" aria-label="Saved dog records">
  <div class="sdda-device-heading"><strong>Saved dogs on this device</strong><span>Choose a dog already imported, or save the dog you just uploaded.</span></div>
  <div class="sdda-device-controls"><select id="sdda-saved-dogs" aria-label="Select saved dog"><option value="">Select a saved dog…</option></select><button type="button" id="sdda-load-dog">Load dog</button><button type="button" id="sdda-save-dog">Save now</button><button type="button" id="sdda-delete-dog">Delete saved dog</button></div>
@@ -80,7 +88,7 @@
 <button id="print-button" class="print-button" type="button">Create PDF report</button><a id="pdf-ready" class="pdf-ready" hidden>PDF created — tap here to open or download it</a>
 <div class="legacy-output" aria-hidden="true"><div id="achieved"></div><div id="progress"></div><div id="games-summary"></div><div id="games-grid"></div><div id="games-championships"></div><div id="advanced-gold-summary"></div><table><tbody id="advanced-gold-rows"></tbody></table><div id="excellent-gold-summary"></div><table><tbody id="excellent-gold-rows"></tbody></table><div id="elite-gold-summary"></div><table><tbody id="elite-gold-rows"></tbody></table><div id="limits"></div></div></section>
 </main>
-<footer class="mobile-footer">Planning aid only. SDDA remains the authority for official title approval.</footer><script src="vendor/xlsx.full.min.js"></script><script src="vendor/pdf-lib.min.js"></script><script src="app.js?v=20261125-games-title-fix"></script>
+<footer class="mobile-footer">Planning aid only. SDDA remains the authority for official title approval.</footer><script src="vendor/xlsx.full.min.js"></script><script src="vendor/pdf-lib.min.js"></script><script src="app.js?v=20261126-record-updates"></script>
 <script>
 (function(){
 "use strict";
@@ -163,9 +171,89 @@ async function restoreBackup(file){
  await refreshProfiles();const msg=document.getElementById("message");if(msg)msg.textContent="Backup restored. Select a saved dog to open its records.";
 }
 
-const originalLoadScores=loadScores,originalLoadTitles=loadTitles;
-loadScores=async function(file){const previousId=scores.length?dogId():null;await originalLoadScores(file);const nextId=scores.length?dogId():null;if(previousId&&nextId&&previousId!==nextId){titles=[];const t=document.getElementById("titles-name");if(t)t.textContent="Choose the Titles file for this dog, if available.";render();}await saveCurrent();};
-loadTitles=async function(file){await originalLoadTitles(file);await saveCurrent();};
+const reviewButton = document.getElementById("sdda-review-update");
+const cancelButton = document.getElementById("sdda-cancel-update");
+const updateStatus = document.getElementById("sdda-update-status");
+const scoresInput = document.getElementById("scores-file");
+const titlesInput = document.getElementById("titles-file");
+let pending = null;
+let revision = 0;
+
+function clearReview(message = "") {
+  revision++;
+  pending = null;
+  reviewButton.textContent = "Review update";
+  cancelButton.hidden = true;
+  updateStatus.textContent = message;
+}
+for (const input of [scoresInput, titlesInput]) {
+  input.addEventListener("change", () => {
+    const names = [scoresInput.files[0], titlesInput.files[0]].filter(Boolean).map(file => file.name);
+    clearReview(names.length ? "Selected: " + names.join(", ") : "");
+  });
+}
+cancelButton.addEventListener("click", () => clearReview());
+
+reviewButton.addEventListener("click", async () => {
+  const attempt = revision;
+  const current = currentProfile();
+  reviewButton.disabled = true;
+  try {
+    if (!pending) {
+      const scoresFile = scoresInput.files[0], titlesFile = titlesInput.files[0];
+      if (!scoresFile && !titlesFile) throw new Error("Choose a Scores or Titles file first.");
+      if (!scoresFile && !current) throw new Error("Load the saved dog before replacing its Titles.");
+      const [scoreData, titleData] = await Promise.all([
+        scoresFile ? readDogScores(scoresFile) : null,
+        titlesFile ? readDogTitles(titlesFile) : null
+      ]);
+      if (attempt !== revision) return;
+      const target = scoreData || current;
+      const id = scoreData
+        ? (target.dogNumber ? "number:" + target.dogNumber : "name:" + target.dog.toLowerCase())
+        : current.id;
+      const parts = [scoreData && "Scores", titleData && "Titles"].filter(Boolean).join(" and ");
+      pending = {id, scoreData, titleData, parts};
+      updateStatus.textContent = "Save " + parts + " for " + labelFor(target) + "? "
+        + (titleData ? "Confirm the Titles file belongs to this dog." : "Existing Titles will be kept.")
+        + (scoreData ? " " + scoreData.scores.length + " component scores and " + scoreData.games.length + " Games passes." : "")
+        + (titleData ? " " + titleData.records.length + " recorded titles." : "");
+      reviewButton.textContent = "Save " + parts;
+      cancelButton.hidden = false;
+      return;
+    }
+
+    const {id, scoreData, titleData, parts} = pending;
+    const saved = await getProfile(id);
+    if (attempt !== revision) return;
+    if (!scoreData && (!saved || currentProfile()?.id !== id)) {
+      throw new Error("The loaded dog changed. Load the correct dog and review again.");
+    }
+    const profile = {
+      ...saved,
+      id,
+      ...(scoreData && {dog: scoreData.dog, dogNumber: scoreData.dogNumber, scores: scoreData.scores, games: scoreData.games}),
+      titles: titleData ? titleData.records : saved?.titles || [],
+      titlesFileLoaded: titleData ? true : saved?.titlesFileLoaded ?? !!saved?.titles?.length,
+      updatedAt: new Date().toISOString()
+    };
+    await putProfile(profile);
+    if (attempt === revision) {
+      scoresInput.value = titlesInput.value = "";
+      clearReview("Saved " + parts + " for " + labelFor(profile) + ".");
+    }
+    try {
+      await refreshProfiles(id);
+      await loadSelected();
+    } catch {
+      updateStatus.textContent = "Records were saved. Load the dog again to refresh the report.";
+    }
+  } catch (error) {
+    if (attempt === revision) clearReview(error.message);
+  } finally {
+    reviewButton.disabled = false;
+  }
+});
 document.addEventListener("DOMContentLoaded",()=>{});
 const select=document.getElementById("sdda-saved-dogs");
 if(select)refreshProfiles();
